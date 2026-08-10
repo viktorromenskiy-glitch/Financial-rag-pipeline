@@ -1,1 +1,16 @@
+mongodb:
+  uri: ${MONGODB_URI}
+  db_name: "rag_project"
+  collection_name: "t2_ragbench_full"
+  vector_index_name: "vector_index_full"
+  text_index_name: "text_index_full"
 
+embedding:
+  model: "voyage-4"
+  batch_size: 32
+
+enrichment:
+  enabled: true
+  model: "claude-haiku-4.5"
+  temperature: 0.0
+  prompt_version: "v1"
