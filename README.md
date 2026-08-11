@@ -56,3 +56,7 @@ Known limitations (honest status)
 Not yet confirmed at full scale: contextual enrichment's effect (+0.78 pp) and its combination with the reranker (Recall@5 = 0.980) were measured on a reduced 450-document subsample, not the full 7,318-document corpus. A full-corpus run is planned to confirm or revise these numbers before they're reported as final.
 Small-sample results: generation format comparison and judge agreement are both based on n=30 — enough to catch a large effect, not enough to rule out a small one.
 This project reports numbers the way they were actually measured, including sample sizes and what's still open — not as a polished claim of a finished, benchmarked system.
+
+License
+
+TBD.
