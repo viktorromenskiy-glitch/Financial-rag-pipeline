@@ -136,6 +136,11 @@ def validate_startup_indexes(collection: CollectionProtocol) -> None:
     to proceed. Guards against a previously observed silent bug caused by
     mismatched index names.
     """
+    # A zero vector is invalid for $vectorSearch: Atlas uses cosine
+    # similarity internally, which is undefined for a zero-magnitude
+    # vector and raises OperationFailure ("Cosine similarity cannot be
+    # calculated against a zero vector."). Use any non-zero probe vector.
+    probe_vector = [1.0] + [0.0] * (1024 - 1)
     vector_result = list(
         collection.aggregate(
             [
@@ -143,7 +148,7 @@ def validate_startup_indexes(collection: CollectionProtocol) -> None:
                     "$vectorSearch": {
                         "index": VECTOR_INDEX_NAME,
                         "path": "embedding_voyage",
-                        "queryVector": [0.0] * 1024,
+                        "queryVector": probe_vector,
                         "numCandidates": 10,
                         "limit": 1,
                     }
