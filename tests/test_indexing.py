@@ -1,10 +1,12 @@
-"""Тесты модуля 5 (indexing). CRUD-логика — на mongomock (эмулирует базовые
-операции pymongo локально). $vectorSearch/$search агрегации mongomock не
-поддерживает (это специфика Atlas Search) — для validate_startup_indexes
-используется лёгкий фейк, проверяющий саму логику ассертов, не Atlas.
+"""Tests for module 5 (indexing). CRUD logic runs against mongomock (a local
+emulation of basic pymongo operations). mongomock does not support
+$vectorSearch/$search aggregation stages (those are Atlas Search specifics) -
+validate_startup_indexes is exercised against a lightweight fake that checks
+the assertion logic itself, not real Atlas behavior.
  
-Реальный прогон против живого Atlas-кластера — вне этой сессии (сеть до
-mongodb.net заблокирована allowlist'ом песочницы), делается в Colab."""
+The real run against a live Atlas cluster happens outside this session
+(network to mongodb.net is blocked by the sandbox allowlist) - it runs in
+Colab."""
  
 from __future__ import annotations
  
@@ -39,14 +41,14 @@ def test_build_full_indexed_content_with_enrichment():
  
  
 def test_build_full_indexed_content_without_enrichment():
-    """enrichment.enabled=false (Шаг 2) -> contextual_summary="" ->
-    full_indexed_content == raw_content без изменений."""
+    """enrichment.enabled=false (plan Step 2) -> contextual_summary="" ->
+    full_indexed_content == raw_content unchanged."""
     result = build_full_indexed_content("raw text", "")
     assert result == "raw text"
  
  
 # ---------------------------------------------------------------------------
-# dedupe_documents — граничные случаи на синтетике
+# dedupe_documents - edge cases on synthetic data
 # ---------------------------------------------------------------------------
  
  
@@ -64,7 +66,7 @@ def test_dedupe_documents_empty_input():
 def test_dedupe_documents_collapses_multiple_questions_per_doc():
     records = [
         _Rec("ctx_1", "doc text", "FinQA"),
-        _Rec("ctx_1", "doc text", "FinQA"),  # тот же документ, другой вопрос
+        _Rec("ctx_1", "doc text", "FinQA"),  # same document, different question
         _Rec("ctx_2", "other doc", "TAT-DQA"),
     ]
     docs = dedupe_documents(records)
@@ -75,7 +77,7 @@ def test_dedupe_documents_collapses_multiple_questions_per_doc():
 def test_dedupe_documents_raises_on_inconsistent_context():
     records = [
         _Rec("ctx_1", "version A", "FinQA"),
-        _Rec("ctx_1", "version B", "FinQA"),  # нарушение допущения
+        _Rec("ctx_1", "version B", "FinQA"),  # violates the assumption
     ]
     with pytest.raises(ValueError):
         dedupe_documents(records)
@@ -90,17 +92,18 @@ def test_dedupe_documents_raises_on_inconsistent_source():
         dedupe_documents(records)
  
  
-@pytest.mark.skipif(not HAS_REAL_DATA, reason="реальный датасет не найден локально")
+@pytest.mark.skipif(not HAS_REAL_DATA, reason="real dataset not found locally")
 def test_dedupe_documents_on_real_corpus_checkpoint():
-    """Регрессия на находку, сделанную вручную на Шаге 1: все 7318 context_id
-    в реальном корпусе консистентны (0 расхождений context/source_dataset)."""
+    """Regression test for the finding made manually at Step 1: all 7318
+    context_id values in the real corpus are consistent (0 mismatches in
+    context/source_dataset)."""
     records = ingest(REAL_DATA_DIR)
-    docs = dedupe_documents(records)  # не должно кинуть ValueError
+    docs = dedupe_documents(records)  # must not raise ValueError
     assert len(docs) == 7318
  
  
 # ---------------------------------------------------------------------------
-# CRUD на mongomock
+# CRUD against mongomock
 # ---------------------------------------------------------------------------
  
  
@@ -128,7 +131,7 @@ def test_upsert_document_then_is_indexed(collection):
  
  
 def test_upsert_document_is_idempotent(collection):
-    """Повторный upsert того же context_id не создаёт дубликат."""
+    """Upserting the same context_id twice must not create a duplicate."""
     for _ in range(2):
         upsert_document(collection, "ctx_1", "raw", "", [0.0] * 1024)
     assert collection.count_documents({"context_id": "ctx_1"}) == 1
@@ -149,9 +152,9 @@ def test_index_corpus_indexes_all_documents(collection):
  
  
 def test_index_corpus_checkpoint_skips_already_indexed(collection):
-    """Устойчивость: документ, уже помеченный is_indexed=True, не
-    перезаписывается повторным прогоном (эмулирует возобновление после
-    обрыва сессии на середине индексации)."""
+    """Resilience: a document already marked is_indexed=True is not
+    rewritten on a repeated run (simulates resuming after a session drop
+    mid-indexing)."""
     documents = [{"context_id": "ctx_1", "source_dataset": "FinQA", "raw_content": "doc 1"}]
     summaries = {"ctx_1": ""}
     embeddings = {"ctx_1": [0.1] * 1024}
@@ -160,7 +163,7 @@ def test_index_corpus_checkpoint_skips_already_indexed(collection):
     second = index_corpus(collection, documents, summaries, embeddings)
  
     assert first == 1
-    assert second == 0  # пропущен по чекпоинту
+    assert second == 0  # skipped via checkpoint
  
  
 def test_index_corpus_missing_embedding_raises(collection):
@@ -174,7 +177,7 @@ def test_index_corpus_empty_input(collection):
  
  
 # ---------------------------------------------------------------------------
-# validate_startup_indexes — фейк-коллекция, проверяем только логику ассертов
+# validate_startup_indexes - fake collection, testing only assertion logic
 # ---------------------------------------------------------------------------
  
  
@@ -194,4 +197,4 @@ def test_validate_startup_indexes_raises_on_empty_vector_result():
  
  
 def test_validate_startup_indexes_passes_on_non_empty_results():
-    validate_startup_indexes(_FakeCollectionNonEmptyResults())  # не должно кинуть
+    validate_startup_indexes(_FakeCollectionNonEmptyResults())  # must not raise
