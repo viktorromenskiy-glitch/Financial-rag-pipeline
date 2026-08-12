@@ -1,98 +1,93 @@
-"""Тесты модуля 3 (embedding) на фейковом Voyage-клиенте — без реальных
-сетевых вызовов (api.voyageai.com недоступен из песочницы этой сессии)."""
+"""Module 3 - Embedding.
+ 
+Embeds documents (already-assembled full_indexed_content) or queries via
+Voyage AI voyage-4. See docs/specifikatsiya_moduley.md, module 3.
+ 
+Call-order guard (external review note, recorded in
+specifikatsiya_moduley.md): embed_documents() takes ready-made (id, text)
+pairs as input - it does not know about DocumentRecord.raw_content and
+cannot assemble full_indexed_content itself. This way, an incorrect call
+order (embedding before enrichment) cannot accidentally slip through this
+module.
+"""
  
 from __future__ import annotations
  
 from dataclasses import dataclass
+from typing import Iterable, Literal, Protocol
  
-import pytest
+from tenacity import retry, stop_after_attempt, wait_random_exponential
  
-from pipeline.embedding import EMBEDDING_DIM, embed_documents, embed_query, embed_texts
+MODEL = "voyage-4"
+BATCH_SIZE = 32
+EMBEDDING_DIM = 1024
  
- 
-@dataclass
-class _FakeResult:
-    embeddings: list[list[float]]
- 
- 
-class FakeVoyageClient:
-    """Возвращает детерминированный вектор фиксированной размерности —
-    достаточно для проверки батчинга/склейки id<->vector, не для проверки
-    качества эмбеддингов (это не юнит-тест модели)."""
- 
-    def __init__(self):
-        self.calls: list[tuple[int, str]] = []  # (batch_size, input_type)
- 
-    def embed(self, texts, model, input_type):
-        self.calls.append((len(texts), input_type))
-        return _FakeResult(embeddings=[[float(len(t))] * EMBEDDING_DIM for t in texts])
+InputType = Literal["document", "query"]
  
  
-def test_embed_texts_batches_correctly_at_boundary():
-    """32 текста -> один батч; 33 -> два батча (32 + 1)."""
-    client = FakeVoyageClient()
-    ids = [f"id_{i}" for i in range(33)]
-    texts = [f"text {i}" for i in range(33)]
- 
-    vectors = embed_texts(client, ids, texts, input_type="document")
- 
-    assert len(vectors) == 33
-    assert [c[0] for c in client.calls] == [32, 1]
-    assert all(v.id == ids[i] for i, v in enumerate(vectors))
+@dataclass(frozen=True)
+class EmbeddingVector:
+    id: str
+    vector: list[float]
  
  
-def test_embed_texts_empty_input():
-    client = FakeVoyageClient()
-    assert embed_texts(client, [], [], input_type="document") == []
-    assert client.calls == []
+class VoyageClientProtocol(Protocol):
+    """Minimal interface required from voyageai.Client - allows a fake
+    client to be substituted in tests without a real network call."""
+ 
+    def embed(self, texts: list[str], model: str, input_type: str): ...
  
  
-def test_embed_texts_rejects_bad_input_type():
-    client = FakeVoyageClient()
-    with pytest.raises(ValueError):
-        embed_texts(client, ["a"], ["text"], input_type="bogus")
+def _batched(items: list, size: int) -> Iterable[list]:
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
  
  
-def test_embed_texts_rejects_mismatched_lengths():
-    client = FakeVoyageClient()
-    with pytest.raises(ValueError):
-        embed_texts(client, ["a", "b"], ["only one"], input_type="document")
+@retry(stop=stop_after_attempt(5), wait=wait_random_exponential(min=1, max=60))
+def _embed_batch(client: VoyageClientProtocol, texts: list[str], input_type: InputType):
+    return client.embed(texts, model=MODEL, input_type=input_type)
  
  
-def test_embed_texts_rejects_empty_text():
-    """Пустой full_indexed_content на входе эмбеддинга — сигнал, что
-    enrichment/сборка текста отработали неправильно, не должно тихо пройти."""
-    client = FakeVoyageClient()
-    with pytest.raises(ValueError):
-        embed_texts(client, ["a"], [""], input_type="document")
+def embed_texts(
+    client: VoyageClientProtocol,
+    ids: list[str],
+    texts: list[str],
+    input_type: InputType,
+) -> list[EmbeddingVector]:
+    if input_type not in ("document", "query"):
+        raise ValueError(f"input_type must be 'document' or 'query', got: {input_type!r}")
+    if len(ids) != len(texts):
+        raise ValueError(f"ids and texts have different lengths: {len(ids)} vs {len(texts)}")
+    if any(not t for t in texts):
+        raise ValueError("Empty text in embedding input - full_indexed_content was likely not assembled")
+ 
+    vectors: list[EmbeddingVector] = []
+    for id_batch, text_batch in zip(_batched(ids, BATCH_SIZE), _batched(texts, BATCH_SIZE)):
+        result = _embed_batch(client, text_batch, input_type)
+        if len(result.embeddings) != len(id_batch):
+            raise RuntimeError(
+                f"Voyage API returned {len(result.embeddings)} vectors for {len(id_batch)} texts in the batch"
+            )
+        vectors.extend(
+            EmbeddingVector(id=id_, vector=vec) for id_, vec in zip(id_batch, result.embeddings)
+        )
+    return vectors
  
  
-def test_embed_documents_uses_document_input_type():
-    client = FakeVoyageClient()
-    vectors = embed_documents(client, [("ctx_1", "full indexed content here")])
-    assert len(vectors) == 1
-    assert client.calls[0][1] == "document"
+def embed_documents(
+    client: VoyageClientProtocol, indexed_texts: list[tuple[str, str]]
+) -> list[EmbeddingVector]:
+    """indexed_texts: list of (context_id, full_indexed_content) - already
+    assembled after module 4, not raw_content. The signature intentionally
+    does not accept a full DocumentRecord, so raw text cannot be passed by
+    accident.
+    """
+    if not indexed_texts:
+        return []
+    ids = [t[0] for t in indexed_texts]
+    texts = [t[1] for t in indexed_texts]
+    return embed_texts(client, ids, texts, input_type="document")
  
  
-def test_embed_documents_empty_input():
-    client = FakeVoyageClient()
-    assert embed_documents(client, []) == []
- 
- 
-def test_embed_query_uses_query_input_type():
-    client = FakeVoyageClient()
-    vector = embed_query(client, "q_1", "what was revenue in 2019?")
-    assert vector.id == "q_1"
-    assert client.calls[0][1] == "query"
- 
- 
-def test_embed_documents_signature_cannot_see_raw_content():
-    """Guard из specifikatsiya_moduley.md: embed_documents принимает готовые
-    (id, text) пары, а не DocumentRecord — структурно не может «случайно»
-    заэмбеддить raw_content вместо full_indexed_content, потому что не видит
-    DocumentRecord вообще."""
-    import inspect
- 
-    sig = inspect.signature(embed_documents)
-    params = list(sig.parameters)
-    assert params == ["client", "indexed_texts"]
+def embed_query(client: VoyageClientProtocol, question_id: str, query_text: str) -> EmbeddingVector:
+    return embed_texts(client, [question_id], [query_text], input_type="query")[0]
