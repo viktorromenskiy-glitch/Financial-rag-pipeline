@@ -1,12 +1,11 @@
-"""
-Модуль 4 — Contextual enrichment (опционально, этап индексации).
+"""Module 4 - Contextual enrichment (optional, indexing stage).
  
-На Шаге 2 плана (enrichment.enabled=false) используется только тривиальный
-путь — contextual_summary="" для всех документов, реальные вызовы Claude
-Haiku 4.5 не идут. Полный путь (enabled=true, настоящие вызовы) включается и
-проверяется на живом корпусе на Шаге 5 — см. plan_podgotovki_k_kodirovaniyu.md.
+At plan Step 2 (enrichment.enabled=false) only the trivial path is used -
+contextual_summary="" for every document, no real Claude Haiku 4.5 calls are
+made. The full path (enabled=true, real calls) is turned on and validated
+against the live corpus at Step 5 - see plan_podgotovki_k_kodirovaniyu.md.
  
-См. docs/specifikatsiya_moduley.md, модуль 4.
+See docs/specifikatsiya_moduley.md, module 4.
 """
  
 from __future__ import annotations
@@ -30,8 +29,8 @@ class EnrichmentResult:
  
  
 class SummarizerProtocol(Protocol):
-    """Абстракция над Claude API — позволяет подставлять фейковый
-    summarizer в тестах без реального сетевого вызова."""
+    """Abstraction over the Claude API - allows a fake summarizer to be
+    substituted in tests without a real network call."""
  
     def summarize(self, raw_content: str) -> str: ...
  
@@ -49,10 +48,10 @@ def enrich_document(
  
  
 class EnrichmentCheckpoint:
-    """Внешнее состояние прогресса обогащения (JSON Lines, одна строка =
-    один context_id) — обработка 7318 документов не должна начинаться
-    заново при сбое на середине (см. specifikatsiya_moduley.md, модуль 4,
-    «Устойчивость»)."""
+    """External progress state for enrichment (JSON Lines, one line = one
+    context_id) - processing 7318 documents should not restart from scratch
+    after a mid-run failure (see specifikatsiya_moduley.md, module 4,
+    "Устойчивость")."""
  
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -91,19 +90,19 @@ def enrich_documents(
     checkpoint: EnrichmentCheckpoint | None = None,
     enabled: bool = True,
 ) -> dict[str, str]:
-    """documents: список (context_id, raw_content), уникальных по context_id
-    (выход dedupe_documents из модуля 5).
+    """documents: list of (context_id, raw_content), unique per context_id
+    (output of dedupe_documents from module 5).
  
-    Возвращает {context_id: contextual_summary}.
+    Returns {context_id: contextual_summary}.
  
-    enabled=False (Шаг 2 плана) — тривиальный путь: пустая строка для всех,
-    summarizer/checkpoint не используются, вызовов API нет.
+    enabled=False (plan Step 2) - trivial path: empty string for every
+    document, summarizer/checkpoint are not used, no API calls are made.
     """
     if not enabled:
         return {context_id: "" for context_id, _ in documents}
  
     if summarizer is None or checkpoint is None:
-        raise ValueError("summarizer и checkpoint обязательны при enabled=True")
+        raise ValueError("summarizer and checkpoint are required when enabled=True")
  
     results = dict(checkpoint.load_done())
     for context_id, raw_content in documents:
