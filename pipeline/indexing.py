@@ -1,9 +1,8 @@
-"""
-Модуль 5 — Indexing (MongoDB Atlas).
+"""Module 5 - Indexing (MongoDB Atlas).
  
-Собирает воедино результаты модулей 1 (документы), 3 (эмбеддинги) и 4
-(contextual_summary) и записывает в коллекцию t2_ragbench_full. См.
-docs/specifikatsiya_moduley.md, модуль 5.
+Combines the outputs of module 1 (documents), module 3 (embeddings), and
+module 4 (contextual_summary) and writes them into the t2_ragbench_full
+collection. See docs/specifikatsiya_moduley.md, module 5.
 """
  
 from __future__ import annotations
@@ -18,22 +17,22 @@ TEXT_INDEX_NAME = "text_index_full"
  
 def build_full_indexed_content(raw_content: str, contextual_summary: str) -> str:
     """full_indexed_content = contextual_summary + "\\n\\n" + raw_content,
-    или просто raw_content, если enrichment выключен (contextual_summary
-    пустая строка)."""
+    or simply raw_content if enrichment is disabled (contextual_summary is
+    an empty string)."""
     if contextual_summary:
         return f"{contextual_summary}\n\n{raw_content}"
     return raw_content
  
  
 def dedupe_documents(records) -> list[dict]:
-    """Схлопывает список DocumentRecord (модуль 1 — одна запись = один
-    вопрос) до уникальных документов по context_id (один документ = один
-    чанк, модуль 2). Индексируются документы, не вопросы.
+    """Collapses a list of DocumentRecord (module 1 - one record = one
+    question) down to unique documents by context_id (one document = one
+    chunk, module 2). Documents are indexed, not questions.
  
-    Ассерт на согласованность: если один context_id встречается с разным
-    context или source_dataset в разных строках — падать явно (нарушено
-    базовое допущение схемы данных), не молча брать первую попавшуюся
-    версию.
+    Consistency assertion: if the same context_id appears with a different
+    context or source_dataset across rows, fail loudly (the base assumption
+    of the data schema is violated) instead of silently keeping the first
+    version seen.
     """
     by_id: dict[str, dict] = {}
     for r in records:
@@ -47,19 +46,19 @@ def dedupe_documents(records) -> list[dict]:
             existing = by_id[r.context_id]
             if existing["raw_content"] != r.context:
                 raise ValueError(
-                    f"context_id={r.context_id!r} встречается с разным текстом context — "
-                    f"нарушено допущение «один документ = один чанк»"
+                    f"context_id={r.context_id!r} appears with different context text - "
+                    f"the 'one document = one chunk' assumption is violated"
                 )
             if existing["source_dataset"] != r.source_dataset:
                 raise ValueError(
-                    f"context_id={r.context_id!r} встречается с разным source_dataset"
+                    f"context_id={r.context_id!r} appears with different source_dataset"
                 )
     return list(by_id.values())
  
  
 class CollectionProtocol(Protocol):
-    """Минимальный интерфейс pymongo.Collection, нужный этому модулю —
-    позволяет тестировать на mongomock/фейке без реального Atlas."""
+    """Minimal pymongo.Collection interface required by this module - allows
+    testing against mongomock/a fake without a real Atlas cluster."""
  
     def find_one(self, filter, projection=None): ...
     def update_one(self, filter, update, upsert=False): ...
@@ -102,15 +101,16 @@ def index_corpus(
     embeddings_by_id: dict[str, list[float]],
     skip_already_indexed: bool = True,
 ) -> int:
-    """documents — выход dedupe_documents(). contextual_summaries — выход
-    enrich_documents() (модуль 4). embeddings_by_id — {context_id: vector}
-    построено из EmbeddingVector-ов embed_documents() (модуль 3).
+    """documents - output of dedupe_documents(). contextual_summaries -
+    output of enrich_documents() (module 4). embeddings_by_id -
+    {context_id: vector} built from the EmbeddingVector objects returned by
+    embed_documents() (module 3).
  
-    Возвращает количество реально записанных (не пропущенных по чекпоинту)
-    документов. Устойчивость к сбою на середине индексации всего корпуса —
-    уже проиндексированные документы (is_indexed=True) пропускаются, не
-    начинаем заново с нуля (specifikatsiya_moduley.md, модуль 5,
-    «Устойчивость»).
+    Returns the number of documents actually written (not skipped via
+    checkpoint). Resilient to a mid-run failure while indexing the full
+    corpus - documents already marked is_indexed=True are skipped instead of
+    restarting from scratch (specifikatsiya_moduley.md, module 5,
+    "Устойчивость").
     """
     count = 0
     for doc in documents:
@@ -118,7 +118,7 @@ def index_corpus(
         if skip_already_indexed and is_indexed(collection, context_id):
             continue
         if context_id not in embeddings_by_id:
-            raise KeyError(f"Нет эмбеддинга для context_id={context_id!r}")
+            raise KeyError(f"No embedding found for context_id={context_id!r}")
         upsert_document(
             collection,
             context_id=context_id,
@@ -131,10 +131,10 @@ def index_corpus(
  
  
 def validate_startup_indexes(collection: CollectionProtocol) -> None:
-    """Обязательная проверка при старте пайплайна (ТЗ п.2): тестовый запрос
-    к обоим индексам, assert на непустой результат — до того, как пайплайн
-    продолжит работу. Защита от уже случавшегося тихого бага несовпадения
-    имён индексов.
+    """Mandatory startup check (spec section 2): a test query against both
+    indexes, asserting a non-empty result - before the pipeline is allowed
+    to proceed. Guards against a previously observed silent bug caused by
+    mismatched index names.
     """
     vector_result = list(
         collection.aggregate(
@@ -166,9 +166,9 @@ def validate_startup_indexes(collection: CollectionProtocol) -> None:
     )
     if not vector_result:
         raise AssertionError(
-            f"Векторный индекс {VECTOR_INDEX_NAME!r} вернул пустой результат на тестовом запросе"
+            f"Vector index {VECTOR_INDEX_NAME!r} returned an empty result on the test query"
         )
     if not text_result:
         raise AssertionError(
-            f"Полнотекстовый индекс {TEXT_INDEX_NAME!r} вернул пустой результат на тестовом запросе"
+            f"Full-text index {TEXT_INDEX_NAME!r} returned an empty result on the test query"
         )
