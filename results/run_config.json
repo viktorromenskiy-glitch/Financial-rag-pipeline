@@ -1,9 +1,12 @@
 {
-  "step": "step2_embedding_indexing",
-  "timestamp": "2026-08-12T17:28:44.645876",
-  "enrichment_enabled": false,
-  "embedding_model": "voyage-4",
-  "source": "migrated existing collection from weeks 1-2 tests, no new Voyage calls",
-  "documents_total": 7318,
-  "documents_migrated": 7318
+  "step": "step3_hybrid_retrieval",
+  "timestamp": "2026-08-12T21:18:14.056951+00:00",
+  "pool_size": 50,
+  "vector_weight": 0.5,
+  "text_weight": 0.5,
+  "num_candidates_multiplier": 20,
+  "eval_set_size": 250,
+  "recall_at_5": 0.792,
+  "hits": 198,
+  "note": "Historical checkpoint 0.808 (202/250) was measured in experiments_weeks_1_2.ipynb with pool_size=10 (numCandidates=50, limit=10 per branch before $rankFusion) - exactly reproduced during Step 3 diagnostics with those parameters (202/250). 0.792 at pool_size=50 is the correct baseline for this codebase going into Step 4, since pool=50 is what the reranker consumes."
 }
