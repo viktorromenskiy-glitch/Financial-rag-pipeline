@@ -1,11 +1,10 @@
-"""
-Модуль 2 — Chunking / сериализация таблиц.
+"""Module 2 - Chunking / table serialization.
  
-Тривиален по архитектурному решению (развилка 4): один документ = один чанк.
-Таблицы уже сериализованы авторами датасета как markdown pipe-таблицы прямо
-внутри DocumentRecord.context — см. docs/specifikatsiya_moduley.md, модуль 2,
-раздел «Закрыто (12.08.2026)» для конкретных примеров по каждому источнику.
-Дополнительная сериализация не производится.
+Trivial by architectural decision (decision point 4): one document = one
+chunk. Tables are already serialized by the dataset authors as markdown
+pipe-tables directly inside DocumentRecord.context - see
+docs/specifikatsiya_moduley.md, module 2, section "Закрыто (12.08.2026)" for
+concrete examples per source. No additional serialization is performed.
 """
  
 from __future__ import annotations
@@ -14,9 +13,9 @@ from pipeline.ingestion import DocumentRecord
  
  
 def chunk(records: list[DocumentRecord]) -> list[DocumentRecord]:
-    """No-op по архитектурному решению — DocumentRecord уже является готовым
-    чанком. Функция существует как явная точка пайплайна (модуль 2), а не
-    убрана совсем, чтобы порядок шагов из specifikatsiya_moduley.md был виден
-    в коде один в один.
+    """No-op by architectural decision - DocumentRecord is already a
+    ready-made chunk. The function exists as an explicit pipeline step
+    (module 2) rather than being removed entirely, so the step order from
+    specifikatsiya_moduley.md is visible in the code one-to-one.
     """
     return list(records)
