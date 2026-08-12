@@ -1,13 +1,12 @@
-"""
-Модуль 1 — Ingestion / парсинг.
+"""Module 1 - Ingestion / parsing.
  
-Загружает сырые parquet-файлы T²-RAGBench (FinQA, ConvFinQA, TAT-DQA) и
-нормализует их в единый список DocumentRecord. См.
-docs/specifikatsiya_moduley.md, модуль 1.
+Loads raw T2-RAGBench parquet files (FinQA, ConvFinQA, TAT-DQA) and
+normalizes them into a single list of DocumentRecord. See
+docs/specifikatsiya_moduley.md, module 1 (Russian working spec).
  
-Формат таблиц внутри `context` и решение по полю `answer` (program_answer,
-не original_answer) зафиксированы там же, раздел «Проверено на реальных
-файлах» — не переоткрывать при чтении этого модуля.
+The table format inside `context` and the decision on the `answer` field
+(program_answer, not original_answer) are documented there, section
+"Проверено на реальных файлах" - do not re-derive when reading this module.
 """
  
 from __future__ import annotations
@@ -17,14 +16,14 @@ from pathlib import Path
  
 import pandas as pd
  
-# Сырые файлы по источникам — см. docs/specifikatsiya_moduley.md, модуль 1, «Конфиг»
+# Raw files by source - see docs/specifikatsiya_moduley.md, module 1, "Config"
 RAW_FILES: dict[str, list[str]] = {
     "FinQA": ["FinQA_train.parquet", "FinQA_dev.parquet", "FinQA_test.parquet"],
     "ConvFinQA": ["ConvFinQA_turn_0.parquet"],
     "TAT-DQA": ["TAT-DQA_train.parquet", "TAT-DQA_dev.parquet", "TAT-DQA_test.parquet"],
 }
  
-# Чекпоинт из ТЗ п.1 / plan_podgotovki_k_kodirovaniyu.md, Шаг 1
+# Checkpoint from the spec, section 1 / plan_podgotovki_k_kodirovaniyu.md, Step 1
 EXPECTED_DOCUMENTS = 7318
 EXPECTED_QUESTIONS = 23088
  
@@ -44,9 +43,9 @@ def _load_source(data_dir: Path, source: str, filenames: list[str]) -> pd.DataFr
         path = data_dir / filename
         if not path.exists():
             raise FileNotFoundError(
-                f"Ожидаемый файл датасета не найден: {path}. "
-                f"См. docs/specifikatsiya_moduley.md, модуль 1, «Конфиг» "
-                f"(путь по умолчанию: data/t2-ragbench/)."
+                f"Expected dataset file not found: {path}. "
+                f"See docs/specifikatsiya_moduley.md, module 1, 'Config' "
+                f"(default path: data/t2-ragbench/)."
             )
         df = pd.read_parquet(path)
         df = df.copy()
@@ -56,8 +55,8 @@ def _load_source(data_dir: Path, source: str, filenames: list[str]) -> pd.DataFr
  
  
 def load_raw(data_dir: str | Path) -> pd.DataFrame:
-    """Загружает все 7 сырых parquet-файлов и объединяет их в один DataFrame
-    с добавленной колонкой source_dataset.
+    """Load all 7 raw parquet files and concatenate them into a single
+    DataFrame with an added source_dataset column.
     """
     data_dir = Path(data_dir)
     frames = [
@@ -68,18 +67,16 @@ def load_raw(data_dir: str | Path) -> pd.DataFrame:
  
  
 def to_document_records(raw: pd.DataFrame) -> list[DocumentRecord]:
-    """Преобразует сырой DataFrame в список DocumentRecord.
+    """Convert a raw DataFrame into a list of DocumentRecord.
  
-    Одна строка сырых данных = один вопрос (context_id повторяется у
-    вопросов с общим документом — это ожидаемо, дедупликация документов
-    происходит на шаге indexing, не здесь, см. модуль 5).
+    One raw row = one question (context_id repeats for questions sharing the
+    same document - expected, document-level deduplication happens at the
+    indexing step, not here, see module 5).
     """
     required = {"context_id", "context", "source_dataset", "question", "program_answer"}
     missing = required - set(raw.columns)
     if missing:
-        raise KeyError(
-            f"В сыром DataFrame отсутствуют обязательные колонки: {sorted(missing)}"
-        )
+        raise KeyError(f"Missing required columns in raw DataFrame: {sorted(missing)}")
  
     return [
         DocumentRecord(
@@ -94,10 +91,10 @@ def to_document_records(raw: pd.DataFrame) -> list[DocumentRecord]:
  
  
 def ingest(data_dir: str | Path) -> list[DocumentRecord]:
-    """Точка входа модуля 1. Загружает, нормализует и проверяет чекпоинт
-    (ТЗ п.1): 7318 документов, 23088 вопросов. Расхождение — сигнал бага
-    парсинга одного из трёх источников, не проблема дальше по пайплайну
-    (см. plan_podgotovki_k_kodirovaniyu.md, Шаг 1).
+    """Module 1 entry point. Loads, normalizes, and validates the checkpoint
+    (spec section 1): 7318 documents, 23088 questions. A mismatch signals a
+    parsing bug in one of the three sources, not a downstream pipeline issue
+    (see plan_podgotovki_k_kodirovaniyu.md, Step 1).
     """
     raw = load_raw(data_dir)
     records = to_document_records(raw)
@@ -106,10 +103,10 @@ def ingest(data_dir: str | Path) -> list[DocumentRecord]:
     n_documents = len({r.context_id for r in records})
  
     assert n_questions == EXPECTED_QUESTIONS, (
-        f"Ожидалось {EXPECTED_QUESTIONS} вопросов (ТЗ п.1), получено {n_questions}."
+        f"Expected {EXPECTED_QUESTIONS} questions (spec section 1), got {n_questions}."
     )
     assert n_documents == EXPECTED_DOCUMENTS, (
-        f"Ожидалось {EXPECTED_DOCUMENTS} документов (ТЗ п.1), получено {n_documents}."
+        f"Expected {EXPECTED_DOCUMENTS} documents (spec section 1), got {n_documents}."
     )
  
     return records
