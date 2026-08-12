@@ -1,12 +1,11 @@
-
-Тесты модулей 1 (ingestion) и 2 (chunking) на срезе реальных и синтетических
-данных. См. kak_my_rabotaem_vmeste.md: каждая функция тестируется на реальных
-или реалистичных данных, включая граничные случаи, до передачи дальше.
+"""Tests for module 1 (ingestion) and module 2 (chunking) on a slice of real
+and synthetic data. See kak_my_rabotaem_vmeste.md: every function is tested
+on real or realistic data, including edge cases, before being handed off.
  
-Интеграционный тест на полном датасете пропускается, если data/t2-ragbench/
-не заполнена реальными файлами (сырой датасет не коммитится в репозиторий —
-см. struktura_repozitoriya.md), но обязателен к запуску локально при первом
-проходе (Шаг 1 плана).
+The integration test on the full dataset is skipped if data/t2-ragbench/ is
+not populated with the real files (the raw dataset is not committed to the
+repository - see struktura_repozitoriya.md), but it must be run locally on
+the first pass (plan Step 1).
 """
  
 from __future__ import annotations
@@ -32,12 +31,12 @@ HAS_REAL_DATA = REAL_DATA_DIR.exists() and any(REAL_DATA_DIR.glob("*.parquet"))
  
  
 # ---------------------------------------------------------------------------
-# Граничные случаи — синтетические данные, не зависят от наличия датасета
+# Edge cases - synthetic data, independent of dataset availability
 # ---------------------------------------------------------------------------
  
  
 def test_to_document_records_empty_input():
-    """Легитимно пустой результат: пустой DataFrame -> пустой список, без ошибок."""
+    """Legitimately empty result: empty DataFrame -> empty list, no errors."""
     empty = pd.DataFrame(
         columns=["context_id", "context", "source_dataset", "question", "program_answer"]
     )
@@ -45,16 +44,16 @@ def test_to_document_records_empty_input():
  
  
 def test_to_document_records_missing_column_raises():
-    """Отсутствие обязательной колонки должно падать явно, не молча возвращать мусор."""
+    """A missing required column must fail explicitly, not silently return garbage."""
     bad = pd.DataFrame({"context_id": ["a"], "context": ["b"]})
     with pytest.raises(KeyError):
         to_document_records(bad)
  
  
 def test_to_document_records_uses_program_answer_not_original_answer():
-    """Регрессия на конкретное решение из specifikatsiya_moduley.md, модуль 1:
-    answer = program_answer, original_answer игнорируется, даже если оба поля
-    присутствуют и различаются."""
+    """Regression test for the decision recorded in specifikatsiya_moduley.md,
+    module 1: answer = program_answer, original_answer is ignored even when
+    both fields are present and differ."""
     df = pd.DataFrame(
         {
             "context_id": ["ctx_1"],
@@ -62,7 +61,7 @@ def test_to_document_records_uses_program_answer_not_original_answer():
             "source_dataset": ["FinQA"],
             "question": ["What was X?"],
             "program_answer": ["3.8"],
-            "original_answer": ["380"],  # намеренно другое значение
+            "original_answer": ["380"],  # deliberately different value
         }
     )
     records = to_document_records(df)
@@ -71,9 +70,9 @@ def test_to_document_records_uses_program_answer_not_original_answer():
  
  
 def test_load_raw_missing_file_raises_filenotfounderror(tmp_path):
-    """Частично заполненная директория (не хватает одного из 7 файлов) должна
-    падать с понятным сообщением, не с невнятной ошибкой pandas/pyarrow."""
-    # Кладём только один из семи ожидаемых файлов
+    """A partially populated directory (missing one of the 7 expected files)
+    must fail with a clear message, not an opaque pandas/pyarrow error."""
+    # Only one of the seven expected files is present
     df = pd.DataFrame(
         {
             "context_id": ["ctx_1"],
@@ -89,7 +88,7 @@ def test_load_raw_missing_file_raises_filenotfounderror(tmp_path):
  
  
 def test_chunk_is_identity_no_op():
-    """Модуль 2 не должен менять ни количество записей, ни их содержимое."""
+    """Module 2 must not change the record count or their content."""
     records = [
         DocumentRecord(
             context_id="ctx_1",
@@ -101,7 +100,7 @@ def test_chunk_is_identity_no_op():
     ]
     result = chunk(records)
     assert result == records
-    assert result is not records  # возвращает новый список, не мутирует вход
+    assert result is not records  # returns a new list, does not mutate the input
  
  
 def test_chunk_empty_input():
@@ -109,16 +108,16 @@ def test_chunk_empty_input():
  
  
 # ---------------------------------------------------------------------------
-# Интеграционный чекпоинт на полном реальном датасете (ТЗ п.1)
+# Integration checkpoint on the full real dataset (spec section 1)
 # ---------------------------------------------------------------------------
  
  
 @pytest.mark.skipif(
     not HAS_REAL_DATA,
     reason=(
-        "Сырой датасет T2-RAGBench не найден в data/t2-ragbench/ "
-        "(не коммитится в репозиторий, см. struktura_repozitoriya.md) — "
-        "запустить локально перед первым проходом, задав T2_RAGBENCH_DATA_DIR."
+        "T2-RAGBench raw dataset not found under data/t2-ragbench/ "
+        "(not committed to the repository, see struktura_repozitoriya.md) - "
+        "run locally before the first pass, setting T2_RAGBENCH_DATA_DIR."
     ),
 )
 def test_ingest_full_corpus_checkpoint():
@@ -130,10 +129,9 @@ def test_ingest_full_corpus_checkpoint():
     sources = {r.source_dataset for r in records}
     assert sources == {"FinQA", "ConvFinQA", "TAT-DQA"}
  
-    # answer всегда заполнен и является строкой (program_answer без пропусков)
+    # answer is always populated and is a string (program_answer has no gaps)
     assert all(isinstance(r.answer, str) and r.answer != "" for r in records)
  
-    # chunking не должен ничего терять на полном проходе
+    # chunking must not drop anything on the full pass
     chunked = chunk(records)
     assert len(chunked) == len(records)
- 
