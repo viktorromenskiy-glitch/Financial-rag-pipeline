@@ -1,5 +1,5 @@
-"""Тесты модуля 4 (enrichment) — фейковый summarizer, без реальных вызовов
-Claude API. Реальный прогон на живом корпусе — Шаг 5 плана, не здесь."""
+"""Tests for module 4 (enrichment) - fake summarizer, no real Claude API
+calls. The real run against the live corpus is plan Step 5, not here."""
  
 from __future__ import annotations
  
@@ -21,8 +21,8 @@ class FakeSummarizer:
  
  
 def test_enrich_documents_disabled_is_trivial_no_api_calls():
-    """Шаг 2 плана: enabled=False -> пустая строка для всех, summarizer не
-    трогается вообще (его можно не передавать)."""
+    """Plan Step 2: enabled=False -> empty string for every document, the
+    summarizer is not touched at all (it doesn't even need to be passed)."""
     docs = [("ctx_1", "raw text 1"), ("ctx_2", "raw text 2")]
     result = enrich_documents(summarizer=None, documents=docs, checkpoint=None, enabled=False)
     assert result == {"ctx_1": "", "ctx_2": ""}
@@ -41,12 +41,12 @@ def test_enrich_document_retries_on_transient_failure():
     summarizer = FakeSummarizer(fail_times=2)
     result = enrich_document(summarizer, "ctx_1", "raw content")
     assert result.contextual_summary.startswith("summary of:")
-    assert summarizer.calls == 3  # 2 неудачи + успешная попытка
+    assert summarizer.calls == 3  # 2 failures + one successful attempt
  
  
 def test_checkpoint_resume_skips_already_enriched(tmp_path):
-    """Ключевой сценарий устойчивости: при повторном вызове с тем же
-    checkpoint-файлом уже обработанные документы не пересчитываются."""
+    """Key resilience scenario: on a repeated call with the same checkpoint
+    file, already-processed documents are not recomputed."""
     checkpoint_path = tmp_path / "enrichment_checkpoint.jsonl"
     checkpoint = EnrichmentCheckpoint(checkpoint_path)
     summarizer = FakeSummarizer()
@@ -56,14 +56,14 @@ def test_checkpoint_resume_skips_already_enriched(tmp_path):
     assert summarizer.calls == 2
     assert set(result_1) == {"ctx_1", "ctx_2"}
  
-    # Новый checkpoint-объект на тот же файл, новый summarizer — как при
-    # перезапуске после обрыва сессии
+    # A new checkpoint object pointing at the same file, a new summarizer -
+    # simulating a restart after a session drop
     checkpoint_2 = EnrichmentCheckpoint(checkpoint_path)
     summarizer_2 = FakeSummarizer()
     docs_extended = docs + [("ctx_3", "text 3")]
     result_2 = enrich_documents(summarizer_2, docs_extended, checkpoint_2, enabled=True)
  
-    assert summarizer_2.calls == 1  # только ctx_3, ctx_1/ctx_2 из чекпоинта
+    assert summarizer_2.calls == 1  # only ctx_3, ctx_1/ctx_2 come from the checkpoint
     assert result_2["ctx_1"] == result_1["ctx_1"]
     assert result_2["ctx_2"] == result_1["ctx_2"]
     assert "ctx_3" in result_2
