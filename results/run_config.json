@@ -1,0 +1,9 @@
+{
+  "step": "step2_embedding_indexing",
+  "timestamp": "2026-08-12T17:28:44.645876",
+  "enrichment_enabled": false,
+  "embedding_model": "voyage-4",
+  "source": "migrated existing collection from weeks 1-2 tests, no new Voyage calls",
+  "documents_total": 7318,
+  "documents_migrated": 7318
+}
