@@ -1,75 +1,98 @@
-richment · PY
-"""Тесты модуля 4 (enrichment) — фейковый summarizer, без реальных вызовов
-Claude API. Реальный прогон на живом корпусе — Шаг 5 плана, не здесь."""
+"""Tests for module 3 (embedding) against a fake Voyage client - no real
+network calls (api.voyageai.com is unreachable from this session's sandbox)."""
  
 from __future__ import annotations
  
+from dataclasses import dataclass
+ 
 import pytest
  
-from pipeline.enrichment import EnrichmentCheckpoint, enrich_document, enrich_documents
+from pipeline.embedding import EMBEDDING_DIM, embed_documents, embed_query, embed_texts
  
  
-class FakeSummarizer:
-    def __init__(self, fail_times: int = 0):
-        self.calls = 0
-        self.fail_times = fail_times
- 
-    def summarize(self, raw_content: str) -> str:
-        self.calls += 1
-        if self.calls <= self.fail_times:
-            raise ConnectionError("transient failure")
-        return f"summary of: {raw_content[:20]}"
+@dataclass
+class _FakeResult:
+    embeddings: list[list[float]]
  
  
-def test_enrich_documents_disabled_is_trivial_no_api_calls():
-    """Шаг 2 плана: enabled=False -> пустая строка для всех, summarizer не
-    трогается вообще (его можно не передавать)."""
-    docs = [("ctx_1", "raw text 1"), ("ctx_2", "raw text 2")]
-    result = enrich_documents(summarizer=None, documents=docs, checkpoint=None, enabled=False)
-    assert result == {"ctx_1": "", "ctx_2": ""}
+class FakeVoyageClient:
+    """Returns a deterministic vector of fixed dimension - enough to verify
+    batching and id<->vector wiring, not to verify embedding quality (this
+    is not a unit test of the model)."""
+ 
+    def __init__(self):
+        self.calls: list[tuple[int, str]] = []  # (batch_size, input_type)
+ 
+    def embed(self, texts, model, input_type):
+        self.calls.append((len(texts), input_type))
+        return _FakeResult(embeddings=[[float(len(t))] * EMBEDDING_DIM for t in texts])
  
  
-def test_enrich_documents_disabled_empty_input():
-    assert enrich_documents(None, [], None, enabled=False) == {}
+def test_embed_texts_batches_correctly_at_boundary():
+    """33 texts -> two batches (32 + 1)."""
+    client = FakeVoyageClient()
+    ids = [f"id_{i}" for i in range(33)]
+    texts = [f"text {i}" for i in range(33)]
+ 
+    vectors = embed_texts(client, ids, texts, input_type="document")
+ 
+    assert len(vectors) == 33
+    assert [c[0] for c in client.calls] == [32, 1]
+    assert all(v.id == ids[i] for i, v in enumerate(vectors))
  
  
-def test_enrich_documents_enabled_requires_summarizer_and_checkpoint():
+def test_embed_texts_empty_input():
+    client = FakeVoyageClient()
+    assert embed_texts(client, [], [], input_type="document") == []
+    assert client.calls == []
+ 
+ 
+def test_embed_texts_rejects_bad_input_type():
+    client = FakeVoyageClient()
     with pytest.raises(ValueError):
-        enrich_documents(None, [("ctx_1", "text")], None, enabled=True)
+        embed_texts(client, ["a"], ["text"], input_type="bogus")
  
  
-def test_enrich_document_retries_on_transient_failure():
-    summarizer = FakeSummarizer(fail_times=2)
-    result = enrich_document(summarizer, "ctx_1", "raw content")
-    assert result.contextual_summary.startswith("summary of:")
-    assert summarizer.calls == 3  # 2 неудачи + успешная попытка
+def test_embed_texts_rejects_mismatched_lengths():
+    client = FakeVoyageClient()
+    with pytest.raises(ValueError):
+        embed_texts(client, ["a", "b"], ["only one"], input_type="document")
  
  
-def test_checkpoint_resume_skips_already_enriched(tmp_path):
-    """Ключевой сценарий устойчивости: при повторном вызове с тем же
-    checkpoint-файлом уже обработанные документы не пересчитываются."""
-    checkpoint_path = tmp_path / "enrichment_checkpoint.jsonl"
-    checkpoint = EnrichmentCheckpoint(checkpoint_path)
-    summarizer = FakeSummarizer()
- 
-    docs = [("ctx_1", "text 1"), ("ctx_2", "text 2")]
-    result_1 = enrich_documents(summarizer, docs, checkpoint, enabled=True)
-    assert summarizer.calls == 2
-    assert set(result_1) == {"ctx_1", "ctx_2"}
- 
-    # Новый checkpoint-объект на тот же файл, новый summarizer — как при
-    # перезапуске после обрыва сессии
-    checkpoint_2 = EnrichmentCheckpoint(checkpoint_path)
-    summarizer_2 = FakeSummarizer()
-    docs_extended = docs + [("ctx_3", "text 3")]
-    result_2 = enrich_documents(summarizer_2, docs_extended, checkpoint_2, enabled=True)
- 
-    assert summarizer_2.calls == 1  # только ctx_3, ctx_1/ctx_2 из чекпоинта
-    assert result_2["ctx_1"] == result_1["ctx_1"]
-    assert result_2["ctx_2"] == result_1["ctx_2"]
-    assert "ctx_3" in result_2
+def test_embed_texts_rejects_empty_text():
+    """An empty full_indexed_content at the embedding input is a signal that
+    enrichment/text assembly went wrong - must not pass silently."""
+    client = FakeVoyageClient()
+    with pytest.raises(ValueError):
+        embed_texts(client, ["a"], [""], input_type="document")
  
  
-def test_checkpoint_load_done_empty_when_file_missing(tmp_path):
-    checkpoint = EnrichmentCheckpoint(tmp_path / "does_not_exist.jsonl")
-    assert checkpoint.load_done() == {}
+def test_embed_documents_uses_document_input_type():
+    client = FakeVoyageClient()
+    vectors = embed_documents(client, [("ctx_1", "full indexed content here")])
+    assert len(vectors) == 1
+    assert client.calls[0][1] == "document"
+ 
+ 
+def test_embed_documents_empty_input():
+    client = FakeVoyageClient()
+    assert embed_documents(client, []) == []
+ 
+ 
+def test_embed_query_uses_query_input_type():
+    client = FakeVoyageClient()
+    vector = embed_query(client, "q_1", "what was revenue in 2019?")
+    assert vector.id == "q_1"
+    assert client.calls[0][1] == "query"
+ 
+ 
+def test_embed_documents_signature_cannot_see_raw_content():
+    """Guard from specifikatsiya_moduley.md: embed_documents takes ready-made
+    (id, text) pairs, not a DocumentRecord - it structurally cannot embed
+    raw_content instead of full_indexed_content by accident, because it never
+    sees a DocumentRecord at all."""
+    import inspect
+ 
+    sig = inspect.signature(embed_documents)
+    params = list(sig.parameters)
+    assert params == ["client", "indexed_texts"]
