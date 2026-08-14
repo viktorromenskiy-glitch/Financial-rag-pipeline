@@ -28,4 +28,3 @@ def chunk(records: list[DocumentRecord]) -> list[DocumentRecord]:
         A shallow copy of the input list, unchanged.
     """
     return list(records)
-  
