@@ -42,8 +42,8 @@ import pandas as pd
 from config.config_schema import PipelineConfig, load_config
 from pipeline.chunking import chunk
 from pipeline.common.run_config import write_run_config
-from pipeline.embedding import embed_documents
-from pipeline.enrichment import EnrichmentCheckpoint, enrich_documents
+from pipeline.embedding import BATCH_SIZE, embed_documents
+from pipeline.enrichment import EnrichmentCheckpoint, enrich_document, enrich_documents
 from pipeline.evaluation import EvalResult, JudgeCache, evaluate_answers, regression_report
 from pipeline.generation import generate_answer
 from pipeline.indexing import (
@@ -207,12 +207,24 @@ def cmd_index(args: argparse.Namespace) -> None:
     if config.enrichment.enabled:
         summarizer = ClaudeSummarizer(clients["anthropic"], config.enrichment.model, config.enrichment.temperature)
         checkpoint = EnrichmentCheckpoint(args.checkpoint)
-        summaries = enrich_documents(
-            summarizer,
-            [(d["context_id"], d["raw_content"]) for d in documents],
-            checkpoint=checkpoint,
-            enabled=True,
-        )
+        # Reimplements enrich_documents()'s loop here (rather than calling it
+        # as a single black-box call) purely to print progress - this is the
+        # slowest stage (one sequential Claude API round-trip per document,
+        # no threading yet - see cli.py module docstring / README known
+        # limitations) and a silent multi-hour loop is a real usability
+        # problem, not just cosmetic. Same checkpoint semantics as
+        # enrich_documents(): resume from what's already on disk, append
+        # after each document, so an interrupted run picks up where it left
+        # off either way.
+        summaries = dict(checkpoint.load_done())
+        to_enrich = [(d["context_id"], d["raw_content"]) for d in documents if d["context_id"] not in summaries]
+        print(f"  {len(summaries)} already enriched (resumed from checkpoint), {len(to_enrich)} remaining")
+        for i, (context_id, raw_content) in enumerate(to_enrich):
+            result = enrich_document(summarizer, context_id, raw_content)
+            checkpoint.append(result)
+            summaries[context_id] = result.contextual_summary
+            if (i + 1) % 25 == 0 or (i + 1) == len(to_enrich):
+                print(f"  enriched {i + 1}/{len(to_enrich)}")
     else:
         summaries = enrich_documents(
             None, [(d["context_id"], d["raw_content"]) for d in documents], enabled=False
@@ -221,14 +233,25 @@ def cmd_index(args: argparse.Namespace) -> None:
     print("[5/5] Embedding + indexing...")
     to_process = [d for d in documents if not is_indexed(collection, d["context_id"])]
     print(f"  {len(documents) - len(to_process)} already indexed (skipped), {len(to_process)} to embed + index")
-    to_embed = [
-        (
-            d["context_id"],
-            build_full_indexed_content(d["raw_content"], summaries.get(d["context_id"], ""), d["metadata_prefix"]),
-        )
-        for d in to_process
-    ]
-    vectors = embed_documents(clients["voyage"], to_embed) if to_embed else []
+    vectors = []
+    if to_process:
+        to_embed = [
+            (
+                d["context_id"],
+                build_full_indexed_content(d["raw_content"], summaries.get(d["context_id"], ""), d["metadata_prefix"]),
+            )
+            for d in to_process
+        ]
+        # Same reasoning as the enrichment loop above: call embed_documents()
+        # per BATCH_SIZE-sized slice (matching its own internal batching, so
+        # this doesn't change how many API calls are made) purely to print
+        # progress between batches instead of going silent for the whole
+        # embedding stage.
+        total_batches = (len(to_embed) + BATCH_SIZE - 1) // BATCH_SIZE
+        for i in range(0, len(to_embed), BATCH_SIZE):
+            batch_num = i // BATCH_SIZE + 1
+            vectors.extend(embed_documents(clients["voyage"], to_embed[i : i + BATCH_SIZE]))
+            print(f"  embedded batch {batch_num}/{total_batches}")
     embeddings_by_id = {v.id: v.vector for v in vectors}
     written = index_corpus(collection, to_process, summaries, embeddings_by_id, skip_already_indexed=False)
     print(f"  Indexed {written} documents")
