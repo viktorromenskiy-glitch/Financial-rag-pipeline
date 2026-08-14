@@ -6,7 +6,7 @@ on transient errors only (429 rate limit, 5xx, connection timeouts) - not
 retrying.
 
 Verified against the actual exception hierarchies of all three SDKs used in
-this pipeline (voyageai 0.5.0, anthropic, cohere) on 2026-08-15: each
+this pipeline (voyageai 0.5.0, anthropic, cohere) on 2026-08-14: each
 attaches a numeric status code to its API exceptions (`http_status` on
 voyageai.error.VoyageError, `status_code` on anthropic.APIStatusError and
 cohere's ApiError). Connection/timeout-level errors from all three SDKs
