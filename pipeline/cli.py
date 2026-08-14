@@ -233,7 +233,7 @@ def cmd_index(args: argparse.Namespace) -> None:
     print("[5/5] Embedding + indexing...")
     to_process = [d for d in documents if not is_indexed(collection, d["context_id"])]
     print(f"  {len(documents) - len(to_process)} already indexed (skipped), {len(to_process)} to embed + index")
-    vectors = []
+    written = 0
     if to_process:
         to_embed = [
             (
@@ -242,18 +242,25 @@ def cmd_index(args: argparse.Namespace) -> None:
             )
             for d in to_process
         ]
-        # Same reasoning as the enrichment loop above: call embed_documents()
-        # per BATCH_SIZE-sized slice (matching its own internal batching, so
-        # this doesn't change how many API calls are made) purely to print
-        # progress between batches instead of going silent for the whole
-        # embedding stage.
+        docs_by_id = {d["context_id"]: d for d in to_process}
+        # Embed and write *each batch* to MongoDB before moving to the next
+        # one, rather than accumulating every vector in memory and writing
+        # once at the end - checkpointing requirement, spec section 11
+        # ("Checkpointing состояния при индексации"). Accumulate-then-write
+        # would mean a mid-run interruption loses every already-computed
+        # embedding, since none of it would have reached Atlas yet; this way
+        # an interruption loses at most one in-flight batch (BATCH_SIZE
+        # documents), and a re-run of `index` skips everything already
+        # marked is_indexed=True in Atlas via is_indexed() above.
         total_batches = (len(to_embed) + BATCH_SIZE - 1) // BATCH_SIZE
         for i in range(0, len(to_embed), BATCH_SIZE):
             batch_num = i // BATCH_SIZE + 1
-            vectors.extend(embed_documents(clients["voyage"], to_embed[i : i + BATCH_SIZE]))
-            print(f"  embedded batch {batch_num}/{total_batches}")
-    embeddings_by_id = {v.id: v.vector for v in vectors}
-    written = index_corpus(collection, to_process, summaries, embeddings_by_id, skip_already_indexed=False)
+            batch = to_embed[i : i + BATCH_SIZE]
+            vectors = embed_documents(clients["voyage"], batch)
+            embeddings_by_id = {v.id: v.vector for v in vectors}
+            batch_docs = [docs_by_id[context_id] for context_id, _ in batch]
+            written += index_corpus(collection, batch_docs, summaries, embeddings_by_id, skip_already_indexed=False)
+            print(f"  embedded + indexed batch {batch_num}/{total_batches} ({written} documents written so far)")
     print(f"  Indexed {written} documents")
  
     validate_startup_indexes(collection)
