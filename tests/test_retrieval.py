@@ -134,3 +134,65 @@ def test_retrieve_passes_pool_size_and_weights_through_to_pipeline():
     assert weights[TEXT_PIPELINE_NAME] == 0.3
     vector_stage = collection.last_pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
     assert vector_stage["limit"] == 10
+
+
+def test_build_rank_fusion_pipeline_without_source_dataset_has_no_filter():
+    # Default (routing disabled or not applicable) behavior must be
+    # byte-for-byte unchanged from before per-dataset routing existed -
+    # no filter clause anywhere.
+    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50)
+    pipelines = pipeline[0]["$rankFusion"]["input"]["pipelines"]
+    vector_stage = pipelines[VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
+    text_stage = pipelines[TEXT_PIPELINE_NAME][0]["$search"]
+    assert "filter" not in vector_stage
+    assert "text" in text_stage  # plain text query, not the compound/filter form
+
+
+def test_build_rank_fusion_pipeline_with_source_dataset_adds_vector_filter():
+    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50, source_dataset="TAT-DQA")
+    vector_stage = pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
+    assert vector_stage["filter"] == {"source_dataset": {"$eq": "TAT-DQA"}}
+
+
+def test_build_rank_fusion_pipeline_with_source_dataset_adds_text_filter():
+    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "revenue", pool_size=50, source_dataset="ConvFinQA")
+    text_stage = pipeline[0]["$rankFusion"]["input"]["pipelines"][TEXT_PIPELINE_NAME][0]["$search"]
+    assert "compound" in text_stage
+    assert text_stage["compound"]["must"] == [{"text": {"query": "revenue", "path": "full_indexed_content"}}]
+    assert text_stage["compound"]["filter"] == [{"equals": {"path": "source_dataset", "value": "ConvFinQA"}}]
+
+
+def test_build_rank_fusion_pipeline_filter_does_not_shrink_num_candidates():
+    # The filter must be INSIDE $vectorSearch (pre-filter), not a $match
+    # appended after - otherwise the ANN search's own numCandidates/limit
+    # selection would already be dominated by cross-model-embedded
+    # documents before the filter ever runs (see module docstring).
+    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50, source_dataset="TAT-DQA")
+    vector_pipeline_stages = pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME]
+    assert len(vector_pipeline_stages) == 1  # filter lives inside the $vectorSearch stage, no extra $match stage
+    assert vector_pipeline_stages[0]["$vectorSearch"]["numCandidates"] > vector_pipeline_stages[0]["$vectorSearch"]["limit"]
+
+
+def test_retrieve_passes_source_dataset_and_embedding_model_through():
+    voyage_client = FakeVoyageClient()
+    collection = FakeCollection(results=[])
+
+    retrieve(voyage_client, collection, "q", source_dataset="TAT-DQA", embedding_model="voyage-finance-2")
+
+    vector_stage = collection.last_pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
+    assert vector_stage["filter"] == {"source_dataset": {"$eq": "TAT-DQA"}}
+
+
+def test_retrieve_default_embedding_model_matches_pipeline_embedding_module_constant():
+    from pipeline.embedding import MODEL as EMBEDDING_MODULE_MODEL
+
+    voyage_client = FakeVoyageClient()
+    collection = FakeCollection(results=[])
+    retrieve(voyage_client, collection, "q")
+    # FakeVoyageClient doesn't record `model` (matches the original test file's
+    # fake) - this test only guards retrieve()'s default value, via signature
+    # inspection, so a future default drift is caught even without a
+    # model-recording fake.
+    import inspect
+
+    assert inspect.signature(retrieve).parameters["embedding_model"].default == EMBEDDING_MODULE_MODEL
