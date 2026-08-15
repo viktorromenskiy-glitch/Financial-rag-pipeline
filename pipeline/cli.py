@@ -645,11 +645,24 @@ def cmd_eval(args: argparse.Namespace) -> None:
 
         # Per-dataset embedding routing (tehnicheskoe_zadanie.md, п.3a): the
         # query must be embedded with the SAME model as the documents it's
-        # being compared against, and retrieval must be filtered to the
-        # same source_dataset - see pipeline.retrieval.retrieve()'s
-        # docstring for why a mismatch here silently returns wrong/empty
-        # candidates instead of raising.
+        # being compared against. Which filter mode retrieve() gets depends
+        # on whether THIS question's source is itself routed:
+        #   - routed source (TAT-DQA): source_dataset=... restricts to
+        #     exactly its own source - required, since its documents are
+        #     now in the voyage-finance-2 space, incompatible with every
+        #     other source's voyage-4 vectors.
+        #   - unrouted source (ConvFinQA/FinQA, still voyage-4):
+        #     exclude_source_datasets=<routed sources> instead - it must
+        #     only avoid the routed source(s)' now-incompatible vectors,
+        #     not be shrunk down to its own single source. Bug fixed
+        #     2026-08-15: passing source_dataset=item["source_dataset"]
+        #     unconditionally here (for every question, routed or not) is
+        #     what caused the real ConvFinQA/FinQA judge-accuracy
+        #     regression seen in the first routed eval run - see
+        #     pipeline.retrieval.build_rank_fusion_pipeline()'s docstring.
         query_model = _resolve_embedding_model(config, item["source_dataset"])
+        routing = config.embedding.routing
+        is_routed_source = routing.enabled and item["source_dataset"] in routing.routed_sources
         candidates = retrieve(
             clients["voyage"],
             collection,
@@ -657,7 +670,8 @@ def cmd_eval(args: argparse.Namespace) -> None:
             pool_size=config.retrieval.pool_size,
             vector_weight=config.retrieval.weights.vector,
             text_weight=config.retrieval.weights.text,
-            source_dataset=item["source_dataset"],
+            source_dataset=item["source_dataset"] if is_routed_source else None,
+            exclude_source_datasets=list(routing.routed_sources) if (routing.enabled and not is_routed_source) else None,
             embedding_model=query_model,
         )
         if config.reranker.enabled and candidates:
