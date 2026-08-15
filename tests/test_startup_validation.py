@@ -20,15 +20,18 @@ class FakeCollection:
     """Minimal in-memory stand-in for pymongo.Collection, only implementing
     the aggregate() shapes validate_startup_indexes() actually issues."""
 
-    def __init__(self, has_vector_data: bool, has_text_data: bool):
+    def __init__(self, has_vector_data: bool, has_text_data: bool, has_source_dataset_filter: bool = True):
         self.has_vector_data = has_vector_data
         self.has_text_data = has_text_data
+        self.has_source_dataset_filter = has_source_dataset_filter
         self.received_pipelines: list[list[dict]] = []
 
     def aggregate(self, pipeline: list[dict]):
         self.received_pipelines.append(pipeline)
         stage = pipeline[0]
         if "$vectorSearch" in stage:
+            if "filter" in stage["$vectorSearch"]:
+                return [{"context_id": "probe"}] if self.has_source_dataset_filter else []
             return [{"context_id": "probe"}] if self.has_vector_data else []
         if "$search" in stage:
             return [{"context_id": "probe"}] if self.has_text_data else []
@@ -81,3 +84,34 @@ def test_vector_probe_uses_a_non_zero_vector():
     validate_startup_indexes(collection)
     vector_stage = collection.received_pipelines[0][0]["$vectorSearch"]
     assert any(v != 0 for v in vector_stage["queryVector"])
+
+
+def test_passes_when_source_dataset_filter_works():
+    collection = FakeCollection(has_vector_data=True, has_text_data=True, has_source_dataset_filter=True)
+    validate_startup_indexes(collection)  # must not raise
+
+
+def test_fails_when_source_dataset_filter_field_not_indexed():
+    # Atlas doesn't raise an error for an unfiltered/unindexed filter
+    # field - it just silently returns zero results, the same silent
+    # failure class as a mismatched index name (see module docstring).
+    collection = FakeCollection(has_vector_data=True, has_text_data=True, has_source_dataset_filter=False)
+    with pytest.raises(AssertionError, match="source_dataset"):
+        validate_startup_indexes(collection)
+
+
+def test_source_dataset_filter_check_can_be_disabled():
+    # Routing disabled (config.embedding.routing.enabled=false) - the
+    # extra probe must be skippable so a cluster whose index hasn't been
+    # updated with the filter field yet can still pass startup validation
+    # for the non-routed default pipeline.
+    collection = FakeCollection(has_vector_data=True, has_text_data=True, has_source_dataset_filter=False)
+    validate_startup_indexes(collection, check_source_dataset_filter=False)  # must not raise
+
+
+def test_source_dataset_filter_probe_uses_configured_vector_index_name():
+    collection = FakeCollection(has_vector_data=True, has_text_data=True, has_source_dataset_filter=True)
+    validate_startup_indexes(collection)
+    filter_probe_pipeline = collection.received_pipelines[2]
+    assert filter_probe_pipeline[0]["$vectorSearch"]["index"] == VECTOR_INDEX_NAME
+    assert filter_probe_pipeline[0]["$vectorSearch"]["filter"] == {"source_dataset": {"$exists": True}}
