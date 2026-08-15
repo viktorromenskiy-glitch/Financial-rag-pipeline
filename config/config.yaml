@@ -34,7 +34,7 @@ generation:
 judge:
   model: "claude-sonnet-5"
   temperature: 0.0
-  prompt_version: "v2"                # bumped 2026-08-15 with JUDGE_PROMPT revision (pipeline/evaluation.py) — must match PROMPT_VERSION there so judge_cache.jsonl is correctly invalidated
+  prompt_version: "v3"                # bumped 2026-08-15 with JUDGE_PROMPT revision (pipeline/evaluation.py) — must match PROMPT_VERSION there so judge_cache.jsonl is correctly invalidated
   deterministic_check_enabled: true
 
 retry:
