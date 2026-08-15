@@ -1,198 +1,792 @@
-# tests/test_retrieval.py
-"""Tests for module 6 (hybrid retrieval). $rankFusion is an Atlas-only
-aggregation stage that mongomock does not implement, so a fake collection
-records the pipeline it was called with and returns canned results - this
-verifies pipeline construction and result parsing, not real Atlas ranking
-behavior. The real Recall@5 checkpoint (0.808) is validated against a live
-cluster in Colab, not here."""
+"""CLI orchestrator - ties all nine pipeline modules into two runnable
+commands.
+
+  index   Ingestion -> Chunking -> Contextual enrichment -> Embedding ->
+          Indexing (modules 1-5). Builds/refreshes the MongoDB Atlas
+          corpus (rag_project.t2_ragbench_full).
+
+  eval    Hybrid retrieval -> Reranking -> Generation -> LLM Judge
+          Evaluation (modules 6-9). Runs the query-time pipeline over a
+          set of eval questions and writes
+          results/<run_id>/{run_config.json, predictions.jsonl,
+          eval_results.jsonl, eval_report.md}.
+
+See docs/specifikatsiya_moduley.md for the per-module input/output
+contracts this file wires together, and
+docs/plan_podgotovki_k_kodirovaniyu.md for the checkpoint each stage is
+expected to reproduce.
+
+Every pipeline/*.py module is written against a narrow Protocol
+(VoyageClientProtocol, SummarizerProtocol, GeneratorProtocol,
+JudgeProtocol, CohereClientProtocol, CollectionProtocol) so it can be unit
+-tested with a fake client - see tests/. This file is the one place those
+Protocols are satisfied by the real SDKs (pymongo, voyageai, anthropic,
+cohere), via the small adapter classes below.
+
+Usage:
+    python -m pipeline.cli index --data-dir data/t2-ragbench
+    python -m pipeline.cli eval --questions data/t2-ragbench/eval_subset_250.parquet --run-id week4_baseline
+    python -m pipeline.cli eval --questions data/t2-ragbench/eval_subset_250.parquet --run-id week4_rerank --compare-to week4_baseline
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import argparse
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 
-import pytest
+import pandas as pd
 
-from pipeline.indexing import TEXT_INDEX_NAME, VECTOR_INDEX_NAME
-from pipeline.retrieval import (
-    TEXT_PIPELINE_NAME,
-    VECTOR_PIPELINE_NAME,
-    Candidate,
-    build_rank_fusion_pipeline,
-    retrieve,
+from config.config_schema import PipelineConfig, load_config
+from pipeline.chunking import chunk
+from pipeline.common.run_config import write_run_config
+from pipeline.embedding import BATCH_SIZE, embed_documents, resolve_embedding_model
+from pipeline.enrichment import EnrichmentCheckpoint, enrich_document, enrich_documents
+from pipeline.evaluation import EvalResult, JudgeCache, evaluate_answers, regression_report
+from pipeline.generation import generate_answer
+from pipeline.indexing import (
+    build_full_indexed_content,
+    dedupe_documents,
+    index_corpus,
+    is_indexed,
+    validate_startup_indexes,
 )
+from pipeline.ingestion import ingest
+from pipeline.reranking import rerank
+from pipeline.retrieval import retrieve
+
+# ---------------------------------------------------------------------------
+# Real-SDK adapters - the only place pipeline/*.py's Protocols meet an
+# actual API client, so every module upstream stays unit-testable with a
+# fake (see tests/).
+# ---------------------------------------------------------------------------
 
 
-@dataclass
-class _FakeEmbedResult:
-    embeddings: list[list[float]]
+def _extract_text(response) -> str:
+    """Returns the text of the first text content block in an Anthropic API
+    response.
+
+    response.content[0].text is not reliably the answer - verified against
+    the real API 2026-08-15: claude-sonnet-5 returned a response whose first
+    content block's .text was None (a non-text block, e.g. extended
+    thinking, ahead of the actual text block - claude-haiku-4-5-20251001
+    did not do this during the real corpus enrichment run, so this seems to
+    be a claude-sonnet-5-specific default, not universal). Look for the
+    actual text block by type instead of assuming position 0.
+    """
+    for block in response.content:
+        if getattr(block, "type", None) == "text":
+            return block.text
+    raise RuntimeError(f"No text block found in Claude response content: {response.content!r}")
 
 
-class FakeVoyageClient:
-    def __init__(self):
-        self.calls: list[tuple[int, str]] = []
+class ClaudeSummarizer:
+    """Adapts anthropic.Anthropic to pipeline.enrichment.SummarizerProtocol.
 
-    def embed(self, texts, model, input_type):
-        self.calls.append((len(texts), input_type))
-        return _FakeEmbedResult(embeddings=[[0.1] * 1024 for _ in texts])
+    CONTEXT_PROMPT and the chunk[:3000] truncation below are transplanted
+    literally from the real Colab script that produced the validated
+    Recall@5 +0.78pp checkpoint (test_2_3_contextual_chunks_v2.py, cell 4;
+    docs/tehnicheskoe_zadanie.md, section 5) - not reconstructed from the
+    spec's prose summary ("short 1-2 sentence blurb"). Do not edit this
+    prompt without re-running that validation test, per the same
+    literal-transplant convention already applied to
+    pipeline/common/is_close_v2.py and evaluation.py's JUDGE_PROMPT.
 
+    One intentional deviation from the literal Colab call: temperature is
+    taken from config (0.0), not left at the API default the original test
+    used. tehnicheskoe_zadanie.md, section 7, flags this as a fix to make
+    at implementation time ("параметр нигде явно не был зафиксирован, при
+    реализации исправить") - it does not change the prompt or the
+    truncation, only removes sampling noise from a production run.
+    """
 
-class FakeCollection:
-    def __init__(self, results: list[dict]):
-        self.results = results
-        self.last_pipeline: list[dict] | None = None
+    CONTEXT_PROMPT = """Ты помогаешь улучшить поиск по фрагментам финансовых отчётов.
+Вот фрагмент документа:
 
-    def aggregate(self, pipeline):
-        self.last_pipeline = pipeline
-        return iter(self.results)
+<chunk>
+{chunk}
+</chunk>
 
+Дай короткую (1-2 предложения) справку: какая компания, какой год отчёта, о чём фрагмент (какие показатели/таблица).
+Только справка, без вступлений."""
 
-def test_build_rank_fusion_pipeline_uses_configured_index_names():
-    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "revenue growth", pool_size=50)
-    rank_fusion_stage = pipeline[0]["$rankFusion"]
-    pipelines = rank_fusion_stage["input"]["pipelines"]
+    def __init__(self, client, model: str, temperature: float):
+        self.client = client
+        self.model = model
+        self.temperature = temperature
 
-    vector_stage = pipelines[VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
-    text_stage = pipelines[TEXT_PIPELINE_NAME][0]["$search"]
-
-    assert vector_stage["index"] == VECTOR_INDEX_NAME
-    assert vector_stage["path"] == "embedding_voyage"
-    assert text_stage["index"] == TEXT_INDEX_NAME
-    assert text_stage["text"]["path"] == "full_indexed_content"
-
-
-def test_build_rank_fusion_pipeline_applies_default_weights():
-    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50)
-    weights = pipeline[0]["$rankFusion"]["combination"]["weights"]
-    assert weights[VECTOR_PIPELINE_NAME] == 0.5
-    assert weights[TEXT_PIPELINE_NAME] == 0.5
-
-
-def test_build_rank_fusion_pipeline_num_candidates_exceeds_pool_size():
-    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50)
-    vector_stage = pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
-    assert vector_stage["numCandidates"] > vector_stage["limit"]
-    assert vector_stage["limit"] == 50
-
-
-def test_build_rank_fusion_pipeline_rejects_non_positive_pool_size():
-    with pytest.raises(ValueError):
-        build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=0)
-
-
-def test_retrieve_embeds_query_with_query_input_type():
-    voyage_client = FakeVoyageClient()
-    collection = FakeCollection(results=[])
-
-    retrieve(voyage_client, collection, "what was net income in 2019?")
-
-    assert voyage_client.calls == [(1, "query")]
+    def summarize(self, raw_content: str) -> str:
+        # The validated test truncated the summarization *input* to the
+        # first 3000 characters - this only affects what the model sees
+        # when writing the blurb. The full, untruncated raw_content is
+        # still what gets indexed/embedded downstream, via
+        # build_full_indexed_content().
+        prompt = self.CONTEXT_PROMPT.format(chunk=raw_content[:3000])
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=150,
+            temperature=self.temperature,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return _extract_text(response).strip()
 
 
-def test_retrieve_parses_candidates_in_order():
-    voyage_client = FakeVoyageClient()
-    collection = FakeCollection(
-        results=[
-            {"context_id": "ctx_1", "full_indexed_content": "doc 1", "score": 0.9},
-            {"context_id": "ctx_2", "full_indexed_content": "doc 2", "score": 0.5},
-        ]
+class ClaudeGenerator:
+    """Adapts anthropic.Anthropic to pipeline.generation.GeneratorProtocol.
+
+    `temperature` is intentionally NOT sent to the API here. claude-sonnet-5
+    rejects it outright (verified against the real API 2026-08-15):
+    `anthropic.BadRequestError: temperature is deprecated for this model`.
+    config.generation.temperature is still read and stored - it documents
+    the project's original intent (spec section 7 wants temperature=0.0 for
+    reproducible regression analysis) and still appears in run_config.json
+    - it's just not a parameter this model accepts anymore. ClaudeSummarizer
+    (claude-haiku-4-5-20251001) is unaffected - that model accepted
+    temperature fine during the real corpus indexing run.
+
+    `thinking` is explicitly disabled (extra_body={"thinking": {"type":
+    "disabled"}}). Root-caused 2026-08-15 against the real 250-question
+    eval run: on question 51/250 (a longer, harder question),
+    claude-sonnet-5's default extended thinking consumed the entire
+    max_tokens=1024 budget on its own, leaving a response with only a
+    thinking block and no text block at all - the same failure class
+    previously seen and fixed for ClaudeJudge with max_tokens=10, except
+    this time even 1024 wasn't a safe upper bound, since the model can
+    apparently spend an arbitrary amount of the budget thinking. Since
+    generation/judging here don't need reasoning transparency - just a
+    short deterministic-format answer or a one-word verdict - disabling
+    thinking outright removes this failure mode instead of trying to
+    guess a large-enough max_tokens forever. Passed via extra_body rather
+    than a typed `thinking=` kwarg for compatibility with anthropic==0.40.0
+    (extra_body merges into the raw request JSON regardless of whether
+    this SDK version's typed method signature has a `thinking` parameter).
+    """
+
+    def __init__(self, client, model: str, temperature: float, max_tokens: int = 1024):
+        self.client = client
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    def generate(self, prompt: str) -> str:
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+        return _extract_text(response)
+
+
+class ClaudeJudge:
+    """Adapts anthropic.Anthropic to pipeline.evaluation.JudgeProtocol.
+
+    Same reasons as ClaudeGenerator above: `temperature` is not sent -
+    claude-sonnet-5 rejects it with a 400 - and `thinking` is explicitly
+    disabled via extra_body, since the same "thinking ate the whole
+    max_tokens budget, no text block left" failure applies here too (first
+    observed on this class with max_tokens=10, but root-caused 2026-08-15
+    to be about thinking being enabled at all, not just an insufficient
+    max_tokens guess - see ClaudeGenerator's docstring).
+    """
+
+    def __init__(self, client, model: str, temperature: float):
+        self.client = client
+        self.model = model
+        self.temperature = temperature
+
+    def judge(self, prompt: str) -> str:
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+        return _extract_text(response)
+
+
+def build_clients(config: PipelineConfig) -> dict:
+    """Constructs real SDK clients from config + environment variables.
+
+    API keys are read directly from os.environ using this project's own
+    .env.example variable names, rather than relying on each SDK's own
+    default env-var name - some SDKs default to a different name (e.g.
+    cohere.ClientV2() defaults to CO_API_KEY, not COHERE_API_KEY, which is
+    what .env.example declares).
+    """
+    import anthropic
+    import cohere
+    import pymongo
+    import voyageai
+
+    missing = [v for v in ("VOYAGE_API_KEY", "ANTHROPIC_API_KEY", "COHERE_API_KEY") if not os.environ.get(v)]
+    if missing:
+        raise RuntimeError(
+            f"Missing environment variable(s): {', '.join(missing)} - copy .env.example to .env and fill it in"
+        )
+
+    mongo_client = pymongo.MongoClient(config.mongodb.uri)
+    collection = mongo_client[config.mongodb.db_name][config.mongodb.collection_name]
+    return {
+        "collection": collection,
+        "voyage": voyageai.Client(api_key=os.environ["VOYAGE_API_KEY"]),
+        "anthropic": anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"]),
+        "cohere": cohere.ClientV2(api_key=os.environ["COHERE_API_KEY"]),
+    }
+
+
+def _resolve_embedding_model(config: PipelineConfig, source_dataset: str) -> str:
+    """Thin wrapper around pipeline.embedding.resolve_embedding_model()
+    that reads the routing parameters out of PipelineConfig - kept as a
+    one-line helper here (not in pipeline/embedding.py) so that module
+    stays free of any dependency on config/config_schema.py, per its
+    existing "doesn't know about DocumentRecord/config" design (see its
+    module docstring).
+    """
+    routing = config.embedding.routing
+    return resolve_embedding_model(
+        source_dataset,
+        routing.enabled,
+        routing.finance_model,
+        frozenset(routing.routed_sources),
+        config.embedding.model,
     )
 
-    candidates = retrieve(voyage_client, collection, "q")
 
-    assert candidates == [
-        Candidate("ctx_1", "doc 1", 0.9),
-        Candidate("ctx_2", "doc 2", 0.5),
+# ---------------------------------------------------------------------------
+# index - modules 1-5
+# ---------------------------------------------------------------------------
+
+
+def cmd_index(args: argparse.Namespace) -> None:
+    config = load_config(args.config)
+    clients = build_clients(config)
+    collection = clients["collection"]
+
+    print(f"[1/5] Ingestion from {args.data_dir} ...")
+    records = ingest(args.data_dir)
+    print(f"  {len(records)} question rows, {len({r.context_id for r in records})} unique documents")
+
+    print("[2/5] Chunking (no-op by design - one document = one chunk)...")
+    records = chunk(records)
+
+    print("[3/5] Dedupe to unique documents...")
+    documents = dedupe_documents(records)
+    print(f"  {len(documents)} unique documents")
+
+    print(f"[4/5] Contextual enrichment ({'enabled' if config.enrichment.enabled else 'disabled'})...")
+    if config.enrichment.enabled:
+        summarizer = ClaudeSummarizer(clients["anthropic"], config.enrichment.model, config.enrichment.temperature)
+        checkpoint = EnrichmentCheckpoint(args.checkpoint)
+        # Reimplements enrich_documents()'s loop here (rather than calling it
+        # as a single black-box call) purely to print progress - this is the
+        # slowest stage (one sequential Claude API round-trip per document,
+        # no threading yet - see cli.py module docstring / README known
+        # limitations) and a silent multi-hour loop is a real usability
+        # problem, not just cosmetic. Same checkpoint semantics as
+        # enrich_documents(): resume from what's already on disk, append
+        # after each document, so an interrupted run picks up where it left
+        # off either way.
+        summaries = dict(checkpoint.load_done())
+        to_enrich = [(d["context_id"], d["raw_content"]) for d in documents if d["context_id"] not in summaries]
+        print(f"  {len(summaries)} already enriched (resumed from checkpoint), {len(to_enrich)} remaining")
+        for i, (context_id, raw_content) in enumerate(to_enrich):
+            result = enrich_document(summarizer, context_id, raw_content)
+            checkpoint.append(result)
+            summaries[context_id] = result.contextual_summary
+            if (i + 1) % 25 == 0 or (i + 1) == len(to_enrich):
+                print(f"  enriched {i + 1}/{len(to_enrich)}")
+    else:
+        summaries = enrich_documents(
+            None, [(d["context_id"], d["raw_content"]) for d in documents], enabled=False
+        )
+
+    print("[5/5] Embedding + indexing...")
+    to_process = [d for d in documents if not is_indexed(collection, d["context_id"])]
+    print(f"  {len(documents) - len(to_process)} already indexed (skipped), {len(to_process)} to embed + index")
+    written = 0
+    if to_process:
+        docs_by_id = {d["context_id"]: d for d in to_process}
+
+        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, п.3a):
+        # group documents by the model their source_dataset resolves to
+        # BEFORE embedding, not after - Voyage's API takes one model per
+        # call, so a batch cannot mix documents routed to different models
+        # (see pipeline.embedding.embed_documents docstring). Grouping
+        # happens here, not in pipeline/embedding.py, which stays
+        # deliberately unaware of source_dataset/config.
+        by_model: dict[str, list[tuple[str, str]]] = {}
+        for d in to_process:
+            text = build_full_indexed_content(
+                d["raw_content"], summaries.get(d["context_id"], ""), d["metadata_prefix"]
+            )
+            model = _resolve_embedding_model(config, d["source_dataset"])
+            by_model.setdefault(model, []).append((d["context_id"], text))
+
+        total_batches = sum((len(items) + BATCH_SIZE - 1) // BATCH_SIZE for items in by_model.values())
+        batch_num = 0
+        # Embed and write *each batch* to MongoDB before moving to the next
+        # one, rather than accumulating every vector in memory and writing
+        # once at the end - checkpointing requirement, spec section 11
+        # ("Checkpointing состояния при индексации"). Accumulate-then-write
+        # would mean a mid-run interruption loses every already-computed
+        # embedding, since none of it would have reached Atlas yet; this way
+        # an interruption loses at most one in-flight batch (BATCH_SIZE
+        # documents), and a re-run of `index` skips everything already
+        # marked is_indexed=True in Atlas via is_indexed() above.
+        for model, items in by_model.items():
+            print(f"  embedding {len(items)} document(s) with {model!r}...")
+            for i in range(0, len(items), BATCH_SIZE):
+                batch_num += 1
+                batch = items[i : i + BATCH_SIZE]
+                vectors = embed_documents(clients["voyage"], batch, model=model)
+                embeddings_by_id = {v.id: v.vector for v in vectors}
+                batch_docs = [docs_by_id[context_id] for context_id, _ in batch]
+                written += index_corpus(
+                    collection, batch_docs, summaries, embeddings_by_id, skip_already_indexed=False
+                )
+                print(f"  embedded + indexed batch {batch_num}/{total_batches} ({written} documents written so far)")
+    print(f"  Indexed {written} documents")
+
+    validate_startup_indexes(collection, check_source_dataset_filter=config.embedding.routing.enabled)
+    print("Startup index validation passed - vector_index_full and text_index_full both return results.")
+
+
+# ---------------------------------------------------------------------------
+# eval - modules 6-9
+# ---------------------------------------------------------------------------
+
+
+# id/context_id prefix -> source_dataset, used only when the parquet has no
+# explicit source_dataset column - confirmed 2026-08-15 against the real
+# data/t2-ragbench/eval_subset_250.parquet schema
+# (['id', 'context_id', 'question', 'program_answer', 'original_answer']),
+# whose 'id' values look like "finqa_train_2917". Longest-prefix-first order
+# matters: "tat-dqa_" and "tatqa_" must be checked before a bare "tat_"
+# would ever be added, and "convfinqa_" must be checked before "finqa_"
+# since it is not a superstring of it but both start with letters that
+# could otherwise collide under a careless check.
+_SOURCE_PREFIX_MAP = [
+    ("convfinqa_", "ConvFinQA"),
+    ("finqa_", "FinQA"),
+    ("tat-dqa_", "TAT-DQA"),
+    ("tatqa_", "TAT-DQA"),
+]
+
+
+def _infer_source_dataset(*candidates: object) -> str:
+    """Looks at id/context_id-shaped strings (lowercased) for a known
+    dataset prefix. Returns 'unknown' if none match - matches
+    load_eval_questions()'s prior fallback behavior for a genuinely
+    unrecognized id shape."""
+    for value in candidates:
+        if value is None:
+            continue
+        text = str(value).lower()
+        for prefix, name in _SOURCE_PREFIX_MAP:
+            if text.startswith(prefix):
+                return name
+    return "unknown"
+
+
+def load_eval_questions(path: str | Path) -> list[dict]:
+    """Loads an eval question set from parquet.
+
+    Confirmed 2026-08-15 against the real data/t2-ragbench/eval_subset_250.parquet
+    schema: ['id', 'context_id', 'question', 'program_answer', 'original_answer']
+    (id example: "finqa_train_2917"). This loader still accepts the older
+    fallback column names below since they cost nothing to keep and make the
+    function robust to minor schema variants across eval_subset_250.parquet /
+    eval_subset_900.parquet / any future eval file.
+
+    Required: 'question'. Gold answer: 'answer' or 'program_answer' (either
+    accepted - the raw T2-RAGBench source files use 'program_answer', see
+    pipeline.ingestion.to_document_records). question_id: uses the real 'id'
+    column when present (this is the real file's natural unique key);
+    otherwise falls back to 'question_id' if present, else
+    '{context_id}::{row index}', else 'q{row index}'. source_dataset: uses
+    the real 'source_dataset' column when present; otherwise it is inferred
+    from the 'id' column's prefix (falling back to 'context_id' if 'id' is
+    absent or unrecognized) so the mandatory per-source stratification in
+    eval_report.md is populated instead of defaulting everything to
+    'unknown'. Getting source_dataset right here matters beyond reporting
+    now (tehnicheskoe_zadanie.md, п.3a): cmd_eval also uses it to pick the
+    embedding model for each query - a wrong/'unknown' source_dataset would
+    silently route the query to the wrong model and filter, not just
+    mislabel a report column.
+    """
+    df = pd.read_parquet(path)
+    if "question" not in df.columns:
+        raise ValueError(f"{path} has no 'question' column")
+    if "answer" in df.columns:
+        answer_col = "answer"
+    elif "program_answer" in df.columns:
+        answer_col = "program_answer"
+    else:
+        raise ValueError(f"{path} has neither 'answer' nor 'program_answer' column for the gold value")
+
+    has_id = "id" in df.columns
+    has_context_id = "context_id" in df.columns
+    has_question_id = "question_id" in df.columns
+    has_source = "source_dataset" in df.columns
+
+    items = []
+    for i, row in df.reset_index(drop=True).iterrows():
+        context_id = row["context_id"] if has_context_id else None
+        row_id = row["id"] if has_id else None
+        if has_id:
+            question_id = row_id
+        elif has_question_id:
+            question_id = row["question_id"]
+        elif context_id is not None:
+            question_id = f"{context_id}::{i}"
+        else:
+            question_id = f"q{i}"
+        source_dataset = row["source_dataset"] if has_source else _infer_source_dataset(row_id, context_id)
+        items.append(
+            {
+                "question_id": str(question_id),
+                "question": row["question"],
+                "gold_answer": row[answer_col],
+                "source_dataset": source_dataset,
+            }
+        )
+    return items
+
+
+def _load_generation_checkpoint(path: Path) -> dict[str, dict]:
+    """Loads results/<run_id>/generation_checkpoint.jsonl - one line per
+    already-answered question_id (question/source_dataset/gold_answer/
+    answer_text/context).
+
+    Added 2026-08-15 after a real 250-question eval run crashed at
+    50/250 (the extended-thinking bug fixed above) and lost all 50
+    already-generated answers, since cmd_eval previously only accumulated
+    predictions/eval_items in memory and wrote everything to disk once at
+    the very end. This mirrors EnrichmentCheckpoint (module 4) and
+    JudgeCache (module 9, already resumable) - the generation stage was
+    the one remaining gap; re-running the same --run-id now resumes
+    instead of redoing (and re-billing) already-answered questions.
+    """
+    if not path.exists():
+        return {}
+    done: dict[str, dict] = {}
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            done[rec["question_id"]] = rec
+    return done
+
+
+def _append_generation_checkpoint(path: Path, question_id: str, question: str, source_dataset: str, gold_answer: str, answer_text: str, context: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(
+            json.dumps(
+                {
+                    "question_id": question_id,
+                    "question": question,
+                    "source_dataset": source_dataset,
+                    "gold_answer": gold_answer,
+                    "answer_text": answer_text,
+                    "context": context,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+
+
+def load_eval_results(path: Path) -> list[EvalResult]:
+    if not path.exists():
+        raise FileNotFoundError(f"No previous run found at {path} - check --compare-to")
+    results = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            rec = json.loads(line)
+            results.append(
+                EvalResult(
+                    question_id=rec["question_id"],
+                    judge_scores=rec["judge_scores"],
+                    deterministic_match=rec["deterministic_match"],
+                    judge_agrees=rec["judge_agrees"],
+                )
+            )
+    return results
+
+
+def write_eval_report(
+    path: Path,
+    results: list[EvalResult],
+    items: list[dict],
+    run_id: str,
+    previous_results: list[EvalResult] | None = None,
+    compare_to: str | None = None,
+) -> None:
+    """Writes results/<run_id>/eval_report.md.
+
+    Per docs/tehnicheskoe_zadanie.md, section 10, aggregate accuracy alone
+    is not sufficient reporting: per-source_dataset stratification
+    (FinQA/ConvFinQA/TAT-DQA are qualitatively different question types,
+    not interchangeable) and, when a previous run is given via
+    --compare-to, a per-question regression comparison - the same kind of
+    comparison that has repeatedly caught real bugs hidden behind a stable
+    or even improved aggregate metric earlier in this project (e.g. the
+    bge-reranker case: 13 fixed but 44 broken, aggregate looked neutral).
+    """
+    id_to_source = {item["question_id"]: item["source_dataset"] for item in items}
+    total = len(results)
+    judge_correct = sum(1 for r in results if r.judge_scores["judge_correct"])
+    det_correct = sum(1 for r in results if r.deterministic_match)
+    agree = sum(1 for r in results if r.judge_agrees)
+
+    by_source: dict[str, dict[str, int]] = {}
+    for r in results:
+        source = id_to_source.get(r.question_id, "unknown")
+        stats = by_source.setdefault(source, {"total": 0, "judge_correct": 0, "det_correct": 0})
+        stats["total"] += 1
+        if r.judge_scores["judge_correct"]:
+            stats["judge_correct"] += 1
+        if r.deterministic_match:
+            stats["det_correct"] += 1
+
+    lines = [f"# Eval report - run {run_id}", "", f"Questions evaluated: {total}"]
+    if total:
+        lines += [
+            f"Judge accuracy: {judge_correct}/{total} = {judge_correct / total:.3f}",
+            f"Deterministic (is_close_v2) accuracy: {det_correct}/{total} = {det_correct / total:.3f}",
+            f"Judge/deterministic agreement: {agree}/{total} = {agree / total:.3f}",
+        ]
+    lines += ["", "## By source dataset", "", "| source_dataset | n | judge accuracy | deterministic accuracy |", "|---|---|---|---|"]
+    for source, stats in sorted(by_source.items()):
+        n = stats["total"]
+        lines.append(f"| {source} | {n} | {stats['judge_correct'] / n:.3f} | {stats['det_correct'] / n:.3f} |")
+
+    if previous_results is not None:
+        report = regression_report(previous_results, results)
+        lines += [
+            "",
+            f"## Regression vs run {compare_to}",
+            "",
+            f"- Improved (wrong -> correct): {len(report['improved'])}",
+            f"- Regressed (correct -> wrong): {len(report['regressed'])}",
+            f"- Unchanged, correct: {len(report['unchanged_correct'])}",
+            f"- Unchanged, incorrect: {len(report['unchanged_incorrect'])}",
+        ]
+        if report["regressed"]:
+            shown = ", ".join(report["regressed"][:50])
+            more = " ..." if len(report["regressed"]) > 50 else ""
+            lines.append(f"- Regressed question_ids: {shown}{more}")
+
+    lines += [
+        "",
+        "_Numbers here are from an actual run, not the docs/*.md checkpoints - treat "
+        "docs/tehnicheskoe_zadanie.md's documented checkpoints as the reference to compare "
+        "against, not the reverse._",
+        "",
     ]
 
-
-def test_retrieve_empty_results():
-    voyage_client = FakeVoyageClient()
-    collection = FakeCollection(results=[])
-    assert retrieve(voyage_client, collection, "q") == []
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def test_retrieve_raises_on_unexpected_duplicate_context_id():
-    voyage_client = FakeVoyageClient()
-    collection = FakeCollection(
-        results=[
-            {"context_id": "ctx_1", "full_indexed_content": "doc 1", "score": 0.9},
-            {"context_id": "ctx_1", "full_indexed_content": "doc 1", "score": 0.4},
-        ]
+def cmd_eval(args: argparse.Namespace) -> None:
+    config = load_config(args.config)
+    clients = build_clients(config)
+    collection = clients["collection"]
+
+    validate_startup_indexes(collection, check_source_dataset_filter=config.embedding.routing.enabled)
+
+    items = load_eval_questions(args.questions)
+    if args.limit:
+        items = items[: args.limit]
+    print(f"Loaded {len(items)} eval questions from {args.questions}")
+
+    generator = ClaudeGenerator(clients["anthropic"], config.generation.model, config.generation.temperature)
+    judge = ClaudeJudge(clients["anthropic"], config.judge.model, config.judge.temperature)
+
+    run_dir = Path("results") / args.run_id
+    judge_cache = JudgeCache(run_dir / "judge_cache.jsonl")
+    gen_checkpoint_path = run_dir / "generation_checkpoint.jsonl"
+    generated = _load_generation_checkpoint(gen_checkpoint_path)
+    print(f"  {len(generated)} already generated (resumed from checkpoint), {len(items) - len(generated)} remaining")
+
+    predictions = []
+    eval_items = []
+    skipped_no_candidates = 0
+    newly_generated = 0
+    for i, item in enumerate(items):
+        cached = generated.get(item["question_id"])
+        if cached is not None:
+            predictions.append(
+                {
+                    "question_id": item["question_id"],
+                    "question": item["question"],
+                    "source_dataset": item["source_dataset"],
+                    "gold_answer": item["gold_answer"],
+                    "answer_text": cached["answer_text"],
+                }
+            )
+            eval_items.append(
+                {
+                    "question_id": item["question_id"],
+                    "question": item["question"],
+                    "context": cached["context"],
+                    "generated_answer": cached["answer_text"],
+                    "gold_answer": item["gold_answer"],
+                }
+            )
+            continue
+
+        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, п.3a): the
+        # query must be embedded with the SAME model as the documents it's
+        # being compared against. Which filter mode retrieve() gets depends
+        # on whether THIS question's source is itself routed:
+        #   - routed source (TAT-DQA): source_dataset=... restricts to
+        #     exactly its own source - required, since its documents are
+        #     now in the voyage-finance-2 space, incompatible with every
+        #     other source's voyage-4 vectors.
+        #   - unrouted source (ConvFinQA/FinQA, still voyage-4):
+        #     exclude_source_datasets=<routed sources> instead - it must
+        #     only avoid the routed source(s)' now-incompatible vectors,
+        #     not be shrunk down to its own single source. Bug fixed
+        #     2026-08-15: passing source_dataset=item["source_dataset"]
+        #     unconditionally here (for every question, routed or not) is
+        #     what caused the real ConvFinQA/FinQA judge-accuracy
+        #     regression seen in the first routed eval run - see
+        #     pipeline.retrieval.build_rank_fusion_pipeline()'s docstring.
+        query_model = _resolve_embedding_model(config, item["source_dataset"])
+        routing = config.embedding.routing
+        is_routed_source = routing.enabled and item["source_dataset"] in routing.routed_sources
+        candidates = retrieve(
+            clients["voyage"],
+            collection,
+            item["question"],
+            pool_size=config.retrieval.pool_size,
+            vector_weight=config.retrieval.weights.vector,
+            text_weight=config.retrieval.weights.text,
+            source_dataset=item["source_dataset"] if is_routed_source else None,
+            exclude_source_datasets=list(routing.routed_sources) if (routing.enabled and not is_routed_source) else None,
+            embedding_model=query_model,
+        )
+        if config.reranker.enabled and candidates:
+            ranked = rerank(clients["cohere"], item["question"], candidates, top_n=config.reranker.top_n)
+        else:
+            ranked = candidates[: config.reranker.top_n]
+
+        if not ranked:
+            skipped_no_candidates += 1
+            continue
+
+        answer = generate_answer(generator, item["question_id"], item["question"], ranked)
+        context = "\n\n".join(c.full_indexed_content for c in ranked)
+        _append_generation_checkpoint(
+            gen_checkpoint_path, item["question_id"], item["question"], item["source_dataset"], item["gold_answer"], answer.answer_text, context
+        )
+        predictions.append(
+            {
+                "question_id": item["question_id"],
+                "question": item["question"],
+                "source_dataset": item["source_dataset"],
+                "gold_answer": item["gold_answer"],
+                "answer_text": answer.answer_text,
+            }
+        )
+        eval_items.append(
+            {
+                "question_id": item["question_id"],
+                "question": item["question"],
+                "context": context,
+                "generated_answer": answer.answer_text,
+                "gold_answer": item["gold_answer"],
+            }
+        )
+        newly_generated += 1
+        if (i + 1) % 25 == 0:
+            print(f"  {i + 1}/{len(items)} processed ({newly_generated} newly generated this run)")
+
+    if skipped_no_candidates:
+        print(f"  {skipped_no_candidates} question(s) skipped - no retrieval candidates")
+
+    print("Judging...")
+    results = evaluate_answers(
+        judge,
+        eval_items,
+        cache=judge_cache,
+        prompt_version=config.judge.prompt_version,
+        deterministic_check_enabled=config.judge.deterministic_check_enabled,
     )
-    with pytest.raises(AssertionError):
-        retrieve(voyage_client, collection, "q")
+
+    print(f"Writing results to {run_dir} ...")
+    write_run_config(config.model_dump(), args.run_id)
+
+    with (run_dir / "predictions.jsonl").open("w", encoding="utf-8") as f:
+        for p in predictions:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
+
+    with (run_dir / "eval_results.jsonl").open("w", encoding="utf-8") as f:
+        for r in results:
+            f.write(
+                json.dumps(
+                    {
+                        "question_id": r.question_id,
+                        "judge_scores": r.judge_scores,
+                        "deterministic_match": r.deterministic_match,
+                        "judge_agrees": r.judge_agrees,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+    previous_results = load_eval_results(Path("results") / args.compare_to / "eval_results.jsonl") if args.compare_to else None
+    write_eval_report(run_dir / "eval_report.md", results, items, args.run_id, previous_results, args.compare_to)
+    print(f"Done. Report: {run_dir / 'eval_report.md'}")
 
 
-def test_retrieve_passes_pool_size_and_weights_through_to_pipeline():
-    voyage_client = FakeVoyageClient()
-    collection = FakeCollection(results=[])
-
-    retrieve(voyage_client, collection, "q", pool_size=10, vector_weight=0.7, text_weight=0.3)
-
-    weights = collection.last_pipeline[0]["$rankFusion"]["combination"]["weights"]
-    assert weights[VECTOR_PIPELINE_NAME] == 0.7
-    assert weights[TEXT_PIPELINE_NAME] == 0.3
-    vector_stage = collection.last_pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
-    assert vector_stage["limit"] == 10
+# ---------------------------------------------------------------------------
+# entry point
+# ---------------------------------------------------------------------------
 
 
-def test_build_rank_fusion_pipeline_without_source_dataset_has_no_filter():
-    # Default (routing disabled or not applicable) behavior must be
-    # byte-for-byte unchanged from before per-dataset routing existed -
-    # no filter clause anywhere.
-    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50)
-    pipelines = pipeline[0]["$rankFusion"]["input"]["pipelines"]
-    vector_stage = pipelines[VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
-    text_stage = pipelines[TEXT_PIPELINE_NAME][0]["$search"]
-    assert "filter" not in vector_stage
-    assert "text" in text_stage  # plain text query, not the compound/filter form
+def main(argv: list[str] | None = None) -> None:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+    parser = argparse.ArgumentParser(prog="python -m pipeline.cli", description="Financial RAG Pipeline orchestrator")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_index = sub.add_parser("index", help="Build/refresh the MongoDB Atlas corpus (modules 1-5)")
+    p_index.add_argument("--config", default="config/config.yaml")
+    p_index.add_argument("--data-dir", default="data/t2-ragbench")
+    p_index.add_argument("--checkpoint", default="checkpoints/enrichment_checkpoint.jsonl")
+    p_index.set_defaults(func=cmd_index)
+
+    p_eval = sub.add_parser("eval", help="Run the query-time pipeline over a question set (modules 6-9)")
+    p_eval.add_argument("--config", default="config/config.yaml")
+    p_eval.add_argument(
+        "--questions", required=True, help="Path to an eval parquet file, e.g. data/t2-ragbench/eval_subset_250.parquet"
+    )
+    p_eval.add_argument("--run-id", default=None, help="Defaults to a UTC timestamp")
+    p_eval.add_argument("--limit", type=int, default=None, help="Only evaluate the first N questions (quick smoke run)")
+    p_eval.add_argument("--compare-to", default=None, help="A previous run_id to diff against in eval_report.md")
+    p_eval.set_defaults(func=cmd_eval)
+
+    args = parser.parse_args(argv)
+    if args.command == "eval" and args.run_id is None:
+        args.run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    args.func(args)
 
 
-def test_build_rank_fusion_pipeline_with_source_dataset_adds_vector_filter():
-    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50, source_dataset="TAT-DQA")
-    vector_stage = pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
-    assert vector_stage["filter"] == {"source_dataset": {"$eq": "TAT-DQA"}}
-
-
-def test_build_rank_fusion_pipeline_with_source_dataset_adds_text_filter():
-    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "revenue", pool_size=50, source_dataset="ConvFinQA")
-    text_stage = pipeline[0]["$rankFusion"]["input"]["pipelines"][TEXT_PIPELINE_NAME][0]["$search"]
-    assert "compound" in text_stage
-    assert text_stage["compound"]["must"] == [{"text": {"query": "revenue", "path": "full_indexed_content"}}]
-    assert text_stage["compound"]["filter"] == [{"equals": {"path": "source_dataset", "value": "ConvFinQA"}}]
-
-
-def test_build_rank_fusion_pipeline_filter_does_not_shrink_num_candidates():
-    # The filter must be INSIDE $vectorSearch (pre-filter), not a $match
-    # appended after - otherwise the ANN search's own numCandidates/limit
-    # selection would already be dominated by cross-model-embedded
-    # documents before the filter ever runs (see module docstring).
-    pipeline = build_rank_fusion_pipeline([0.0] * 1024, "q", pool_size=50, source_dataset="TAT-DQA")
-    vector_pipeline_stages = pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME]
-    assert len(vector_pipeline_stages) == 1  # filter lives inside the $vectorSearch stage, no extra $match stage
-    assert vector_pipeline_stages[0]["$vectorSearch"]["numCandidates"] > vector_pipeline_stages[0]["$vectorSearch"]["limit"]
-
-
-def test_retrieve_passes_source_dataset_and_embedding_model_through():
-    voyage_client = FakeVoyageClient()
-    collection = FakeCollection(results=[])
-
-    retrieve(voyage_client, collection, "q", source_dataset="TAT-DQA", embedding_model="voyage-finance-2")
-
-    vector_stage = collection.last_pipeline[0]["$rankFusion"]["input"]["pipelines"][VECTOR_PIPELINE_NAME][0]["$vectorSearch"]
-    assert vector_stage["filter"] == {"source_dataset": {"$eq": "TAT-DQA"}}
-
-
-def test_retrieve_default_embedding_model_matches_pipeline_embedding_module_constant():
-    from pipeline.embedding import MODEL as EMBEDDING_MODULE_MODEL
-
-    voyage_client = FakeVoyageClient()
-    collection = FakeCollection(results=[])
-    retrieve(voyage_client, collection, "q")
-    # FakeVoyageClient doesn't record `model` (matches the original test file's
-    # fake) - this test only guards retrieve()'s default value, via signature
-    # inspection, so a future default drift is caught even without a
-    # model-recording fake.
-    import inspect
-
-    assert inspect.signature(retrieve).parameters["embedding_model"].default == EMBEDDING_MODULE_MODEL
+if __name__ == "__main__":
+    main()
