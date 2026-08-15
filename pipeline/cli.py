@@ -309,24 +309,59 @@ def cmd_index(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
+# id/context_id prefix -> source_dataset, used only when the parquet has no
+# explicit source_dataset column - confirmed 2026-08-15 against the real
+# data/t2-ragbench/eval_subset_250.parquet schema
+# (['id', 'context_id', 'question', 'program_answer', 'original_answer']),
+# whose 'id' values look like "finqa_train_2917". Longest-prefix-first order
+# matters: "tat-dqa_" and "tatqa_" must be checked before a bare "tat_"
+# would ever be added, and "convfinqa_" must be checked before "finqa_"
+# since it is not a superstring of it but both start with letters that
+# could otherwise collide under a careless check.
+_SOURCE_PREFIX_MAP = [
+    ("convfinqa_", "ConvFinQA"),
+    ("finqa_", "FinQA"),
+    ("tat-dqa_", "TAT-DQA"),
+    ("tatqa_", "TAT-DQA"),
+]
+
+
+def _infer_source_dataset(*candidates: object) -> str:
+    """Looks at id/context_id-shaped strings (lowercased) for a known
+    dataset prefix. Returns 'unknown' if none match - matches
+    load_eval_questions()'s prior fallback behavior for a genuinely
+    unrecognized id shape."""
+    for value in candidates:
+        if value is None:
+            continue
+        text = str(value).lower()
+        for prefix, name in _SOURCE_PREFIX_MAP:
+            if text.startswith(prefix):
+                return name
+    return "unknown"
+
+
 def load_eval_questions(path: str | Path) -> list[dict]:
     """Loads an eval question set from parquet.
 
-    Schema note: the exact columns of data/t2-ragbench/eval_subset_*.parquet
-    have not been verified against this loader - as of 2026-08-14 those
-    files exist only on Google Drive, not yet committed to the GitHub repo,
-    so this function is deliberately defensive about column names rather
-    than assuming they match pipeline.ingestion's raw source-dataset schema
-    exactly. Once the real file is in the repo, confirm the column names
-    below still match and adjust if not.
+    Confirmed 2026-08-15 against the real data/t2-ragbench/eval_subset_250.parquet
+    schema: ['id', 'context_id', 'question', 'program_answer', 'original_answer']
+    (id example: "finqa_train_2917"). This loader still accepts the older
+    fallback column names below since they cost nothing to keep and make the
+    function robust to minor schema variants across eval_subset_250.parquet /
+    eval_subset_900.parquet / any future eval file.
 
     Required: 'question'. Gold answer: 'answer' or 'program_answer' (either
     accepted - the raw T2-RAGBench source files use 'program_answer', see
-    pipeline.ingestion.to_document_records). Optional: 'question_id' (falls
-    back to '{context_id}::{row index}', or 'q{row index}' if context_id is
-    also absent) and 'source_dataset' (used for the per-source
-    stratification in eval_report.md; rows without it are grouped under
-    'unknown').
+    pipeline.ingestion.to_document_records). question_id: uses the real 'id'
+    column when present (this is the real file's natural unique key);
+    otherwise falls back to 'question_id' if present, else
+    '{context_id}::{row index}', else 'q{row index}'. source_dataset: uses
+    the real 'source_dataset' column when present; otherwise it is inferred
+    from the 'id' column's prefix (falling back to 'context_id' if 'id' is
+    absent or unrecognized) so the mandatory per-source stratification in
+    eval_report.md is populated instead of defaulting everything to
+    'unknown'.
     """
     df = pd.read_parquet(path)
     if "question" not in df.columns:
@@ -338,6 +373,7 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     else:
         raise ValueError(f"{path} has neither 'answer' nor 'program_answer' column for the gold value")
 
+    has_id = "id" in df.columns
     has_context_id = "context_id" in df.columns
     has_question_id = "question_id" in df.columns
     has_source = "source_dataset" in df.columns
@@ -345,18 +381,22 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     items = []
     for i, row in df.reset_index(drop=True).iterrows():
         context_id = row["context_id"] if has_context_id else None
-        if has_question_id:
+        row_id = row["id"] if has_id else None
+        if has_id:
+            question_id = row_id
+        elif has_question_id:
             question_id = row["question_id"]
         elif context_id is not None:
             question_id = f"{context_id}::{i}"
         else:
             question_id = f"q{i}"
+        source_dataset = row["source_dataset"] if has_source else _infer_source_dataset(row_id, context_id)
         items.append(
             {
                 "question_id": str(question_id),
                 "question": row["question"],
                 "gold_answer": row[answer_col],
-                "source_dataset": row["source_dataset"] if has_source else "unknown",
+                "source_dataset": source_dataset,
             }
         )
     return items
