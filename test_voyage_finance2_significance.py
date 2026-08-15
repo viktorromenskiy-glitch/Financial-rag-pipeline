@@ -79,6 +79,19 @@ def main() -> None:
         }
     )
 
+    # The raw T2-RAGBench files (unlike the curated eval_subset_250.parquet)
+    # contain some rows with a null/empty/whitespace-only question - the
+    # first real run hit this: voyageai.error.InvalidRequestError "Input
+    # cannot contain empty strings or empty lists", 2026-08-15. Drop them
+    # before sampling so an unlucky draw can't put an empty string in a
+    # query batch and crash embed_batch() partway through a run.
+    before = len(df)
+    df = df.dropna(subset=["question"])
+    df = df[df["question"].astype(str).str.strip() != ""]
+    dropped = before - len(df)
+    if dropped:
+        print(f"  Dropped {dropped} row(s) with empty/missing question text ({dropped / before:.2%} of {before})")
+
     print(f"[2/4] Stratified sampling up to {PER_SOURCE_N} queries per source_dataset...")
     parts = []
     for source, group in df.groupby("source_dataset"):
