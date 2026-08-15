@@ -7,7 +7,7 @@ from dataclasses import dataclass
  
 import pytest
  
-from pipeline.embedding import EMBEDDING_DIM, embed_documents, embed_query, embed_texts
+from pipeline.embedding import EMBEDDING_DIM, FINANCE_MODEL, MODEL, embed_documents, embed_query, embed_texts, resolve_embedding_model
  
  
 @dataclass
@@ -95,4 +95,82 @@ def test_embed_documents_signature_cannot_see_raw_content():
  
     sig = inspect.signature(embed_documents)
     params = list(sig.parameters)
-    assert params == ["client", "indexed_texts"]
+    assert params == ["client", "indexed_texts", "model"]
+
+
+class RecordingVoyageClient:
+    """Same as FakeVoyageClient but also records the `model` argument -
+    needed to verify per-dataset routing actually reaches the API call,
+    not just that batching/id-wiring works."""
+
+    def __init__(self):
+        self.calls: list[tuple[int, str, str]] = []  # (batch_size, input_type, model)
+
+    def embed(self, texts, model, input_type):
+        self.calls.append((len(texts), input_type, model))
+        return _FakeResult(embeddings=[[float(len(t))] * EMBEDDING_DIM for t in texts])
+
+
+def test_embed_texts_defaults_to_module_model_constant():
+    client = RecordingVoyageClient()
+    embed_texts(client, ["a"], ["text"], input_type="document")
+    assert client.calls[0][2] == MODEL
+
+
+def test_embed_texts_uses_explicit_model_when_given():
+    client = RecordingVoyageClient()
+    embed_texts(client, ["a"], ["text"], input_type="document", model=FINANCE_MODEL)
+    assert client.calls[0][2] == FINANCE_MODEL
+
+
+def test_embed_documents_passes_model_through():
+    client = RecordingVoyageClient()
+    embed_documents(client, [("ctx_1", "text")], model=FINANCE_MODEL)
+    assert client.calls[0][2] == FINANCE_MODEL
+
+
+def test_embed_query_passes_model_through():
+    client = RecordingVoyageClient()
+    embed_query(client, "q_1", "question text", model=FINANCE_MODEL)
+    assert client.calls[0][2] == FINANCE_MODEL
+
+
+def test_resolve_embedding_model_routes_when_enabled_and_in_routed_sources():
+    model = resolve_embedding_model(
+        "TAT-DQA", routing_enabled=True, finance_model=FINANCE_MODEL, routed_sources={"TAT-DQA"}
+    )
+    assert model == FINANCE_MODEL
+
+
+def test_resolve_embedding_model_default_for_unrouted_source():
+    model = resolve_embedding_model(
+        "ConvFinQA", routing_enabled=True, finance_model=FINANCE_MODEL, routed_sources={"TAT-DQA"}
+    )
+    assert model == MODEL
+
+
+def test_resolve_embedding_model_default_when_routing_disabled():
+    # Even a routed_sources match must NOT route if routing is disabled -
+    # the config-level on/off switch must take priority.
+    model = resolve_embedding_model(
+        "TAT-DQA", routing_enabled=False, finance_model=FINANCE_MODEL, routed_sources={"TAT-DQA"}
+    )
+    assert model == MODEL
+
+
+def test_resolve_embedding_model_default_when_routed_sources_empty():
+    model = resolve_embedding_model(
+        "TAT-DQA", routing_enabled=True, finance_model=FINANCE_MODEL, routed_sources=set()
+    )
+    assert model == MODEL
+
+
+def test_resolve_embedding_model_respects_custom_default_model():
+    model = resolve_embedding_model(
+        "FinQA",
+        routing_enabled=True,
+        finance_model=FINANCE_MODEL,
+        routed_sources={"TAT-DQA"},
+        default_model="voyage-3",
+    )
+    assert model == "voyage-3"
