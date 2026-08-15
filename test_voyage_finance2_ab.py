@@ -121,11 +121,11 @@ def main() -> None:
     queries = sample_df.to_dict("records")
     print(f"  {len(queries)} queries sampled")
 
-    print("[2/4] Loading full document pool from MongoDB (id, context_id, full_indexed_content, embedding)...")
-    docs = list(collection.find({}, {"context_id": 1, "full_indexed_content": 1, "embedding": 1}))
+    print("[2/4] Loading full document pool from MongoDB (id, context_id, full_indexed_content, embedding_voyage)...")
+    docs = list(collection.find({}, {"context_id": 1, "full_indexed_content": 1, "embedding_voyage": 1}))
     pool_ids = [d["context_id"] for d in docs]
     pool_texts = [d["full_indexed_content"] for d in docs]
-    existing_v4_vectors = np.array([d["embedding"] for d in docs], dtype=np.float32)
+    existing_v4_vectors = np.array([d["embedding_voyage"] for d in docs], dtype=np.float32)
     print(f"  {len(pool_ids)} documents in pool (full corpus)")
 
     missing_gold = [q["context_id"] for q in queries if q["context_id"] not in set(pool_ids)]
