@@ -1,4 +1,5 @@
-""Module 6 - Hybrid retrieval.
+# pipeline/retrieval.py
+"""Module 6 - Hybrid retrieval.
 
 Combines a MongoDB Atlas $vectorSearch pipeline (over embedding_voyage) and
 a $search full-text pipeline (over full_indexed_content) via $rankFusion,
