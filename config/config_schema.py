@@ -34,9 +34,28 @@ class MongoDBConfig(BaseModel):
         return self
 
 
+class EmbeddingRoutingConfig(BaseModel):
+    """Per-dataset embedding routing (docs/tehnicheskoe_zadanie.md, п.3a,
+    2026-08-15) - added after a direct A/B test (McNemar's exact test,
+    n=2500/source_dataset, full 7318-document corpus) found voyage-finance-2
+    measurably helps TAT-DQA retrieval but hurts ConvFinQA and gives no
+    reliable benefit on FinQA, contradicting the uniform-improvement
+    prediction from three independent AI-consultant reviews. enabled=false
+    makes every document/query use embedding.model regardless of
+    source_dataset (routed_sources is ignored) - the config-level on/off
+    switch this project's convention requires for every architectural
+    choice (docs/struktura_repozitoriya.md).
+    """
+
+    enabled: bool
+    finance_model: str
+    routed_sources: list[str] = Field(default_factory=list)
+
+
 class EmbeddingConfig(BaseModel):
     model: str
     batch_size: PositiveInt
+    routing: EmbeddingRoutingConfig
 
 
 class EnrichmentConfig(BaseModel):
