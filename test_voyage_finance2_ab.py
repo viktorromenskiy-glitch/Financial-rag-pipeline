@@ -53,11 +53,20 @@ _SOURCE_PREFIX_MAP = [
 ]
 
 
-def infer_source(context_id: str) -> str:
-    low = str(context_id).lower()
-    for prefix, name in _SOURCE_PREFIX_MAP:
-        if low.startswith(prefix):
-            return name
+def infer_source(*candidates) -> str:
+    """Tries each candidate in order (mirrors pipeline/cli.py's
+    _infer_source_dataset()) - context_id alone isn't reliably prefixed
+    for every source_dataset in this corpus (confirmed 2026-08-15: TAT-DQA
+    rows' context_id didn't match, while their 'id' column did), so the
+    caller should pass both the row's 'id' and 'context_id' rather than
+    context_id alone."""
+    for value in candidates:
+        if value is None:
+            continue
+        low = str(value).lower()
+        for prefix, name in _SOURCE_PREFIX_MAP:
+            if low.startswith(prefix):
+                return name
     return "unknown"
 
 
@@ -90,7 +99,14 @@ def recall_and_mrr(sims: np.ndarray, pool_ids: list[str], queries: list[dict]) -
         order = np.argsort(-sims[i])
         ranked_ids = [pool_ids[j] for j in order]
         rank = ranked_ids.index(gold_cid) + 1 if gold_cid in ranked_ids else None
-        rows.append({"question_id": q.get("id", i), "context_id": gold_cid, "source": infer_source(gold_cid), "rank": rank})
+        rows.append(
+            {
+                "question_id": q.get("id", i),
+                "context_id": gold_cid,
+                "source": infer_source(q.get("id"), gold_cid),
+                "rank": rank,
+            }
+        )
     return pd.DataFrame(rows)
 
 
