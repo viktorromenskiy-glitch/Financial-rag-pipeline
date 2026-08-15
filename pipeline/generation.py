@@ -17,24 +17,42 @@ symbol. This is spelled out in the prompt rather than left for the model
 to guess, since the downstream comparison (module 9, is_close_v2) depends
 on a predictable answer format.
 
-PROMPT_TEMPLATE revised 2026-08-15 against real claude-sonnet-5 output on
-data/t2-ragbench/eval_subset_250.parquet (10-question smoke run): the
-original, softer wording ("a single number, short phrase, or sentence")
-was not enough - claude-sonnet-5 reliably answered correctly in substance
-but wrapped the number in explanatory prose, markdown bold, currency
-symbols, or unit words ("$77,143 million", "-103.57 (E*TRADE's cumulative
-return was...)", "Based on the data provided, ... **-248 million**").
-is_close_v2 is a literal transplant (see pipeline/common/is_close_v2.py)
-and deliberately does not strip that kind of text - the fix has to be a
-stricter prompt, not a looser deterministic check. 7 of 10 answers in that
-smoke run were judge-correct but is_close_v2-incorrect purely because of
-this formatting gap, not a reasoning error - see the smoke run's
-predictions.jsonl/eval_results.jsonl for the concrete before/after
-evidence this rewrite is based on.
+PROMPT_TEMPLATE revision history:
+
+2026-08-15 (v2 of the prompt, no explicit version const - see note below):
+the original, softer wording ("a single number, short phrase, or
+sentence") was not enough - claude-sonnet-5 reliably answered correctly in
+substance but wrapped the number in explanatory prose, markdown bold,
+currency symbols, or unit words ("$77,143 million", "Based on the data
+provided, ... **-248 million**"). Rewritten to flatly forbid any
+explanation.
+
+2026-08-15 (this revision, "FINAL ANSWER:" delimiter pattern): the flat
+"never explain" prohibition from the previous revision still leaked on
+rare, harder questions - observed directly on the real 250-question eval
+(pipeline/cli.py's ClaudeGenerator has thinking disabled, so the model has
+no private scratch space; on at least one question it wrote its arithmetic
+out loud anyway despite the explicit prohibition: "2004 minus 2005 = -1,
+so U.S. federal (2005) covers 1 fewer year than NY (2004).\n\n1" -
+question finqa_train_1575, results/full250_v2judge). That leak cost a
+judge-correct verdict even though the right value (1) was technically
+present, because the judge could no longer cleanly identify which part of
+the response was "the answer." Fighting this with an even stricter
+prohibition has diminishing returns - the fix here is not to forbid
+reasoning but to make extraction robust to it either way: the model may
+reason freely, but must end with a fixed-format marker line
+("FINAL ANSWER: <value>"), and _extract_final_answer() below always parses
+from that marker (or, if the model forgets it, falls back to the last
+non-empty line - the pattern actually observed when a leak happens). This
+is the same "let it think, but delimit the final output" pattern as
+<scratchpad>/<answer> tag conventions - it removes the tension that seems
+to cause the occasional non-compliant leak, rather than just re-stating
+the same prohibition more forcefully.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -50,16 +68,42 @@ Context:
 
 Question: {question}
 
-Respond with ONLY the answer value itself - nothing else. No explanation, no reasoning, no restating the question, no markdown formatting (no bold, no bullet points), no parenthetical notes.
+You may briefly work through the calculation or reasoning if it helps you get the right answer - that's fine. When you are done, output your final answer on its own line, in exactly this format, with nothing else on that line:
 
-Formatting rules for the answer:
+FINAL ANSWER: <value>
+
+Formatting rules for <value>:
 - If the answer is numeric, express it as a plain number with no currency symbol, no thousands separator (comma), and no unit word like "million"/"billion"/"thousand" - e.g. "77143", not "$77,143 million".
 - Express any percentage as a plain number from 0 to 100, not a 0-1 fraction and not with a "%" sign - e.g. "12.5", not "0.125" and not "12.5%".
 - If the answer is a short phrase (not a number) - e.g. a company name or date - give just that phrase, nothing appended.
-- If the context does not contain enough information to answer, respond with exactly: INSUFFICIENT_CONTEXT
-
-Your entire response must be just the answer value - a bare number or short phrase - and nothing else.
+- If the context does not contain enough information to answer, use: FINAL ANSWER: INSUFFICIENT_CONTEXT
 """
+
+# Matches "final answer:" case-insensitively, wherever it appears in the
+# response (there should be exactly one, on its own line, per the prompt
+# above - but if the model produces more than one for some reason, the
+# LAST occurrence wins, since that is the one intended as the actual
+# final answer).
+_FINAL_ANSWER_RE = re.compile(r"final\s*answer\s*:\s*", re.IGNORECASE)
+
+
+def _extract_final_answer(raw_response: str) -> str:
+    """Pulls the value out of a "...FINAL ANSWER: <value>..." response.
+
+    Takes the first non-empty line after the last "FINAL ANSWER:" marker
+    (handles both "FINAL ANSWER: 100" and the marker followed by a
+    newline then the value). If the marker is missing entirely - the
+    model ignored the format instruction - falls back to the last
+    non-empty line of the whole response, which is where a bare leaked
+    answer has been observed to land in practice (see module docstring).
+    """
+    matches = list(_FINAL_ANSWER_RE.finditer(raw_response))
+    if not matches:
+        lines = [line.strip() for line in raw_response.strip().splitlines() if line.strip()]
+        return lines[-1] if lines else raw_response.strip()
+    tail = raw_response[matches[-1].end() :]
+    lines = [line.strip() for line in tail.strip().splitlines() if line.strip()]
+    return lines[0] if lines else tail.strip()
 
 
 @dataclass(frozen=True)
@@ -109,5 +153,5 @@ def generate_answer(
     how many documents to include."""
     prompt = build_prompt(question, candidates)
     raw_response = _generate_with_retry(generator, prompt)
-    answer_text = raw_response.strip()
+    answer_text = _extract_final_answer(raw_response)
     return GeneratedAnswer(question_id=question_id, answer_text=answer_text, raw_response=raw_response)
