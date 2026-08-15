@@ -45,7 +45,19 @@ from scipy.stats import binomtest
 from pipeline.ingestion import load_raw, to_document_records
 from test_voyage_finance2_ab import BATCH_SIZE, embed_batch, normalize
 
-PER_SOURCE_N = 700  # cap per source_dataset; uses all available rows if fewer
+PER_SOURCE_N = 2500  # cap per source_dataset; uses all available rows if fewer.
+# Bumped from 700 -> 2500 on 2026-08-15 after the first full-scale run:
+# ConvFinQA regression was already solid (p=0.0001), but TAT-DQA's
+# improvement (p=0.0479, +2.3pp) was only nominally significant and did
+# not survive a Bonferroni correction for the 4 tests (overall + 3
+# datasets) - all three external reviewers (Gemini, Kimi, Grok), despite
+# disagreeing on whether that correction is even the right framework here,
+# converged on the same practical recommendation: collect more TAT-DQA
+# data before deciding on any per-dataset embedding-routing change, since
+# it costs only query embeddings (near-$0) to do so. 2500 is comfortably
+# below the smallest available per-source pool (ConvFinQA has ~3453 raw
+# rows total), so all three sources get an equal, maximal-within-budget
+# sample rather than an arbitrary round number.
 RANDOM_SEED = 42
 
 
