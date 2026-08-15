@@ -17,34 +17,44 @@ JUDGE_PROMPT below is transplanted from the validated test 2.5 Colab cell
 not rewritten from a description. The judging criteria (last paragraph
 before the response-format instruction) are unchanged from that transplant.
 
-JUDGE_PROMPT's response-format instruction was revised 2026-08-15 - a
-format-only change, evidence-based like generation.py's PROMPT_TEMPLATE
-revision, not a rewrite of the judging criteria. Root cause: pipeline/cli.py's
-ClaudeJudge started disabling extended thinking the same day (see cli.py,
-"No text block found" bug - thinking alone could consume the entire
-max_tokens budget). Before that fix, any reasoning the model wanted to do
-went into the hidden thinking block, and only the required CORRECT/INCORRECT
-word reached the visible text; with thinking disabled, the model has nowhere
-else to put that reasoning, so on some questions it started writing the full
-comparison directly into the answer text (e.g. "LOOKING AT THIS COMPARISON:
-... CORRECT") instead of the single required word - observed in several
-verdicts from the first full 250-question run
-(results/full250_baseline/eval_results.jsonl). This did not actually
-misclassify any of those cases (evaluate_answer()'s "CORRECT" in verdict and
-"INCORRECT" not in verdict check is substring-based and tolerated the extra
-prose), but it is fragile and noisy for reporting, so the instruction is now
-explicit: exactly one word, nothing else. Also folded in an explicit
-units-of-the-same-value clause (e.g. 5413606 vs 5413606000, thousands vs raw
-units) - the dominant real cause (~18 of 27) of judge/deterministic
-disagreement in that same run was exactly this pattern, and the judge was
-already resolving it correctly on its own in every observed case without
-being told to; this only makes an already-correct, already-observed judge
-behavior explicit and less dependent on the model inferring it unprompted.
+JUDGE_PROMPT's response-format instruction has been revised twice, both
+format-only changes (like generation.py's PROMPT_TEMPLATE revisions), not
+rewrites of the judging criteria in the paragraph above:
+
+2026-08-15 (v2, "exactly one word"): pipeline/cli.py's ClaudeJudge started
+disabling extended thinking the same day (see cli.py, "No text block
+found" bug - thinking alone could consume the entire max_tokens budget).
+Before that fix, any reasoning the model wanted to do went into the hidden
+thinking block, and only the required CORRECT/INCORRECT word reached the
+visible text; with thinking disabled, the model had nowhere else to put
+that reasoning, so on some questions it started writing the full
+comparison directly into the answer text (e.g. "LOOKING AT THIS
+COMPARISON: ... CORRECT") instead of the single required word - observed
+in several verdicts from the first full 250-question run
+(results/full250_baseline/eval_results.jsonl). Also folded in an explicit
+units-of-the-same-value clause (e.g. 5413606 vs 5413606000, thousands vs
+raw units) - the dominant real cause (~18 of 27) of judge/deterministic
+disagreement in that same run.
+
+2026-08-15 (v3, "VERDICT:" marker): v2's "exactly one word" instruction
+reduced but did not eliminate the leak - re-ran the full 250-question eval
+under v2 and still saw a verbose leak on at least one question
+(results/full250_v2judge). Same root cause as generation.py's matching
+revision: flatly forbidding reasoning fights the model's tendency to want
+to show its work on harder comparisons, with diminishing returns from
+restating the prohibition more forcefully. Switched to the same fix
+applied to generation.py: the model may reason freely, but must end with a
+fixed marker line ("VERDICT: CORRECT" or "VERDICT: INCORRECT"), and
+_extract_verdict() below parses from that marker (last occurrence wins;
+falls back to the last non-empty line if the model omits the marker).
+judge_scores["verdict"] now stores just the parsed CORRECT/INCORRECT, not
+the full raw response, which is also more useful for reporting.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -55,7 +65,7 @@ from pipeline.common.retry import retryable
 
 MODEL = "claude-sonnet-5"
 TEMPERATURE = 0.0
-PROMPT_VERSION = "v2"
+PROMPT_VERSION = "v3"
 DETERMINISTIC_CHECK_ENABLED = True
 
 JUDGE_PROMPT = """You are evaluating whether a generated answer to a financial question is correct, given the ground truth answer.
@@ -66,7 +76,29 @@ Ground truth answer: {gold}
 
 Consider the answer correct if it matches the ground truth value, allowing for minor rounding, sign-convention differences (e.g. -60 vs 60 if direction is ambiguous), equivalent expression as percentage vs fraction (e.g. 1.5 vs 0.015), or equivalent expression in different units of the same underlying value (e.g. 5413606 vs 5413606000, if one is in thousands and the other in raw units).
 
-Respond with EXACTLY one word and nothing else: CORRECT or INCORRECT. Do not explain your reasoning, do not restate or compare the numbers, do not add any text before or after the word."""
+You may briefly explain your reasoning if it helps you decide - that's fine. When you are done, output your verdict on its own line, in exactly this format, with nothing else on that line:
+
+VERDICT: CORRECT
+(or)
+VERDICT: INCORRECT"""
+
+# Same pattern as generation.py's _FINAL_ANSWER_RE - see that module's
+# docstring for the rationale. Last occurrence wins if there is more than
+# one.
+_VERDICT_RE = re.compile(r"verdict\s*:\s*", re.IGNORECASE)
+
+
+def _extract_verdict(raw_verdict: str) -> str:
+    """Pulls CORRECT/INCORRECT out of a "...VERDICT: CORRECT..." response.
+    Falls back to the last non-empty line if the "VERDICT:" marker is
+    missing - see generation.py's _extract_final_answer(), same idea."""
+    matches = list(_VERDICT_RE.finditer(raw_verdict))
+    if not matches:
+        lines = [line.strip() for line in raw_verdict.strip().splitlines() if line.strip()]
+        return lines[-1] if lines else raw_verdict.strip()
+    tail = raw_verdict[matches[-1].end() :]
+    lines = [line.strip() for line in tail.strip().splitlines() if line.strip()]
+    return lines[0] if lines else tail.strip()
 
 
 @dataclass(frozen=True)
@@ -90,10 +122,10 @@ def cache_key(question: str, context: str, answer: str, prompt_version: str = PR
     The prompt version must be part of the key (tehnicheskoe_zadanie.md,
     section 8): otherwise changing the judge prompt silently returns
     stale scores computed under the old prompt, indistinguishable from
-    "nothing changed". PROMPT_VERSION was bumped v1 -> v2 with the
-    2026-08-15 JUDGE_PROMPT revision above, precisely so any existing
-    v1 judge_cache.jsonl entries are not silently reused under the new
-    prompt.
+    "nothing changed". PROMPT_VERSION has been bumped with each
+    JUDGE_PROMPT revision above (v1 -> v2 -> v3), precisely so any
+    existing judge_cache.jsonl entries from an older prompt version are
+    not silently reused under the new prompt.
     """
     raw = "\x1f".join([question, context, answer, prompt_version])
     return sha256(raw.encode("utf-8")).hexdigest()
@@ -170,7 +202,7 @@ def evaluate_answer(
 
     prompt = JUDGE_PROMPT.format(question=question, generated=generated_answer, gold=gold_answer)
     raw_verdict = _judge_with_retry(judge, prompt)
-    verdict = raw_verdict.strip().upper()
+    verdict = _extract_verdict(raw_verdict).upper()
     judge_correct = "CORRECT" in verdict and "INCORRECT" not in verdict
 
     # Agreement is only a meaningful signal when the deterministic check
