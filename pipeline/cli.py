@@ -145,6 +145,23 @@ class ClaudeGenerator:
     - it's just not a parameter this model accepts anymore. ClaudeSummarizer
     (claude-haiku-4-5-20251001) is unaffected - that model accepted
     temperature fine during the real corpus indexing run.
+
+    `thinking` is explicitly disabled (extra_body={"thinking": {"type":
+    "disabled"}}). Root-caused 2026-08-15 against the real 250-question
+    eval run: on question 51/250 (a longer, harder question),
+    claude-sonnet-5's default extended thinking consumed the entire
+    max_tokens=1024 budget on its own, leaving a response with only a
+    thinking block and no text block at all - the same failure class
+    previously seen and fixed for ClaudeJudge with max_tokens=10, except
+    this time even 1024 wasn't a safe upper bound, since the model can
+    apparently spend an arbitrary amount of the budget thinking. Since
+    generation/judging here don't need reasoning transparency - just a
+    short deterministic-format answer or a one-word verdict - disabling
+    thinking outright removes this failure mode instead of trying to
+    guess a large-enough max_tokens forever. Passed via extra_body rather
+    than a typed `thinking=` kwarg for compatibility with anthropic==0.40.0
+    (extra_body merges into the raw request JSON regardless of whether
+    this SDK version's typed method signature has a `thinking` parameter).
     """
 
     def __init__(self, client, model: str, temperature: float, max_tokens: int = 1024):
@@ -158,6 +175,7 @@ class ClaudeGenerator:
             model=self.model,
             max_tokens=self.max_tokens,
             messages=[{"role": "user", "content": prompt}],
+            extra_body={"thinking": {"type": "disabled"}},
         )
         return _extract_text(response)
 
@@ -165,8 +183,13 @@ class ClaudeGenerator:
 class ClaudeJudge:
     """Adapts anthropic.Anthropic to pipeline.evaluation.JudgeProtocol.
 
-    Same reason as ClaudeGenerator above: `temperature` is not sent -
-    claude-sonnet-5 rejects it with a 400.
+    Same reasons as ClaudeGenerator above: `temperature` is not sent -
+    claude-sonnet-5 rejects it with a 400 - and `thinking` is explicitly
+    disabled via extra_body, since the same "thinking ate the whole
+    max_tokens budget, no text block left" failure applies here too (first
+    observed on this class with max_tokens=10, but root-caused 2026-08-15
+    to be about thinking being enabled at all, not just an insufficient
+    max_tokens guess - see ClaudeGenerator's docstring).
     """
 
     def __init__(self, client, model: str, temperature: float):
@@ -175,16 +198,11 @@ class ClaudeJudge:
         self.temperature = temperature
 
     def judge(self, prompt: str) -> str:
-        # max_tokens must cover claude-sonnet-5's default extended-thinking
-        # output too, not just the one-word CORRECT/INCORRECT verdict -
-        # verified against the real API 2026-08-15: max_tokens=10 left no
-        # room after an (empty) thinking block, so the response contained
-        # no text block at all and _extract_text() correctly raised instead
-        # of silently returning something wrong.
         response = self.client.messages.create(
             model=self.model,
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
+            extra_body={"thinking": {"type": "disabled"}},
         )
         return _extract_text(response)
 
@@ -402,6 +420,52 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     return items
 
 
+def _load_generation_checkpoint(path: Path) -> dict[str, dict]:
+    """Loads results/<run_id>/generation_checkpoint.jsonl - one line per
+    already-answered question_id (question/source_dataset/gold_answer/
+    answer_text/context).
+
+    Added 2026-08-15 after a real 250-question eval run crashed at
+    50/250 (the extended-thinking bug fixed above) and lost all 50
+    already-generated answers, since cmd_eval previously only accumulated
+    predictions/eval_items in memory and wrote everything to disk once at
+    the very end. This mirrors EnrichmentCheckpoint (module 4) and
+    JudgeCache (module 9, already resumable) - the generation stage was
+    the one remaining gap; re-running the same --run-id now resumes
+    instead of redoing (and re-billing) already-answered questions.
+    """
+    if not path.exists():
+        return {}
+    done: dict[str, dict] = {}
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            done[rec["question_id"]] = rec
+    return done
+
+
+def _append_generation_checkpoint(path: Path, question_id: str, question: str, source_dataset: str, gold_answer: str, answer_text: str, context: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(
+            json.dumps(
+                {
+                    "question_id": question_id,
+                    "question": question,
+                    "source_dataset": source_dataset,
+                    "gold_answer": gold_answer,
+                    "answer_text": answer_text,
+                    "context": context,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+
+
 def load_eval_results(path: Path) -> list[EvalResult]:
     if not path.exists():
         raise FileNotFoundError(f"No previous run found at {path} - check --compare-to")
@@ -512,11 +576,37 @@ def cmd_eval(args: argparse.Namespace) -> None:
 
     run_dir = Path("results") / args.run_id
     judge_cache = JudgeCache(run_dir / "judge_cache.jsonl")
+    gen_checkpoint_path = run_dir / "generation_checkpoint.jsonl"
+    generated = _load_generation_checkpoint(gen_checkpoint_path)
+    print(f"  {len(generated)} already generated (resumed from checkpoint), {len(items) - len(generated)} remaining")
 
     predictions = []
     eval_items = []
     skipped_no_candidates = 0
+    newly_generated = 0
     for i, item in enumerate(items):
+        cached = generated.get(item["question_id"])
+        if cached is not None:
+            predictions.append(
+                {
+                    "question_id": item["question_id"],
+                    "question": item["question"],
+                    "source_dataset": item["source_dataset"],
+                    "gold_answer": item["gold_answer"],
+                    "answer_text": cached["answer_text"],
+                }
+            )
+            eval_items.append(
+                {
+                    "question_id": item["question_id"],
+                    "question": item["question"],
+                    "context": cached["context"],
+                    "generated_answer": cached["answer_text"],
+                    "gold_answer": item["gold_answer"],
+                }
+            )
+            continue
+
         candidates = retrieve(
             clients["voyage"],
             collection,
@@ -535,6 +625,10 @@ def cmd_eval(args: argparse.Namespace) -> None:
             continue
 
         answer = generate_answer(generator, item["question_id"], item["question"], ranked)
+        context = "\n\n".join(c.full_indexed_content for c in ranked)
+        _append_generation_checkpoint(
+            gen_checkpoint_path, item["question_id"], item["question"], item["source_dataset"], item["gold_answer"], answer.answer_text, context
+        )
         predictions.append(
             {
                 "question_id": item["question_id"],
@@ -548,13 +642,14 @@ def cmd_eval(args: argparse.Namespace) -> None:
             {
                 "question_id": item["question_id"],
                 "question": item["question"],
-                "context": "\n\n".join(c.full_indexed_content for c in ranked),
+                "context": context,
                 "generated_answer": answer.answer_text,
                 "gold_answer": item["gold_answer"],
             }
         )
+        newly_generated += 1
         if (i + 1) % 25 == 0:
-            print(f"  {i + 1}/{len(items)} answered")
+            print(f"  {i + 1}/{len(items)} processed ({newly_generated} newly generated this run)")
 
     if skipped_no_candidates:
         print(f"  {skipped_no_candidates} question(s) skipped - no retrieval candidates")
