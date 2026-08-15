@@ -8,6 +8,10 @@ mongodb:
 embedding:
   model: "voyage-4"
   batch_size: 32
+  routing:
+    enabled: true                     # per-dataset embedding routing — см. tehnicheskoe_zadanie.md п.3a (добавлено 2026-08-15)
+    finance_model: "voyage-finance-2"
+    routed_sources: ["TAT-DQA"]       # только TAT-DQA (Recall@5 +1.9pp, McNemar p=0.0005, n=2500) — ConvFinQA (-1.9pp, p=0.0000) и FinQA (-0.9pp, не устойчиво) остаются на embedding.model
 
 enrichment:
   enabled: true
@@ -42,5 +46,3 @@ retry:
   wait_min_seconds: 1
   wait_max_seconds: 60
   # ретраить только transient-ошибки (429/5xx/timeout), не 4xx — см. ТЗ п.11
-
-
