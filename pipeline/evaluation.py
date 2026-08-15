@@ -14,7 +14,32 @@ docs/tehnicheskoe_zadanie.md, section 8.
 
 JUDGE_PROMPT below is transplanted from the validated test 2.5 Colab cell
 (experiments_weeks_1_2.ipynb) that produced the 93.3% agreement figure -
-not rewritten from a description.
+not rewritten from a description. The judging criteria (last paragraph
+before the response-format instruction) are unchanged from that transplant.
+
+JUDGE_PROMPT's response-format instruction was revised 2026-08-15 - a
+format-only change, evidence-based like generation.py's PROMPT_TEMPLATE
+revision, not a rewrite of the judging criteria. Root cause: pipeline/cli.py's
+ClaudeJudge started disabling extended thinking the same day (see cli.py,
+"No text block found" bug - thinking alone could consume the entire
+max_tokens budget). Before that fix, any reasoning the model wanted to do
+went into the hidden thinking block, and only the required CORRECT/INCORRECT
+word reached the visible text; with thinking disabled, the model has nowhere
+else to put that reasoning, so on some questions it started writing the full
+comparison directly into the answer text (e.g. "LOOKING AT THIS COMPARISON:
+... CORRECT") instead of the single required word - observed in several
+verdicts from the first full 250-question run
+(results/full250_baseline/eval_results.jsonl). This did not actually
+misclassify any of those cases (evaluate_answer()'s "CORRECT" in verdict and
+"INCORRECT" not in verdict check is substring-based and tolerated the extra
+prose), but it is fragile and noisy for reporting, so the instruction is now
+explicit: exactly one word, nothing else. Also folded in an explicit
+units-of-the-same-value clause (e.g. 5413606 vs 5413606000, thousands vs raw
+units) - the dominant real cause (~18 of 27) of judge/deterministic
+disagreement in that same run was exactly this pattern, and the judge was
+already resolving it correctly on its own in every observed case without
+being told to; this only makes an already-correct, already-observed judge
+behavior explicit and less dependent on the model inferring it unprompted.
 """
 
 from __future__ import annotations
@@ -30,7 +55,7 @@ from pipeline.common.retry import retryable
 
 MODEL = "claude-sonnet-5"
 TEMPERATURE = 0.0
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 DETERMINISTIC_CHECK_ENABLED = True
 
 JUDGE_PROMPT = """You are evaluating whether a generated answer to a financial question is correct, given the ground truth answer.
@@ -39,7 +64,9 @@ Question: {question}
 Generated answer: {generated}
 Ground truth answer: {gold}
 
-Consider the answer correct if it matches the ground truth value, allowing for minor rounding, sign-convention differences (e.g. -60 vs 60 if direction is ambiguous), or equivalent expression as percentage vs fraction (e.g. 1.5 vs 0.015). Respond with exactly one word: CORRECT or INCORRECT."""
+Consider the answer correct if it matches the ground truth value, allowing for minor rounding, sign-convention differences (e.g. -60 vs 60 if direction is ambiguous), equivalent expression as percentage vs fraction (e.g. 1.5 vs 0.015), or equivalent expression in different units of the same underlying value (e.g. 5413606 vs 5413606000, if one is in thousands and the other in raw units).
+
+Respond with EXACTLY one word and nothing else: CORRECT or INCORRECT. Do not explain your reasoning, do not restate or compare the numbers, do not add any text before or after the word."""
 
 
 @dataclass(frozen=True)
@@ -63,7 +90,10 @@ def cache_key(question: str, context: str, answer: str, prompt_version: str = PR
     The prompt version must be part of the key (tehnicheskoe_zadanie.md,
     section 8): otherwise changing the judge prompt silently returns
     stale scores computed under the old prompt, indistinguishable from
-    "nothing changed".
+    "nothing changed". PROMPT_VERSION was bumped v1 -> v2 with the
+    2026-08-15 JUDGE_PROMPT revision above, precisely so any existing
+    v1 judge_cache.jsonl entries are not silently reused under the new
+    prompt.
     """
     raw = "\x1f".join([question, context, answer, prompt_version])
     return sha256(raw.encode("utf-8")).hexdigest()
