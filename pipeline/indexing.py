@@ -102,7 +102,20 @@ def upsert_document(
     contextual_summary: str,
     metadata_prefix: str,
     embedding: list[float],
+    source_dataset: str,
 ) -> None:
+    """source_dataset is stored on the document (added 2026-08-15,
+    docs/tehnicheskoe_zadanie.md п.3a) so pipeline.retrieval can pre-filter
+    $rankFusion candidates by it. This is required, not optional, once
+    per-dataset embedding routing is in use: embedding_voyage on a given
+    document holds vectors from whichever model that document's
+    source_dataset routes to (voyage-finance-2 for TAT-DQA, voyage-4
+    otherwise, see pipeline.embedding.resolve_embedding_model) - vectors
+    from different models are not comparable, so a query embedded with one
+    model must never be compared against documents embedded with the
+    other. Filtering by source_dataset keeps every $vectorSearch comparison
+    within a single, consistent embedding space.
+    """
     full_indexed_content = build_full_indexed_content(raw_content, contextual_summary, metadata_prefix)
     collection.update_one(
         {"context_id": context_id},
@@ -114,6 +127,7 @@ def upsert_document(
                 "contextual_summary": contextual_summary,
                 "full_indexed_content": full_indexed_content,
                 "embedding_voyage": embedding,
+                "source_dataset": source_dataset,
                 "is_indexed": True,
             }
         },
@@ -132,7 +146,10 @@ def index_corpus(
     raw_content, source_dataset, metadata_prefix). contextual_summaries -
     output of enrich_documents() (module 4). embeddings_by_id -
     {context_id: vector} built from the EmbeddingVector objects returned by
-    embed_documents() (module 3).
+    embed_documents() (module 3) - the CALLER (cli.py cmd_index) is
+    responsible for having embedded each document with the model its
+    source_dataset resolves to (see pipeline.embedding.resolve_embedding_model);
+    this function just writes whatever vector it's given.
 
     Returns the number of documents actually written (not skipped via
     checkpoint). Resilient to a mid-run failure while indexing the full
@@ -154,16 +171,32 @@ def index_corpus(
             contextual_summary=contextual_summaries.get(context_id, ""),
             metadata_prefix=doc["metadata_prefix"],
             embedding=embeddings_by_id[context_id],
+            source_dataset=doc["source_dataset"],
         )
         count += 1
     return count
 
 
-def validate_startup_indexes(collection: CollectionProtocol) -> None:
+def validate_startup_indexes(collection: CollectionProtocol, check_source_dataset_filter: bool = True) -> None:
     """Mandatory startup check (spec section 2): a test query against both
     indexes, asserting a non-empty result - before the pipeline is allowed
     to proceed. Guards against a previously observed silent bug caused by
     mismatched index names.
+
+    check_source_dataset_filter (added 2026-08-15, tehnicheskoe_zadanie.md
+    п.3a): per-dataset embedding routing requires $vectorSearch's `filter`
+    clause on source_dataset to actually work, which requires
+    source_dataset to be declared as a "filter"-type field in the
+    vector_index_full Atlas Search index definition - this is an Atlas
+    index configuration change, not something this code can make happen.
+    An unindexed filter field does not raise an error in Atlas, it just
+    silently returns zero results for every query - the exact same
+    silent-failure class already documented below for mismatched index
+    names, so it gets the same treatment: an explicit assert at startup,
+    not a mystery empty retrieval result discovered mid-eval. Set to False
+    only for a cluster where routing is deliberately disabled
+    (config.embedding.routing.enabled=false) and the index has not been
+    updated with the filter field yet.
     """
     # A zero vector is invalid for $vectorSearch: Atlas uses cosine
     # similarity internally, which is undefined for a zero-magnitude
@@ -206,3 +239,33 @@ def validate_startup_indexes(collection: CollectionProtocol) -> None:
         raise AssertionError(
             f"Full-text index {TEXT_INDEX_NAME!r} returned an empty result on the test query"
         )
+
+    if check_source_dataset_filter:
+        filtered_result = list(
+            collection.aggregate(
+                [
+                    {
+                        "$vectorSearch": {
+                            "index": VECTOR_INDEX_NAME,
+                            "path": "embedding_voyage",
+                            "queryVector": probe_vector,
+                            "numCandidates": 10,
+                            "limit": 1,
+                            "filter": {"source_dataset": {"$exists": True}},
+                        }
+                    }
+                ]
+            )
+        )
+        if not filtered_result:
+            raise AssertionError(
+                f"$vectorSearch with a source_dataset filter returned an empty result. "
+                f"source_dataset must be (a) present on every indexed document (run the "
+                f"source_dataset/embedding_finance2 backfill migration if the corpus was "
+                f"indexed before 2026-08-15) and (b) declared as a 'filter'-type field in "
+                f"the {VECTOR_INDEX_NAME!r} Atlas index definition (see "
+                f"docs/tehnicheskoe_zadanie.md, п.3a, for the exact index JSON). Without "
+                f"this, per-dataset embedding routing cannot pre-filter candidates by "
+                f"source_dataset, and queries risk being compared against documents "
+                f"embedded with a different, incompatible model."
+            )
