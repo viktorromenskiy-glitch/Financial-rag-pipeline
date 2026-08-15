@@ -16,6 +16,21 @@ number, not a 0-1 fraction, and currency amounts without a currency
 symbol. This is spelled out in the prompt rather than left for the model
 to guess, since the downstream comparison (module 9, is_close_v2) depends
 on a predictable answer format.
+
+PROMPT_TEMPLATE revised 2026-08-15 against real claude-sonnet-5 output on
+data/t2-ragbench/eval_subset_250.parquet (10-question smoke run): the
+original, softer wording ("a single number, short phrase, or sentence")
+was not enough - claude-sonnet-5 reliably answered correctly in substance
+but wrapped the number in explanatory prose, markdown bold, currency
+symbols, or unit words ("$77,143 million", "-103.57 (E*TRADE's cumulative
+return was...)", "Based on the data provided, ... **-248 million**").
+is_close_v2 is a literal transplant (see pipeline/common/is_close_v2.py)
+and deliberately does not strip that kind of text - the fix has to be a
+stricter prompt, not a looser deterministic check. 7 of 10 answers in that
+smoke run were judge-correct but is_close_v2-incorrect purely because of
+this formatting gap, not a reasoning error - see the smoke run's
+predictions.jsonl/eval_results.jsonl for the concrete before/after
+evidence this rewrite is based on.
 """
 
 from __future__ import annotations
@@ -35,11 +50,15 @@ Context:
 
 Question: {question}
 
-Instructions:
-- Give a direct, concise answer - a single number, short phrase, or sentence. Do not show your reasoning steps or any code.
-- Express any percentage as a plain number from 0 to 100 (e.g. "12.5", not "0.125" and not "12.5%").
-- Express currency amounts as a plain number, without a currency symbol, unless the question explicitly asks for the currency.
-- If the context does not contain enough information to answer, say so explicitly instead of guessing.
+Respond with ONLY the answer value itself - nothing else. No explanation, no reasoning, no restating the question, no markdown formatting (no bold, no bullet points), no parenthetical notes.
+
+Formatting rules for the answer:
+- If the answer is numeric, express it as a plain number with no currency symbol, no thousands separator (comma), and no unit word like "million"/"billion"/"thousand" - e.g. "77143", not "$77,143 million".
+- Express any percentage as a plain number from 0 to 100, not a 0-1 fraction and not with a "%" sign - e.g. "12.5", not "0.125" and not "12.5%".
+- If the answer is a short phrase (not a number) - e.g. a company name or date - give just that phrase, nothing appended.
+- If the context does not contain enough information to answer, respond with exactly: INSUFFICIENT_CONTEXT
+
+Your entire response must be just the answer value - a bare number or short phrase - and nothing else.
 """
 
 
