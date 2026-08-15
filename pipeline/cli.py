@@ -147,7 +147,7 @@ class ClaudeGenerator:
     temperature fine during the real corpus indexing run.
     """
 
-    def __init__(self, client, model: str, temperature: float, max_tokens: int = 300):
+    def __init__(self, client, model: str, temperature: float, max_tokens: int = 1024):
         self.client = client
         self.model = model
         self.temperature = temperature
@@ -175,9 +175,15 @@ class ClaudeJudge:
         self.temperature = temperature
 
     def judge(self, prompt: str) -> str:
+        # max_tokens must cover claude-sonnet-5's default extended-thinking
+        # output too, not just the one-word CORRECT/INCORRECT verdict -
+        # verified against the real API 2026-08-15: max_tokens=10 left no
+        # room after an (empty) thinking block, so the response contained
+        # no text block at all and _extract_text() correctly raised instead
+        # of silently returning something wrong.
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=10,
+            max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
         return _extract_text(response)
