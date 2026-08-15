@@ -116,7 +116,18 @@ class ClaudeSummarizer:
  
  
 class ClaudeGenerator:
-    """Adapts anthropic.Anthropic to pipeline.generation.GeneratorProtocol."""
+    """Adapts anthropic.Anthropic to pipeline.generation.GeneratorProtocol.
+ 
+    `temperature` is intentionally NOT sent to the API here. claude-sonnet-5
+    rejects it outright (verified against the real API 2026-08-15):
+    `anthropic.BadRequestError: temperature is deprecated for this model`.
+    config.generation.temperature is still read and stored - it documents
+    the project's original intent (spec section 7 wants temperature=0.0 for
+    reproducible regression analysis) and still appears in run_config.json
+    - it's just not a parameter this model accepts anymore. ClaudeSummarizer
+    (claude-haiku-4-5-20251001) is unaffected - that model accepted
+    temperature fine during the real corpus indexing run.
+    """
  
     def __init__(self, client, model: str, temperature: float, max_tokens: int = 300):
         self.client = client
@@ -128,14 +139,17 @@ class ClaudeGenerator:
         response = self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
-            temperature=self.temperature,
             messages=[{"role": "user", "content": prompt}],
         )
         return response.content[0].text
  
  
 class ClaudeJudge:
-    """Adapts anthropic.Anthropic to pipeline.evaluation.JudgeProtocol."""
+    """Adapts anthropic.Anthropic to pipeline.evaluation.JudgeProtocol.
+ 
+    Same reason as ClaudeGenerator above: `temperature` is not sent -
+    claude-sonnet-5 rejects it with a 400.
+    """
  
     def __init__(self, client, model: str, temperature: float):
         self.client = client
@@ -146,7 +160,6 @@ class ClaudeJudge:
         response = self.client.messages.create(
             model=self.model,
             max_tokens=10,
-            temperature=self.temperature,
             messages=[{"role": "user", "content": prompt}],
         )
         return response.content[0].text
@@ -559,3 +572,4 @@ def main(argv: list[str] | None = None) -> None:
  
 if __name__ == "__main__":
     main()
+ 
