@@ -53,10 +53,11 @@ def test_build_full_indexed_content_without_enrichment():
  
  
 class _Rec:
-    def __init__(self, context_id, context, source_dataset):
+    def __init__(self, context_id, context, source_dataset, metadata_prefix=""):
         self.context_id = context_id
         self.context = context
         self.source_dataset = source_dataset
+        self.metadata_prefix = metadata_prefix
  
  
 def test_dedupe_documents_empty_input():
@@ -121,26 +122,29 @@ def test_upsert_document_then_is_indexed(collection):
         context_id="ctx_1",
         raw_content="raw",
         contextual_summary="",
+        metadata_prefix="",
         embedding=[0.1] * 1024,
+        source_dataset="FinQA",
     )
  
     assert is_indexed(collection, "ctx_1") is True
     doc = collection.find_one({"context_id": "ctx_1"})
     assert doc["full_indexed_content"] == "raw"
     assert doc["embedding_voyage"] == [0.1] * 1024
+    assert doc["source_dataset"] == "FinQA"
  
  
 def test_upsert_document_is_idempotent(collection):
     """Upserting the same context_id twice must not create a duplicate."""
     for _ in range(2):
-        upsert_document(collection, "ctx_1", "raw", "", [0.0] * 1024)
+        upsert_document(collection, "ctx_1", "raw", "", "", [0.0] * 1024, "FinQA")
     assert collection.count_documents({"context_id": "ctx_1"}) == 1
  
  
 def test_index_corpus_indexes_all_documents(collection):
     documents = [
-        {"context_id": "ctx_1", "source_dataset": "FinQA", "raw_content": "doc 1"},
-        {"context_id": "ctx_2", "source_dataset": "TAT-DQA", "raw_content": "doc 2"},
+        {"context_id": "ctx_1", "source_dataset": "FinQA", "raw_content": "doc 1", "metadata_prefix": ""},
+        {"context_id": "ctx_2", "source_dataset": "TAT-DQA", "raw_content": "doc 2", "metadata_prefix": ""},
     ]
     summaries = {"ctx_1": "", "ctx_2": ""}
     embeddings = {"ctx_1": [0.1] * 1024, "ctx_2": [0.2] * 1024}
@@ -155,7 +159,7 @@ def test_index_corpus_checkpoint_skips_already_indexed(collection):
     """Resilience: a document already marked is_indexed=True is not
     rewritten on a repeated run (simulates resuming after a session drop
     mid-indexing)."""
-    documents = [{"context_id": "ctx_1", "source_dataset": "FinQA", "raw_content": "doc 1"}]
+    documents = [{"context_id": "ctx_1", "source_dataset": "FinQA", "raw_content": "doc 1", "metadata_prefix": ""}]
     summaries = {"ctx_1": ""}
     embeddings = {"ctx_1": [0.1] * 1024}
  
@@ -167,7 +171,7 @@ def test_index_corpus_checkpoint_skips_already_indexed(collection):
  
  
 def test_index_corpus_missing_embedding_raises(collection):
-    documents = [{"context_id": "ctx_1", "source_dataset": "FinQA", "raw_content": "doc 1"}]
+    documents = [{"context_id": "ctx_1", "source_dataset": "FinQA", "raw_content": "doc 1", "metadata_prefix": ""}]
     with pytest.raises(KeyError):
         index_corpus(collection, documents, {"ctx_1": ""}, embeddings_by_id={})
  
