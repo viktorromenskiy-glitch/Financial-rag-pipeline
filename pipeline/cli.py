@@ -42,7 +42,7 @@ import pandas as pd
 from config.config_schema import PipelineConfig, load_config
 from pipeline.chunking import chunk
 from pipeline.common.run_config import write_run_config
-from pipeline.embedding import BATCH_SIZE, embed_documents
+from pipeline.embedding import BATCH_SIZE, embed_documents, resolve_embedding_model
 from pipeline.enrichment import EnrichmentCheckpoint, enrich_document, enrich_documents
 from pipeline.evaluation import EvalResult, JudgeCache, evaluate_answers, regression_report
 from pipeline.generation import generate_answer
@@ -237,6 +237,24 @@ def build_clients(config: PipelineConfig) -> dict:
     }
 
 
+def _resolve_embedding_model(config: PipelineConfig, source_dataset: str) -> str:
+    """Thin wrapper around pipeline.embedding.resolve_embedding_model()
+    that reads the routing parameters out of PipelineConfig - kept as a
+    one-line helper here (not in pipeline/embedding.py) so that module
+    stays free of any dependency on config/config_schema.py, per its
+    existing "doesn't know about DocumentRecord/config" design (see its
+    module docstring).
+    """
+    routing = config.embedding.routing
+    return resolve_embedding_model(
+        source_dataset,
+        routing.enabled,
+        routing.finance_model,
+        frozenset(routing.routed_sources),
+        config.embedding.model,
+    )
+
+
 # ---------------------------------------------------------------------------
 # index - modules 1-5
 # ---------------------------------------------------------------------------
@@ -290,14 +308,25 @@ def cmd_index(args: argparse.Namespace) -> None:
     print(f"  {len(documents) - len(to_process)} already indexed (skipped), {len(to_process)} to embed + index")
     written = 0
     if to_process:
-        to_embed = [
-            (
-                d["context_id"],
-                build_full_indexed_content(d["raw_content"], summaries.get(d["context_id"], ""), d["metadata_prefix"]),
-            )
-            for d in to_process
-        ]
         docs_by_id = {d["context_id"]: d for d in to_process}
+
+        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, п.3a):
+        # group documents by the model their source_dataset resolves to
+        # BEFORE embedding, not after - Voyage's API takes one model per
+        # call, so a batch cannot mix documents routed to different models
+        # (see pipeline.embedding.embed_documents docstring). Grouping
+        # happens here, not in pipeline/embedding.py, which stays
+        # deliberately unaware of source_dataset/config.
+        by_model: dict[str, list[tuple[str, str]]] = {}
+        for d in to_process:
+            text = build_full_indexed_content(
+                d["raw_content"], summaries.get(d["context_id"], ""), d["metadata_prefix"]
+            )
+            model = _resolve_embedding_model(config, d["source_dataset"])
+            by_model.setdefault(model, []).append((d["context_id"], text))
+
+        total_batches = sum((len(items) + BATCH_SIZE - 1) // BATCH_SIZE for items in by_model.values())
+        batch_num = 0
         # Embed and write *each batch* to MongoDB before moving to the next
         # one, rather than accumulating every vector in memory and writing
         # once at the end - checkpointing requirement, spec section 11
@@ -307,18 +336,21 @@ def cmd_index(args: argparse.Namespace) -> None:
         # an interruption loses at most one in-flight batch (BATCH_SIZE
         # documents), and a re-run of `index` skips everything already
         # marked is_indexed=True in Atlas via is_indexed() above.
-        total_batches = (len(to_embed) + BATCH_SIZE - 1) // BATCH_SIZE
-        for i in range(0, len(to_embed), BATCH_SIZE):
-            batch_num = i // BATCH_SIZE + 1
-            batch = to_embed[i : i + BATCH_SIZE]
-            vectors = embed_documents(clients["voyage"], batch)
-            embeddings_by_id = {v.id: v.vector for v in vectors}
-            batch_docs = [docs_by_id[context_id] for context_id, _ in batch]
-            written += index_corpus(collection, batch_docs, summaries, embeddings_by_id, skip_already_indexed=False)
-            print(f"  embedded + indexed batch {batch_num}/{total_batches} ({written} documents written so far)")
+        for model, items in by_model.items():
+            print(f"  embedding {len(items)} document(s) with {model!r}...")
+            for i in range(0, len(items), BATCH_SIZE):
+                batch_num += 1
+                batch = items[i : i + BATCH_SIZE]
+                vectors = embed_documents(clients["voyage"], batch, model=model)
+                embeddings_by_id = {v.id: v.vector for v in vectors}
+                batch_docs = [docs_by_id[context_id] for context_id, _ in batch]
+                written += index_corpus(
+                    collection, batch_docs, summaries, embeddings_by_id, skip_already_indexed=False
+                )
+                print(f"  embedded + indexed batch {batch_num}/{total_batches} ({written} documents written so far)")
     print(f"  Indexed {written} documents")
 
-    validate_startup_indexes(collection)
+    validate_startup_indexes(collection, check_source_dataset_filter=config.embedding.routing.enabled)
     print("Startup index validation passed - vector_index_full and text_index_full both return results.")
 
 
@@ -379,7 +411,11 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     from the 'id' column's prefix (falling back to 'context_id' if 'id' is
     absent or unrecognized) so the mandatory per-source stratification in
     eval_report.md is populated instead of defaulting everything to
-    'unknown'.
+    'unknown'. Getting source_dataset right here matters beyond reporting
+    now (tehnicheskoe_zadanie.md, п.3a): cmd_eval also uses it to pick the
+    embedding model for each query - a wrong/'unknown' source_dataset would
+    silently route the query to the wrong model and filter, not just
+    mislabel a report column.
     """
     df = pd.read_parquet(path)
     if "question" not in df.columns:
@@ -564,7 +600,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
     clients = build_clients(config)
     collection = clients["collection"]
 
-    validate_startup_indexes(collection)
+    validate_startup_indexes(collection, check_source_dataset_filter=config.embedding.routing.enabled)
 
     items = load_eval_questions(args.questions)
     if args.limit:
@@ -607,6 +643,13 @@ def cmd_eval(args: argparse.Namespace) -> None:
             )
             continue
 
+        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, п.3a): the
+        # query must be embedded with the SAME model as the documents it's
+        # being compared against, and retrieval must be filtered to the
+        # same source_dataset - see pipeline.retrieval.retrieve()'s
+        # docstring for why a mismatch here silently returns wrong/empty
+        # candidates instead of raising.
+        query_model = _resolve_embedding_model(config, item["source_dataset"])
         candidates = retrieve(
             clients["voyage"],
             collection,
@@ -614,6 +657,8 @@ def cmd_eval(args: argparse.Namespace) -> None:
             pool_size=config.retrieval.pool_size,
             vector_weight=config.retrieval.weights.vector,
             text_weight=config.retrieval.weights.text,
+            source_dataset=item["source_dataset"],
+            embedding_model=query_model,
         )
         if config.reranker.enabled and candidates:
             ranked = rerank(clients["cohere"], item["question"], candidates, top_n=config.reranker.top_n)
@@ -731,4 +776,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
- 
