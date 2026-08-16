@@ -94,4 +94,4 @@ End-to-end эффект per-dataset embedding routing пока статисти�
 
 Лицензия
 
-TBD.
+MIT — см. LICENSE.
