@@ -55,6 +55,22 @@ financial-rag-pipeline/
 │   ├── test_2_2_pool_size.ipynb
 │   └── test_2_3_contextual_chunks_v2.ipynb
 │
+├── scripts/                          # одноразовые/вспомогательные Colab-скрипты, вынесенные из корня репозитория (Tier 2 реорганизации).
+│   │                                  # Не часть пайплайна (`pipeline/`) — это скрипты для миграций данных, разовых экспериментов
+│   │                                  # и служебных операций над MongoDB Atlas, запускаемые вручную из Colab.
+│   │                                  # 4 файла ниже переименованы при переносе — префикс `test_` убран, т.к. pytest не собирает
+│   │                                  # корневые `test_*.py` как тесты (см. `tests/`), и это имя вводило в заблуждение.
+│   ├── create_temp_cluster_indexes.py         # создание Atlas Search индексов на временном M10-кластере
+│   ├── migrate_embedding_routing.py           # миграция на per-dataset embedding routing
+│   ├── run_eval.py                            # полный прогон оценки пайплайна
+│   ├── run_migration_and_eval.py              # обёртка: миграция + прогон оценки одним шагом
+│   ├── setup_temp_cluster_corpus.py           # загрузка корпуса на временный M10-кластер
+│   ├── enrichment_reranker_full_corpus_ab.py  # было: test_enrichment_reranker_full_corpus.py — A/B тест enrichment+reranker на полном корпусе
+│   ├── routing_e2e_significance.py            # было: test_routing_e2e_significance.py — McNemar-тест значимости routing end-to-end
+│   ├── voyage_finance2_ab.py                  # было: test_voyage_finance2_ab.py — A/B тест voyage-4 vs voyage-finance-2
+│   ├── voyage_finance2_significance.py        # было: test_voyage_finance2_significance.py — тест значимости для voyage-finance-2
+│   └── update_atlas_search_indexes.py         # обновление Atlas Search индексов после миграции
+│
 ├── docs/
 │   ├── tehnicheskoe_zadanie.md
 │   ├── specifikatsiya_moduley.md
@@ -66,6 +82,7 @@ financial-rag-pipeline/
 ├── tests/
 │   ├── test_is_close_v2.py           # юнит-тесты с конкретными примерами — см. ТЗ п.7
 │   │                                  #   ("100" vs "100.0" vs "1.00" как доля, "0.5" vs "50%" и т.п.)
+│   ├── test_indexing.py              # тесты модуля индексирования (mongomock)
 │   ├── test_pipeline_modules.py      # локальные тесты модулей на срезе реальных данных
 │   └── test_startup_validation.py    # тест на assert проверки индексов/полей при старте — см. ТЗ п.2
 │
@@ -75,9 +92,14 @@ financial-rag-pipeline/
 │       ├── predictions.jsonl
 │       └── eval_report.md            # регрессионный отчёт + классификация ошибок — см. ТЗ п.10
 │
+├── .github/
+│   └── workflows/
+│       └── ci.yml                    # GitHub Actions: py_compile всех .py + pytest tests/ на каждый push/PR в main
+│
 ├── .env.example                      # MONGODB_URI, VOYAGE_API_KEY, ANTHROPIC_API_KEY, COHERE_API_KEY — без значений
 ├── requirements.txt
 ├── README.md                         # честная таблица метрик (baseline-relative, не абсолютная планка), архитектурная диаграмма, стратификация по source_dataset — см. ТЗ п.10
+├── LICENSE                            # MIT
 └── .gitignore                        # .env, __pycache__, крупные промежуточные файлы результатов
 ```
 
@@ -135,5 +157,7 @@ retry:
 ## Обязательные некодовые файлы
 
 - **`.env.example`** — перечисляет нужные переменные окружения без значений (`MONGODB_URI=`, `VOYAGE_API_KEY=`, `ANTHROPIC_API_KEY=`, `COHERE_API_KEY=`). Позволяет рецензенту понять, что нужно для запуска, не читая код.
-- **`requirements.txt`** — с зафиксированными версиями (`==`, не `>=`) для критичных зависимостей (pymongo, voyageai, anthropic, cohere, tenacity, pydantic) — воспроизводимость окружения, не только кода.
+- **`requirements.txt`** — с зафиксированными версиями (`==`, не `>=`) для критичных зависимостей (pymongo, voyageai, anthropic, cohere, tenacity, pydantic), плюс `mongomock` и `scipy` (используются тестами и скриптами в `scripts/`) — воспроизводимость окружения, не только кода.
 - **README.md** — пишется в неделе 5 (портфолио-упаковка), но скелет создаётся сейчас: разделы «Архитектура», «Метрики» (с явной пометкой baseline-relative, не абсолютная планка), «Как запустить», «Известные ограничения» (открытые риски масштабирования из ТЗ п.5 — переносятся в README как есть, не замалчиваются).
+- **`.github/workflows/ci.yml`** — CI на каждый push/PR в `main`: компиляция всех `.py`-файлов (`py_compile`) и прогон `tests/` через `pytest`.
+- **`LICENSE`** — MIT.
