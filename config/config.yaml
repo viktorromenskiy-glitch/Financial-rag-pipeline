@@ -14,7 +14,7 @@ embedding:
     routed_sources: ["TAT-DQA"]       # только TAT-DQA (Recall@5 +1.9pp, McNemar p=0.0005, n=2500) — ConvFinQA (-1.9pp, p=0.0000) и FinQA (-0.9pp, не устойчиво) остаются на embedding.model
 
 enrichment:
-  enabled: true
+  enabled: true                       # решение подтверждено 2026-08-18 полнокорпусным тестом (n=900, tehnicheskoe_zadanie.md п.5): эффект enrichment+reranker вместе не обнаружен на уровне ≥2пп (Δ=+0.1пп, McNemar p=1.0), но и вреда не показано — единственный значимый измеренный эффект остаётся +0.78пп без reranker'а на уменьшенном корпусе (n=1535, p=0.0164); стоимость на весь корпус умеренная (~$10), оснований выключать по умолчанию нет
   model: "claude-haiku-4-5-20251001"
   temperature: 0.0
   prompt_version: "v1"                # часть ключа кэша судьи и run_config.json — см. ТЗ п.8/п.11
