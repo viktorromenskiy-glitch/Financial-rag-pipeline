@@ -24,4 +24,4 @@ jobs:
           python -m py_compile $(find . -name "*.py" -not -path "./.git/*")
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: python -m pytest tests/ -v
