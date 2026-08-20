@@ -4,6 +4,8 @@ RAG pipeline for financial document QA (text + tables). Hybrid search, contextua
 
 Status: implemented and evaluated end-to-end on the full corpus. Every architectural decision below is backed by a real measurement, including the final numbers (see Results).
 
+Scope: this is a research/evaluation-grade RAG pipeline, not a production system. It validates architectural decisions (retrieval, reranking, embedding routing, generation format, judge-based evaluation) end-to-end against a fixed, pre-labeled eval set where each question's source dataset is already known ahead of time. It does not include what a live production deployment would still need on top of this: a query-time source classifier (per-dataset embedding routing currently relies on source_dataset being known, not inferred from the question text — see Known limitations below), a serving API, monitoring/cost controls beyond the numbers reported here, or a UI. See Known limitations below for the complete, honest list of what's confirmed vs. still open.
+
 Why this project
 
 Most public RAG demos work against clean prose (Wikipedia, blog posts, docs). Financial documents are a harder, more realistic test: mixed text and tables, exact numeric answers where being close isn't good enough, and a high cost of being wrong. This project uses T²-RAGBench — a combination of FinQA, ConvFinQA, and TAT-DQA — 7,318 documents and 23,088 questions requiring exact numeric reasoning over text-and-table financial filings.
