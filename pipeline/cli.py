@@ -32,6 +32,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -457,9 +458,9 @@ def load_eval_questions(path: str | Path) -> list[dict]:
 
 
 def _retrieved_docs_for_prediction(ranked) -> list[dict]:
-    """Extracts {"context_id", "full_indexed_content"} for each of the
-    (already top-N, post-rerank) candidates in `ranked`, for persisting
-    alongside a prediction.
+    """Extracts a compact evidence record - {"context_id", "rank", "score",
+    "content_sha256"} - for each of the (already top-N, post-rerank)
+    candidates in `ranked`, for persisting alongside a prediction.
 
     Added per docs/tehnicheskoe_zadanie.md, section 14, "Ограничение,
     обязательное к указанию": that section's error analysis (n=250, closed
@@ -470,17 +471,40 @@ def _retrieved_docs_for_prediction(ranked) -> list[dict]:
     backfill that already-committed run (section 14: "не восполняется
     задним числом") - it closes the gap for every run from here on.
 
+    Compact by design (revised 2026-08-20, plan_dorabotki_2.md item 1):
+    does NOT copy full_indexed_content into predictions.jsonl or
+    generation_checkpoint.jsonl. MongoDB is already the authoritative store
+    for chunk text, keyed by context_id - duplicating the full text here
+    would bloat these files at scale for no benefit and create a second,
+    driftable copy of the same content. Instead each record carries
+    content_sha256, a hash of the exact text retrieved for this question,
+    so a reviewer can later verify against MongoDB that the context has not
+    silently changed since this run (e.g. after re-ingestion or an
+    embedding migration) without storing the text itself. `rank` is the
+    1-indexed position in `ranked` (rank=1 is top-ranked - the same order
+    used to build `context` for generation, see
+    test_retrieved_docs_for_prediction_preserves_rank_order).
+
     Works for both branches cmd_eval's `ranked` can come from: a list of
-    pipeline.reranking.RerankedCandidate (reranker enabled) or a plain
-    slice of pipeline.retrieval.Candidate (reranker disabled) - both
-    dataclasses carry context_id/full_indexed_content, just under a
-    different score field name (relevance_score vs score) that this
-    function does not need.
+    pipeline.reranking.RerankedCandidate (reranker enabled, scored via
+    relevance_score) or a plain slice of pipeline.retrieval.Candidate
+    (reranker disabled, scored via score) - `score` below picks whichever
+    field the object actually has.
     """
-    return [
-        {"context_id": c.context_id, "full_indexed_content": c.full_indexed_content}
-        for c in ranked
-    ]
+    docs = []
+    for i, c in enumerate(ranked, start=1):
+        score = getattr(c, "relevance_score", None)
+        if score is None:
+            score = getattr(c, "score", None)
+        docs.append(
+            {
+                "context_id": c.context_id,
+                "rank": i,
+                "score": score,
+                "content_sha256": hashlib.sha256(c.full_indexed_content.encode("utf-8")).hexdigest(),
+            }
+        )
+    return docs
 
 
 def _load_generation_checkpoint(path: Path) -> dict[str, dict]:
