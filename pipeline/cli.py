@@ -456,10 +456,37 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     return items
 
 
+def _retrieved_docs_for_prediction(ranked) -> list[dict]:
+    """Extracts {"context_id", "full_indexed_content"} for each of the
+    (already top-N, post-rerank) candidates in `ranked`, for persisting
+    alongside a prediction.
+
+    Added per docs/tehnicheskoe_zadanie.md, section 14, "Ограничение,
+    обязательное к указанию": that section's error analysis (n=250, closed
+    2026-08-19) explicitly documents that predictions.jsonl only stored
+    question/gold/answer_text, not the retrieved documents themselves - so
+    39 of 60 errors ("Немотивированное сильное расхождение") could not be
+    attributed to retrieval vs. generation, only guessed at. This does not
+    backfill that already-committed run (section 14: "не восполняется
+    задним числом") - it closes the gap for every run from here on.
+
+    Works for both branches cmd_eval's `ranked` can come from: a list of
+    pipeline.reranking.RerankedCandidate (reranker enabled) or a plain
+    slice of pipeline.retrieval.Candidate (reranker disabled) - both
+    dataclasses carry context_id/full_indexed_content, just under a
+    different score field name (relevance_score vs score) that this
+    function does not need.
+    """
+    return [
+        {"context_id": c.context_id, "full_indexed_content": c.full_indexed_content}
+        for c in ranked
+    ]
+
+
 def _load_generation_checkpoint(path: Path) -> dict[str, dict]:
     """Loads results/<run_id>/generation_checkpoint.jsonl - one line per
     already-answered question_id (question/source_dataset/gold_answer/
-    answer_text/context).
+    answer_text/context/retrieved_docs).
 
     Added 2026-08-15 after a real 250-question eval run crashed at
     50/250 (the extended-thinking bug fixed above) and lost all 50
@@ -469,6 +496,11 @@ def _load_generation_checkpoint(path: Path) -> dict[str, dict]:
     JudgeCache (module 9, already resumable) - the generation stage was
     the one remaining gap; re-running the same --run-id now resumes
     instead of redoing (and re-billing) already-answered questions.
+
+    `retrieved_docs` defaults to [] via .get() so a checkpoint file written
+    before this field existed (an in-progress run from before 2026-08-20)
+    can still be resumed - see _retrieved_docs_for_prediction()'s docstring
+    for why this field was added.
     """
     if not path.exists():
         return {}
@@ -479,11 +511,12 @@ def _load_generation_checkpoint(path: Path) -> dict[str, dict]:
             if not line:
                 continue
             rec = json.loads(line)
+            rec.setdefault("retrieved_docs", [])
             done[rec["question_id"]] = rec
     return done
 
 
-def _append_generation_checkpoint(path: Path, question_id: str, question: str, source_dataset: str, gold_answer: str, answer_text: str, context: str) -> None:
+def _append_generation_checkpoint(path: Path, question_id: str, question: str, source_dataset: str, gold_answer: str, answer_text: str, context: str, retrieved_docs: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(
@@ -495,6 +528,7 @@ def _append_generation_checkpoint(path: Path, question_id: str, question: str, s
                     "gold_answer": gold_answer,
                     "answer_text": answer_text,
                     "context": context,
+                    "retrieved_docs": retrieved_docs,
                 },
                 ensure_ascii=False,
             )
@@ -630,6 +664,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
                     "source_dataset": item["source_dataset"],
                     "gold_answer": item["gold_answer"],
                     "answer_text": cached["answer_text"],
+                    "retrieved_docs": cached["retrieved_docs"],
                 }
             )
             eval_items.append(
@@ -685,8 +720,9 @@ def cmd_eval(args: argparse.Namespace) -> None:
 
         answer = generate_answer(generator, item["question_id"], item["question"], ranked)
         context = "\n\n".join(c.full_indexed_content for c in ranked)
+        retrieved_docs = _retrieved_docs_for_prediction(ranked)
         _append_generation_checkpoint(
-            gen_checkpoint_path, item["question_id"], item["question"], item["source_dataset"], item["gold_answer"], answer.answer_text, context
+            gen_checkpoint_path, item["question_id"], item["question"], item["source_dataset"], item["gold_answer"], answer.answer_text, context, retrieved_docs
         )
         predictions.append(
             {
@@ -695,6 +731,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
                 "source_dataset": item["source_dataset"],
                 "gold_answer": item["gold_answer"],
                 "answer_text": answer.answer_text,
+                "retrieved_docs": retrieved_docs,
             }
         )
         eval_items.append(
