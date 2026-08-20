@@ -40,6 +40,7 @@ from pipeline.cli import (
     _extract_text,
     _infer_source_dataset,
     _load_generation_checkpoint,
+    _retrieved_docs_for_prediction,
     load_eval_questions,
     load_eval_results,
     main,
@@ -193,7 +194,8 @@ def test_generation_checkpoint_missing_file_returns_empty(tmp_path):
 
 def test_generation_checkpoint_roundtrip(tmp_path):
     path = tmp_path / "generation_checkpoint.jsonl"
-    _append_generation_checkpoint(path, "q1", "What was revenue?", "FinQA", "100", "100", "ctx text")
+    retrieved_docs = [{"context_id": "doc1", "full_indexed_content": "chunk one"}]
+    _append_generation_checkpoint(path, "q1", "What was revenue?", "FinQA", "100", "100", "ctx text", retrieved_docs)
 
     loaded = _load_generation_checkpoint(path)
 
@@ -201,14 +203,102 @@ def test_generation_checkpoint_roundtrip(tmp_path):
     assert loaded["q1"]["answer_text"] == "100"
     assert loaded["q1"]["source_dataset"] == "FinQA"
     assert loaded["q1"]["context"] == "ctx text"
+    assert loaded["q1"]["retrieved_docs"] == retrieved_docs
 
 
 def test_generation_checkpoint_resumes_across_multiple_appends(tmp_path):
     path = tmp_path / "generation_checkpoint.jsonl"
-    _append_generation_checkpoint(path, "q1", "Q1", "FinQA", "1", "1", "ctx1")
-    _append_generation_checkpoint(path, "q2", "Q2", "ConvFinQA", "2", "2", "ctx2")
+    _append_generation_checkpoint(path, "q1", "Q1", "FinQA", "1", "1", "ctx1", [{"context_id": "d1", "full_indexed_content": "c1"}])
+    _append_generation_checkpoint(path, "q2", "Q2", "ConvFinQA", "2", "2", "ctx2", [{"context_id": "d2", "full_indexed_content": "c2"}])
     loaded = _load_generation_checkpoint(path)
     assert set(loaded) == {"q1", "q2"}
+
+
+def test_generation_checkpoint_missing_retrieved_docs_defaults_to_empty_list(tmp_path):
+    # Backward compatibility: a checkpoint written by a pipeline.cli version
+    # before retrieved_docs existed (tehnicheskoe_zadanie.md, section 14,
+    # "Закрыто в коде 2026-08-20") must still be resumable, per
+    # _load_generation_checkpoint's docstring.
+    path = tmp_path / "generation_checkpoint.jsonl"
+    path.write_text(
+        json.dumps(
+            {
+                "question_id": "q1",
+                "question": "Q1",
+                "source_dataset": "FinQA",
+                "gold_answer": "1",
+                "answer_text": "1",
+                "context": "ctx1",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    loaded = _load_generation_checkpoint(path)
+    assert loaded["q1"]["retrieved_docs"] == []
+
+
+# --- _retrieved_docs_for_prediction -----------------------------------------
+#
+# tehnicheskoe_zadanie.md, section 14, "Ограничение, обязательное к
+# указанию": predictions.jsonl previously didn't record which documents
+# were actually retrieved, so retrieval vs. generation errors couldn't be
+# told apart. This helper is what closes that gap for future runs (see the
+# "Закрыто в коде 2026-08-20" note added to that section).
+
+
+@dataclass
+class FakeRerankedCandidate:
+    context_id: str
+    full_indexed_content: str
+    relevance_score: float = 0.0
+
+
+@dataclass
+class FakeRetrievalCandidate:
+    context_id: str
+    full_indexed_content: str
+    score: float = 0.0
+
+
+def test_retrieved_docs_for_prediction_from_reranked_candidates():
+    # reranker-enabled branch: cmd_eval's `ranked` holds
+    # pipeline.reranking.RerankedCandidate objects (relevance_score, not
+    # score) - the helper must not depend on that field.
+    ranked = [
+        FakeRerankedCandidate("doc1", "chunk one text", relevance_score=0.9),
+        FakeRerankedCandidate("doc2", "chunk two text", relevance_score=0.5),
+    ]
+    assert _retrieved_docs_for_prediction(ranked) == [
+        {"context_id": "doc1", "full_indexed_content": "chunk one text"},
+        {"context_id": "doc2", "full_indexed_content": "chunk two text"},
+    ]
+
+
+def test_retrieved_docs_for_prediction_from_plain_retrieval_candidates():
+    # reranker-disabled branch: cmd_eval's `ranked` is a plain slice of
+    # pipeline.retrieval.Candidate objects (score, not relevance_score).
+    ranked = [FakeRetrievalCandidate("doc1", "chunk one text", score=1.2)]
+    assert _retrieved_docs_for_prediction(ranked) == [
+        {"context_id": "doc1", "full_indexed_content": "chunk one text"}
+    ]
+
+
+def test_retrieved_docs_for_prediction_preserves_rank_order():
+    # Order matters here - it's the post-rerank order used to build
+    # `context` for generation, so retrieved_docs[0] should be the
+    # top-ranked document, not just any of the top-N.
+    ranked = [
+        FakeRerankedCandidate("first", "a", relevance_score=0.9),
+        FakeRerankedCandidate("second", "b", relevance_score=0.8),
+        FakeRerankedCandidate("third", "c", relevance_score=0.1),
+    ]
+    result = _retrieved_docs_for_prediction(ranked)
+    assert [d["context_id"] for d in result] == ["first", "second", "third"]
+
+
+def test_retrieved_docs_for_prediction_empty_when_no_candidates():
+    assert _retrieved_docs_for_prediction([]) == []
 
 
 # --- load_eval_results -----------------------------------------------------
