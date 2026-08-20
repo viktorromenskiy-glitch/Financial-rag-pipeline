@@ -29,6 +29,7 @@ pipeline/cli.py's own docstrings:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 
@@ -194,7 +195,9 @@ def test_generation_checkpoint_missing_file_returns_empty(tmp_path):
 
 def test_generation_checkpoint_roundtrip(tmp_path):
     path = tmp_path / "generation_checkpoint.jsonl"
-    retrieved_docs = [{"context_id": "doc1", "full_indexed_content": "chunk one"}]
+    # Compact schema (plan_dorabotki_2.md item 1) - no full_indexed_content,
+    # just context_id/rank/score/content_sha256.
+    retrieved_docs = [{"context_id": "doc1", "rank": 1, "score": 0.9, "content_sha256": "abc123"}]
     _append_generation_checkpoint(path, "q1", "What was revenue?", "FinQA", "100", "100", "ctx text", retrieved_docs)
 
     loaded = _load_generation_checkpoint(path)
@@ -208,8 +211,8 @@ def test_generation_checkpoint_roundtrip(tmp_path):
 
 def test_generation_checkpoint_resumes_across_multiple_appends(tmp_path):
     path = tmp_path / "generation_checkpoint.jsonl"
-    _append_generation_checkpoint(path, "q1", "Q1", "FinQA", "1", "1", "ctx1", [{"context_id": "d1", "full_indexed_content": "c1"}])
-    _append_generation_checkpoint(path, "q2", "Q2", "ConvFinQA", "2", "2", "ctx2", [{"context_id": "d2", "full_indexed_content": "c2"}])
+    _append_generation_checkpoint(path, "q1", "Q1", "FinQA", "1", "1", "ctx1", [{"context_id": "d1", "rank": 1, "score": 1.1, "content_sha256": "h1"}])
+    _append_generation_checkpoint(path, "q2", "Q2", "ConvFinQA", "2", "2", "ctx2", [{"context_id": "d2", "rank": 1, "score": 1.2, "content_sha256": "h2"}])
     loaded = _load_generation_checkpoint(path)
     assert set(loaded) == {"q1", "q2"}
 
@@ -261,17 +264,23 @@ class FakeRetrievalCandidate:
     score: float = 0.0
 
 
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def test_retrieved_docs_for_prediction_from_reranked_candidates():
     # reranker-enabled branch: cmd_eval's `ranked` holds
     # pipeline.reranking.RerankedCandidate objects (relevance_score, not
-    # score) - the helper must not depend on that field.
+    # score) - the helper must not depend on that field name, and must not
+    # copy full_indexed_content into the result (plan_dorabotki_2.md item 1
+    # - compact evidence trace, MongoDB is the authoritative text store).
     ranked = [
         FakeRerankedCandidate("doc1", "chunk one text", relevance_score=0.9),
         FakeRerankedCandidate("doc2", "chunk two text", relevance_score=0.5),
     ]
     assert _retrieved_docs_for_prediction(ranked) == [
-        {"context_id": "doc1", "full_indexed_content": "chunk one text"},
-        {"context_id": "doc2", "full_indexed_content": "chunk two text"},
+        {"context_id": "doc1", "rank": 1, "score": 0.9, "content_sha256": _sha256("chunk one text")},
+        {"context_id": "doc2", "rank": 2, "score": 0.5, "content_sha256": _sha256("chunk two text")},
     ]
 
 
@@ -280,21 +289,31 @@ def test_retrieved_docs_for_prediction_from_plain_retrieval_candidates():
     # pipeline.retrieval.Candidate objects (score, not relevance_score).
     ranked = [FakeRetrievalCandidate("doc1", "chunk one text", score=1.2)]
     assert _retrieved_docs_for_prediction(ranked) == [
-        {"context_id": "doc1", "full_indexed_content": "chunk one text"}
+        {"context_id": "doc1", "rank": 1, "score": 1.2, "content_sha256": _sha256("chunk one text")}
     ]
 
 
 def test_retrieved_docs_for_prediction_preserves_rank_order():
     # Order matters here - it's the post-rerank order used to build
     # `context` for generation, so retrieved_docs[0] should be the
-    # top-ranked document, not just any of the top-N.
+    # top-ranked document (rank=1), not just any of the top-N.
     ranked = [
         FakeRerankedCandidate("first", "a", relevance_score=0.9),
         FakeRerankedCandidate("second", "b", relevance_score=0.8),
         FakeRerankedCandidate("third", "c", relevance_score=0.1),
     ]
     result = _retrieved_docs_for_prediction(ranked)
-    assert [d["context_id"] for d in result] == ["first", "second", "third"]
+    assert [(d["context_id"], d["rank"]) for d in result] == [("first", 1), ("second", 2), ("third", 3)]
+
+
+def test_retrieved_docs_for_prediction_content_hash_detects_different_text():
+    # Two candidates with the same context_id-shaped identity but different
+    # text must not hash the same - the whole point of content_sha256 is
+    # catching silent drift between what was retrieved and what's in
+    # MongoDB now.
+    ranked = [FakeRerankedCandidate("doc1", "version A", relevance_score=0.9)]
+    other = [FakeRerankedCandidate("doc1", "version B", relevance_score=0.9)]
+    assert _retrieved_docs_for_prediction(ranked)[0]["content_sha256"] != _retrieved_docs_for_prediction(other)[0]["content_sha256"]
 
 
 def test_retrieved_docs_for_prediction_empty_when_no_candidates():
