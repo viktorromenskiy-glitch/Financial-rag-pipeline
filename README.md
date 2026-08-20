@@ -74,6 +74,19 @@ This project's numbers come in above the published results on the same dataset �
 
 For end-to-end QA accuracy, no publication was found benchmarking generation accuracy specifically on the unified T²-RAGBench split. The closest available reference point is FinAgent-RAG (arXiv:2605.05409), an agentic Program-of-Thought pipeline with self-verification, evaluated separately on the three source datasets: execution accuracy 76.81% (FinQA), 78.46% (ConvFinQA), 74.96% (TAT-QA). This project's judge accuracy on its own n=250 split: 71.1% (FinQA), 86.5% (ConvFinQA), 78.0% (TAT-DQA), 76.8% overall — ahead on two of three sources, behind on FinQA, despite this project using a deliberately simpler direct-answer pipeline (no agentic loop, no code execution — see the Direct vs Program-of-Thought decision above). This comparison is weaker evidence than the retrieval one: different eval subsets and sizes, different scoring methodology (execution accuracy vs LLM judge + deterministic cross-check), and a genuinely different generation architecture — read it as directional context, not a rigorous head-to-head.
 
+Unit economics (price per query, estimate)
+
+Indexing is a one-time cost: embedding the full corpus (~$0.13, Voyage-4) plus contextual enrichment (~$10, Claude Haiku 4.5) — see Results above. Serving is priced per query instead. This project never logged per-request token usage during real runs, so the number below is a calculation, not a measurement: built from published provider pricing (checked 2026-08-20) and this repo's own measured prompt/corpus lengths (~4 chars/token heuristic), not from actual billing. Full derivation, every input number, and the explicit assumptions this rests on (notably, Cohere's exact "search unit" billing definition wasn't found in their public docs, so the reranking line assumes 1 query = 1 search unit) are in docs/tehnicheskoe_zadanie.md, section 15.
+
+Stage	Estimated cost
+Query embedding (Voyage-4)	<$0.0001
+Reranking (Cohere Rerank v4.0 Pro, pool=50)	~$0.0025
+Generation (Claude Sonnet 5, ~5 full documents of context — the dominant cost)	~$0.013
+LLM Judge (Claude Sonnet 5)	~$0.001
+Total per question	~$0.016
+
+At that rate, the committed n=250 error-analysis run (results/error_analysis_250) cost roughly $4 in query-time API calls. The larger end-to-end validation flagged in section 3a as deliberately not run (~700-900 TAT-DQA questions, two full runs) would cost an estimated $23-29 — cheap relative to what might be assumed without counting it explicitly, though cost wasn't actually why that validation was skipped (the retrieval-level result already stands on its own).
+
 Dataset
 
 T²-RAGBench — FinQA + ConvFinQA + TAT-DQA combined. 7,318 documents (text + tables), 23,088 questions. Chosen specifically because it's a hard, realistic case: exact numbers, mixed text/table format, high cost of error.
