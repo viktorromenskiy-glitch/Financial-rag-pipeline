@@ -2,6 +2,18 @@ Financial RAG Pipeline
 
 RAG pipeline for financial document QA (text + tables). Hybrid search, contextual enrichment, reranking, and LLM-judge evaluation — built and evaluated end-to-end on 7,300+ real financial filings requiring precise numeric answers.
 
+Business summary
+
+This is a working proof-of-concept: given a financial filing (10-K style — mixed narrative text and tables), it finds the right passage and returns a precise, numeric answer rather than a paraphrase. Built and evaluated on 7,318 real financial documents and 23,088 questions (T²-RAGBench) — a harder, more realistic test than the clean-prose demos most RAG projects use, since financial answers have to be exact and the source data mixes text with tables.
+
+Headline numbers: 76.8% answer accuracy end-to-end (retrieval + reranking + generation + judging, n=250), and a retrieval stage that beats the closest published comparison by +11 to +13 percentage points (see Comparison to published work below). Estimated serving cost: about $0.016 per question (~1.6 cents) once the corpus is indexed — full derivation in Unit economics below.
+
+What it is, plainly: a rigorously measured answer to "which RAG design choices actually help on hard financial documents, and by how much" — every claim below is backed by a statistical test against this project's own baseline, not a single demo run. What it isn't: a production system — no query-time classifier, serving API, or monitoring yet; the complete, honest list of what's confirmed versus still open is in Known limitations, in the technical section below.
+
+Everything from here down is the deep-tech appendix — architecture, every experiment with its statistics, comparisons to published work and to open RAG frameworks, cost derivation, and known limitations. Written for engineers and technical reviewers; the summary above is enough if that's not what you're looking for.
+
+⸻ Deep Tech appendix ⸻
+
 Status: implemented and evaluated end-to-end on the full corpus. Every architectural decision below is backed by a real measurement, including the final numbers (see Results).
 
 Scope: this is a research/evaluation-grade RAG pipeline, not a production system. It validates architectural decisions (retrieval, reranking, embedding routing, generation format, judge-based evaluation) end-to-end against a fixed, pre-labeled eval set where each question's source dataset is already known ahead of time. It does not include what a live production deployment would still need on top of this: a query-time source classifier (per-dataset embedding routing currently relies on source_dataset being known, not inferred from the question text — see Known limitations below), a serving API, monitoring/cost controls beyond the numbers reported here, or a UI. See Known limitations below for the complete, honest list of what's confirmed vs. still open.
