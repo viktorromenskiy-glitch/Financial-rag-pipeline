@@ -121,6 +121,13 @@ pip install -r requirements.txt
 Запустить оценку: python -m pipeline.cli eval --questions data/t2-ragbench/eval_subset_250.parquet --run-id my_run (добавить --compare-to <previous_run_id> для отчёта по регрессии на уровне вопросов)
 Снапшот конфигурации, предсказания и отчёт каждого прогона сохраняются в results/<run_id>/ (pipeline/common/run_config.py, eval_report.md).
 
+Минимальное демо
+
+Небольшой Gradio-интерфейс для просмотра 13 отобранных вручную пар вопрос/ответ из закоммиченного прогона n=250 (results/error_analysis_250/) — реальные вопросы, gold-ответы, ответы модели и вердикты судьи. Сознательно не живое демо пайплайна: не делает вызовов к MongoDB Atlas, Voyage, Cohere или Claude API, поэтому не требует ключей и ничего не стоит — воспроизводит уже посчитанный и уже проверенный результат, а не свежий вызов retrieval+generation+judge на каждый вопрос. 6 примеров — базовые случаи, где судья согласен (по два на каждый source_dataset); 7 — задокументированные случаи ошибок или несогласия судьи с детерминированной проверкой из docs/tehnicheskoe_zadanie.md, раздел 14, и tests/test_is_close_v2_error_analysis.py — отобраны намеренно, чтобы показать реальные, уже раскрытые типы ошибок пайплайна, а не только лучшие результаты.
+
+pip install -r requirements-demo.txt (тянет только gradio; собственные зависимости пайплайна для этого демо не нужны)
+python -m demo.app — открывается на http://127.0.0.1:7860
+
 Документация
 docs/tehnicheskoe_zadanie.md — полная техническая спецификация, каждое решение с измеренным обоснованием, включая вывод per-dataset routing (раздел 3a) и полнокорпусную валидацию enrichment (раздел 5)
 docs/specifikatsiya_moduley.md — контракты вход/выход по каждому модулю
