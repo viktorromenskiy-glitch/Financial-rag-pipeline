@@ -1,0 +1,272 @@
+[
+  {
+    "label_id": 1,
+    "question_id": "finqa_train_2516",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  {
+    "label_id": 2,
+    "question_id": "tatqa_train_2260",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 3,
+    "question_id": "tatqa_train_2055",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 4,
+    "question_id": "tatqa_train_2109",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  {
+    "label_id": 5,
+    "question_id": "finqa_test_320",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 6,
+    "question_id": "finqa_test_180",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 7,
+    "question_id": "convfinqa_3078",
+    "source_dataset": "ConvFinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 8,
+    "question_id": "tatqa_train_6854",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 9,
+    "question_id": "finqa_train_1144",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 10,
+    "question_id": "finqa_train_3856",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  {
+    "label_id": 11,
+    "question_id": "tatqa_train_3798",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  {
+    "label_id": 12,
+    "question_id": "finqa_train_5004",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 13,
+    "question_id": "finqa_train_2574",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 14,
+    "question_id": "finqa_train_5282",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 15,
+    "question_id": "tatqa_train_6875",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 16,
+    "question_id": "tatqa_train_6301",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 17,
+    "question_id": "tatqa_train_5282",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  {
+    "label_id": 18,
+    "question_id": "tatqa_train_8832",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 19,
+    "question_id": "convfinqa_1807",
+    "source_dataset": "ConvFinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 20,
+    "question_id": "finqa_train_2391",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  {
+    "label_id": 21,
+    "question_id": "finqa_train_3121",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 22,
+    "question_id": "tatqa_train_1479",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 23,
+    "question_id": "tatqa_train_8798",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 24,
+    "question_id": "tatqa_train_1984",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 25,
+    "question_id": "tatqa_dev_11204",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 26,
+    "question_id": "convfinqa_3418",
+    "source_dataset": "ConvFinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 27,
+    "question_id": "tatqa_train_8693",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "Incorrect",
+    "human_correct": false,
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  {
+    "label_id": 28,
+    "question_id": "convfinqa_781",
+    "source_dataset": "ConvFinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 29,
+    "question_id": "finqa_train_3478",
+    "source_dataset": "FinQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  {
+    "label_id": 30,
+    "question_id": "tatqa_train_4043",
+    "source_dataset": "TAT-DQA",
+    "human_verdict_raw": "correct",
+    "human_correct": true,
+    "judge_correct": true,
+    "deterministic_match": true
+  }
+]

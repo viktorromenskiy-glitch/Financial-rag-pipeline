@@ -1,0 +1,69 @@
+{
+  "n": 30,
+  "sample_composition": {
+    "FinQA": 11,
+    "TAT-DQA": 15,
+    "ConvFinQA": 4
+  },
+  "judge": {
+    "agreement": {
+      "point": 1.0,
+      "k": 30,
+      "n": 30,
+      "ci95_low": 0.8842966917779725,
+      "ci95_high": 1.0
+    },
+    "TPR": {
+      "point": 1.0,
+      "k": 22,
+      "n": 22,
+      "ci95_low": 0.8456274871844254,
+      "ci95_high": 1.0
+    },
+    "TNR": {
+      "point": 1.0,
+      "k": 8,
+      "n": 8,
+      "ci95_low": 0.6305833524471808,
+      "ci95_high": 1.0
+    },
+    "confusion": {
+      "TP": 22,
+      "FN": 0,
+      "FP": 0,
+      "TN": 8
+    }
+  },
+  "deterministic_is_close_v2": {
+    "agreement": {
+      "point": 0.9666666666666667,
+      "k": 29,
+      "n": 30,
+      "ci95_low": 0.827830544366587,
+      "ci95_high": 0.9991564290733507
+    },
+    "TPR": {
+      "point": 1.0,
+      "k": 22,
+      "n": 22,
+      "ci95_low": 0.8456274871844254,
+      "ci95_high": 1.0
+    },
+    "TNR": {
+      "point": 0.875,
+      "k": 7,
+      "n": 8,
+      "ci95_low": 0.4734903291248362,
+      "ci95_high": 0.9968402764687477
+    },
+    "confusion": {
+      "TP": 22,
+      "FN": 0,
+      "FP": 1,
+      "TN": 7
+    }
+  },
+  "discordant_with_deterministic": [
+    "tatqa_train_8832"
+  ]
+}
