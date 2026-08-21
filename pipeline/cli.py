@@ -672,6 +672,88 @@ def write_eval_report(
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _cmd_eval_retrieval_only(args: argparse.Namespace, config, clients: dict, items: list[dict]) -> None:
+    """`eval --retrieval-only`: runs just retrieval + reranking (modules 6-7)
+    over `items` and writes results/<run_id>/retrieval_trace.jsonl - one
+    line per question: {question_id, source_dataset, candidate_top50,
+    reranked_top5}, both in the same compact {context_id, rank, score,
+    content_sha256} shape _retrieved_docs_for_prediction() already uses for
+    the post-rerank top-5.
+
+    Added for docs/tehnicheskoe_zadanie.md, plan doradotki-2, item 7
+    (FinQA-only gold_inds -> context_id attribution, later broadened - see
+    that section). Neither `predictions.jsonl` nor a full cmd_eval() run
+    (this function skips generate_answer() and evaluate_answers() entirely)
+    saves the PRE-rerank top-50 pool anywhere - only the post-rerank top-5
+    ends up in `retrieved_docs` (see _retrieved_docs_for_prediction's
+    docstring) - so the retrieval_failure vs. reranking_failure split
+    pipeline.attribution needs cannot be computed from any already-committed
+    run, including results/error_analysis_250 (predates this entirely) and
+    any ordinary `eval` run before this flag existed.
+
+    Deliberately does not call generate_answer()/evaluate_answers() - the
+    two most expensive stages (Claude Sonnet generation + judge, ~$0.014 of
+    the ~$0.016 per-question estimate in section 15) are skipped entirely,
+    leaving only embedding + Cohere rerank (~$0.0025/question). This makes
+    it cheap to re-run retrieval alone for a question set that was already
+    fully evaluated in a previous (predictions.jsonl + eval_results.jsonl)
+    run and join the two by question_id afterwards - see
+    pipeline.attribution.attribute_errors().
+
+    No checkpoint/resume here (unlike the full path in cmd_eval): a
+    retrieval-only run is fast (no LLM calls) and cheap enough that if it's
+    interrupted, simply re-running from scratch costs a few hundred rerank
+    calls, not the risk of re-billing a full generation+judge run - so the
+    added complexity of a checkpoint isn't worth it for this path.
+    """
+    collection = clients["collection"]
+    routing = config.embedding.routing
+    records = []
+    for i, item in enumerate(items):
+        query_model = _resolve_embedding_model(config, item["source_dataset"])
+        is_routed_source = routing.enabled and item["source_dataset"] in routing.routed_sources
+        candidates = retrieve(
+            clients["voyage"],
+            collection,
+            item["question"],
+            pool_size=config.retrieval.pool_size,
+            vector_weight=config.retrieval.weights.vector,
+            text_weight=config.retrieval.weights.text,
+            source_dataset=item["source_dataset"] if is_routed_source else None,
+            exclude_source_datasets=list(routing.routed_sources) if (routing.enabled and not is_routed_source) else None,
+            embedding_model=query_model,
+        )
+        if config.reranker.enabled and candidates:
+            ranked = rerank(clients["cohere"], item["question"], candidates, top_n=config.reranker.top_n)
+        else:
+            ranked = candidates[: config.reranker.top_n]
+
+        records.append(
+            {
+                "question_id": item["question_id"],
+                "source_dataset": item["source_dataset"],
+                "candidate_top50": _retrieved_docs_for_prediction(candidates),
+                "reranked_top5": _retrieved_docs_for_prediction(ranked),
+            }
+        )
+        if (i + 1) % 25 == 0:
+            print(f"  {i + 1}/{len(items)} retrieved")
+
+    run_dir = Path("results") / args.run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    write_run_config(config.model_dump(), args.run_id)
+    trace_path = run_dir / "retrieval_trace.jsonl"
+    with trace_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    print(f"Done. {len(records)} questions. Retrieval trace: {trace_path}")
+    print(
+        "This run has no generated answers or judge verdicts - join retrieval_trace.jsonl "
+        "with an existing full run's eval_results.jsonl by question_id (same --questions file) "
+        "via pipeline.attribution, or run plain `eval` for a self-contained run."
+    )
+
+
 def cmd_eval(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     clients = build_clients(config)
@@ -683,6 +765,10 @@ def cmd_eval(args: argparse.Namespace) -> None:
     if args.limit:
         items = items[: args.limit]
     print(f"Loaded {len(items)} eval questions from {args.questions}")
+
+    if getattr(args, "retrieval_only", False):
+        _cmd_eval_retrieval_only(args, config, clients, items)
+        return
 
     generator = ClaudeGenerator(clients["anthropic"], config.generation.model, config.generation.temperature)
     judge = ClaudeJudge(clients["anthropic"], config.judge.model, config.judge.temperature)
@@ -889,6 +975,16 @@ def main(argv: list[str] | None = None) -> None:
     p_eval.add_argument("--run-id", default=None, help="Defaults to a UTC timestamp")
     p_eval.add_argument("--limit", type=int, default=None, help="Only evaluate the first N questions (quick smoke run)")
     p_eval.add_argument("--compare-to", default=None, help="A previous run_id to diff against in eval_report.md")
+    p_eval.add_argument(
+        "--retrieval-only",
+        action="store_true",
+        help=(
+            "Skip generation and judging - only run retrieval+reranking and write "
+            "results/<run_id>/retrieval_trace.jsonl (candidate_top50 + reranked_top5 per question). "
+            "Cheap (no Claude/judge API calls): for error attribution against an existing run's "
+            "eval_results.jsonl, see pipeline.attribution and docs/tehnicheskoe_zadanie.md item 7."
+        ),
+    )
     p_eval.set_defaults(func=cmd_eval)
 
     args = parser.parse_args(argv)
