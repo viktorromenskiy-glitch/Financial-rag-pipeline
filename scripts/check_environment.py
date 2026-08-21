@@ -50,6 +50,18 @@ def main() -> None:
     print("STEP 1: environment check (zero API cost - no Voyage/Cohere/Anthropic calls)")
     print("=" * 70)
 
+    # pipeline.cli.main() normally does this before touching config/env vars
+    # (see its own "from dotenv import load_dotenv; load_dotenv()") - this
+    # script calls load_config()/build_clients() directly instead of going
+    # through cli.main(), so it has to do the same load_dotenv() itself, or
+    # a real .env on disk is silently never read into os.environ.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
     print("\n[1/4] Loading config/config.yaml + .env ...")
     config = load_config()
     print(f"      OK - db={config.mongodb.db_name} collection={config.mongodb.collection_name}")
