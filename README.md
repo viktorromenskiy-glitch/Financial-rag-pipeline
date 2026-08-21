@@ -87,7 +87,7 @@ Scaling the TAT-DQA end-to-end eval to n≈700-900 to directly detect routing's 
 
 A general scale-aware rewrite of the numeric-answer checker (is_close_v2) into a proactive million/billion/currency/percent parser — technically sound (confirmed against the official TAT-QA evaluator's own scale-handling logic) but deliberately not adopted: the checker stays narrow and regression-tested only against cases actually encountered, not expanded ahead of need.
 
-Docker/FastAPI/observability-style production packaging, present in some competing portfolio projects (see Comparison to comparable financial-RAG portfolio projects below) — not adopted: it doesn't close this project's actual gap (retrieval/generation error attribution — see docs/tehnicheskoe_zadanie.md, section 21), and copying competitors' infrastructure surface wouldn't deepen this project's own measurement-driven strength.
+Docker/FastAPI/observability-style production packaging, present in some competing portfolio projects (see Comparison to comparable financial-RAG portfolio projects below) — not adopted: this project's own error attribution (below) found the binding constraint is generation-stage, not infrastructure, so packaging work wouldn't address it, and copying competitors' infrastructure surface wouldn't deepen this project's own measurement-driven strength.
 
 Retrieval progression (same n=900 test, full corpus, production embedding routing and enrichment — see Reranker pool size in Key decisions above for the same numbers in table form)
 
@@ -96,6 +96,19 @@ Hybrid retrieval only, no reranker: Recall@5 = 0.834
 + Reranker, pool=50 (final configuration): Recall@5 = 0.944
 
 (Pool=100 was also tested and rejected — see Considered and rejected above.) This isolates the reranker's contribution under one fixed, controlled test. It deliberately does not include a "dense-only" or "BM25-only" starting point — those were never measured standalone in this project (see Comparison to published work below for Akarsu et al.'s published numbers on that specific split) — and it does not show contextual enrichment as a further step in this same chain, since enrichment's effect was measured under different conditions (see Results above), not as one more point in this particular n=900 pool-size sweep.
+
+Error attribution
+
+Of the 60 questions the judge marked wrong in the committed error_analysis_250 run (see Results above), a deterministic classifier — not an LLM — splits every one of the 250 questions by exactly where in the pipeline it stands: was the gold document retrieved into the top-50 candidate pool, did it survive reranking into the top-5, and only then, was the final answer actually correct. Computed by rerunning retrieval + reranking alone (no generation, no judge — see Unit economics below for why that's cheap, about $0.63 for all 250 questions) and joining the result with the already-judged run by question_id (full method: docs/tehnicheskoe_zadanie.md, section 21).
+
+| stage | n | % of 250 |
+|---|---|---|
+| success (gold document reached the top-5; answer correct) | 186 | 74.4% |
+| generation_failure_candidate (gold document reached the top-5; answer still wrong) | 55 | 22.0% |
+| reranking_failure (gold document in the top-50 pool, dropped by reranking) | 7 | 2.8% |
+| retrieval_failure (gold document never in the top-50 pool) | 2 | 0.8% |
+
+Cross-checked against the committed run: the 55 generation_failure_candidate cases plus 5 of the 9 retrieval/reranking_failure cases (the other 4 got the right final answer anyway, despite the gold document not surviving retrieval) account for exactly the 60 wrong answers in Results above — no discrepancy. Of those 60 errors, only 5 (8.3%) are attributable to retrieval or reranking; the remaining 55 (91.7%) happened with the correct document already in the model's context — confirming, quantitatively rather than just by absence of a counter-example, that retrieval/reranking is not this project's binding constraint: further accuracy gains would need to come from the generation/computation stage, not more retrieval tuning.
 
 Comparison to published work
 
