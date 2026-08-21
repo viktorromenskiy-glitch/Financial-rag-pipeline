@@ -38,9 +38,11 @@ import pytest
 
 from pipeline.cli import (
     _append_generation_checkpoint,
+    _append_retrieval_trace_record,
     _extract_text,
     _infer_source_dataset,
     _load_generation_checkpoint,
+    _load_retrieval_trace_checkpoint,
     _retrieved_docs_for_prediction,
     load_eval_questions,
     load_eval_results,
@@ -239,6 +241,42 @@ def test_generation_checkpoint_missing_retrieved_docs_defaults_to_empty_list(tmp
     )
     loaded = _load_generation_checkpoint(path)
     assert loaded["q1"]["retrieved_docs"] == []
+
+
+# --- retrieval trace checkpoint round-trip (eval --retrieval-only) --------
+# Same bug class as the generation checkpoint above (plan_dorabotki_2.md
+# item 7, step 2 run planning, 2026-08-21): _cmd_eval_retrieval_only used
+# to only accumulate records in memory and write retrieval_trace.jsonl once
+# at the very end, so an interrupted Colab run lost every already-completed
+# question, not just the ones in flight.
+
+
+def test_retrieval_trace_checkpoint_missing_file_returns_empty(tmp_path):
+    assert _load_retrieval_trace_checkpoint(tmp_path / "nope.jsonl") == {}
+
+
+def test_retrieval_trace_checkpoint_roundtrip(tmp_path):
+    path = tmp_path / "retrieval_trace.jsonl"
+    record = {
+        "question_id": "q1",
+        "source_dataset": "FinQA",
+        "candidate_top50": [{"context_id": "d1", "rank": 1, "score": 0.9, "content_sha256": "h1"}],
+        "reranked_top5": [{"context_id": "d1", "rank": 1, "score": 0.95, "content_sha256": "h1"}],
+    }
+    _append_retrieval_trace_record(path, record)
+
+    loaded = _load_retrieval_trace_checkpoint(path)
+
+    assert "q1" in loaded
+    assert loaded["q1"] == record
+
+
+def test_retrieval_trace_checkpoint_resumes_across_multiple_appends(tmp_path):
+    path = tmp_path / "retrieval_trace.jsonl"
+    _append_retrieval_trace_record(path, {"question_id": "q1", "source_dataset": "FinQA", "candidate_top50": [], "reranked_top5": []})
+    _append_retrieval_trace_record(path, {"question_id": "q2", "source_dataset": "ConvFinQA", "candidate_top50": [], "reranked_top5": []})
+    loaded = _load_retrieval_trace_checkpoint(path)
+    assert set(loaded) == {"q1", "q2"}
 
 
 # --- _retrieved_docs_for_prediction -----------------------------------------
