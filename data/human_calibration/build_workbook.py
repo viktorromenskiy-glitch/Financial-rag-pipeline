@@ -14,7 +14,7 @@ the point of an independent calibration check.
 import json
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 
 with open("labeling_sample.json", "r", encoding="utf-8") as f:
@@ -57,7 +57,7 @@ lines = [
         "Что делать: на листе 'Разметка' — 30 вопросов, выбранных случайно (фиксированный "
         "seed) из прогона results/error_analysis_250, пропорционально распределению по "
         "источникам (TAT-DQA / FinQA / ConvFinQA). Для каждой строки в столбце F "
-        "(жёлтая заливка) укажите CORRECT, если 'Ответ модели' по существу совпадает с "
+        "(с рамкой) укажите CORRECT, если 'Ответ модели' по существу совпадает с "
         "'Эталонным ответом', или INCORRECT — если нет.",
         body_font,
     ),
@@ -125,12 +125,12 @@ example_values = [
     "42.3",
     "CORRECT",
 ]
+example_border = Border(left=Side(style="medium", color=BLACK), right=Side(style="medium", color=BLACK),
+                         top=Side(style="medium", color=BLACK), bottom=Side(style="medium", color=BLACK))
 for c, v in enumerate(example_values, start=1):
     cell = ws_instr.cell(row=example_row, column=c, value=v)
     cell.font = body_font
-ws_instr.cell(row=example_row, column=6).fill = PatternFill(
-    start_color="FFFF00", end_color="FFFF00", fill_type="solid"
-)
+ws_instr.cell(row=example_row, column=6).border = example_border
 ws_instr.cell(
     row=example_row + 1,
     column=1,
@@ -154,7 +154,13 @@ for c, (h, w) in enumerate(zip(headers, widths), start=1):
 ws.row_dimensions[1].height = 30
 ws.freeze_panes = "A2"
 
-yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+# No fill on the input column any more - Viktor reported that even with
+# explicit black+bold text, the yellow fill made his entries unreadable in
+# whatever app he's using to edit (color-on-color rendering issue outside
+# our control). A border marks the input cell instead of a fill, which
+# can't visually compete with the text drawn on top of it.
+input_border = Border(left=Side(style="medium", color=BLACK), right=Side(style="medium", color=BLACK),
+                       top=Side(style="medium", color=BLACK), bottom=Side(style="medium", color=BLACK))
 
 for i, row in enumerate(rows, start=2):
     ws.cell(row=i, column=1, value=row["label_id"]).font = body_font
@@ -165,7 +171,7 @@ for i, row in enumerate(rows, start=2):
     ws.cell(row=i, column=4, value=row["generated_answer"]).font = body_font
     ws.cell(row=i, column=5, value=row["gold_answer"]).font = body_font
     verdict_cell = ws.cell(row=i, column=6)
-    verdict_cell.fill = yellow_fill
+    verdict_cell.border = input_border
     verdict_cell.font = Font(name="Arial", size=12, bold=True, color=BLACK)
     ws.row_dimensions[i].height = 45
 
