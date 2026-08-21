@@ -1,0 +1,152 @@
+{
+  "finqa_train_2516": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  "tatqa_train_2260": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_2055": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_2109": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  "finqa_test_320": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "finqa_test_180": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "convfinqa_3078": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_6854": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "finqa_train_1144": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "finqa_train_3856": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  "tatqa_train_3798": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  "finqa_train_5004": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "finqa_train_2574": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "finqa_train_5282": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_6875": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_6301": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_5282": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  "tatqa_train_8832": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": true
+  },
+  "convfinqa_1807": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "finqa_train_2391": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  "finqa_train_3121": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_1479": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_8798": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_1984": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_dev_11204": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "convfinqa_3418": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_8693": {
+    "judge_verdict": "INCORRECT",
+    "judge_correct": false,
+    "deterministic_match": false
+  },
+  "convfinqa_781": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "finqa_train_3478": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  },
+  "tatqa_train_4043": {
+    "judge_verdict": "CORRECT",
+    "judge_correct": true,
+    "deterministic_match": true
+  }
+}

@@ -1,0 +1,242 @@
+[
+  {
+    "label_id": 1,
+    "question_id": "finqa_train_2516",
+    "source_dataset": "FinQA",
+    "question": "What was the percentage change in Entergy's net revenue from 2010 to 2011, considering the impact of the mark-to-market tax settlement sharing, retail electric price adjustments, and other factors as outlined in the 2011 financial discussion and analysis? ",
+    "generated_answer": "-2.91",
+    "gold_answer": "-0.15090543259557343"
+  },
+  {
+    "label_id": 2,
+    "question_id": "tatqa_train_2260",
+    "source_dataset": "TAT-DQA",
+    "question": "What is the difference between the Grant Date Fair Value of Stock and Option Awards for Mr. Daswani and Ms. Friar in 2018?",
+    "generated_answer": "3291438",
+    "gold_answer": "3291438.0"
+  },
+  {
+    "label_id": 3,
+    "question_id": "tatqa_train_2055",
+    "source_dataset": "TAT-DQA",
+    "question": "In the 2019 Consolidated Statements of Cash Flows for Monolithic Power Systems Inc, for how many years did the total cash, cash equivalents, and restricted cash exceed 150,000 thousand?",
+    "generated_answer": "2",
+    "gold_answer": "2.0"
+  },
+  {
+    "label_id": 4,
+    "question_id": "tatqa_train_2109",
+    "source_dataset": "TAT-DQA",
+    "question": "What is the average adjusted profit before tax for Vodafone Group PLC in 2019, considering the adjustments for impairment losses, taxation, and the results of Vodafone India?",
+    "generated_answer": "2334.5",
+    "gold_answer": "3472.0"
+  },
+  {
+    "label_id": 5,
+    "question_id": "finqa_test_320",
+    "source_dataset": "FinQA",
+    "question": "What was the percentage change in Level 3 financial assets held by Goldman Sachs from December 2016 to December 2017?",
+    "generated_answer": "-17.52",
+    "gold_answer": "-0.1752147766323024"
+  },
+  {
+    "label_id": 6,
+    "question_id": "finqa_test_180",
+    "source_dataset": "FinQA",
+    "question": "What is the ROI of an investment in DJ US Containers & Packaging from 2007 to 2012?",
+    "generated_answer": "7.76",
+    "gold_answer": "0.07760000000000006"
+  },
+  {
+    "label_id": 7,
+    "question_id": "convfinqa_3078",
+    "source_dataset": "ConvFinQA",
+    "question": "What is the total estimated amortization expense for the years 2015 to 2018 for Devon Energy's intangible assets, given that the amortization amount is $45 million for each of these years?",
+    "generated_answer": "180",
+    "gold_answer": "180.0"
+  },
+  {
+    "label_id": 8,
+    "question_id": "tatqa_train_6854",
+    "source_dataset": "TAT-DQA",
+    "question": "What is the change in the value of Leasehold improvements for macom-technology from the fiscal year 2018 to 2019?",
+    "generated_answer": "-2022",
+    "gold_answer": "-2022.0"
+  },
+  {
+    "label_id": 9,
+    "question_id": "finqa_train_1144",
+    "source_dataset": "FinQA",
+    "question": "What is the percentage increase in total compensation expense under the stock plan for Mid-America Apartment Communities from 2015 to 2016?",
+    "generated_answer": "76.81",
+    "gold_answer": "0.7681159420289854"
+  },
+  {
+    "label_id": 10,
+    "question_id": "finqa_train_3856",
+    "source_dataset": "FinQA",
+    "question": "What are the implicit interest costs for the lease payments due after 2021 for Entergy's Grand Gulf sale and leaseback transactions, as reflected in the future minimum lease payments with an implicit rate of 5.13%, in thousands?",
+    "generated_answer": "292209",
+    "gold_answer": "13225.7556"
+  },
+  {
+    "label_id": 11,
+    "question_id": "tatqa_train_3798",
+    "source_dataset": "TAT-DQA",
+    "question": "What was the dollar increase in Cost of services for Verizon Communications Inc. from 2018 to 2019, as reported in the 2019 Annual Report?",
+    "generated_answer": "-413",
+    "gold_answer": "549.0"
+  },
+  {
+    "label_id": 12,
+    "question_id": "finqa_train_5004",
+    "source_dataset": "FinQA",
+    "question": "What was the average year-end backlog for Lockheed Martin's IS&GS business segment from 2013 to 2015?",
+    "generated_answer": "5700",
+    "gold_answer": "5700.0"
+  },
+  {
+    "label_id": 13,
+    "question_id": "finqa_train_2574",
+    "source_dataset": "FinQA",
+    "question": "What is the annual interest expense related to the ATI 7.25% notes in millions for American Tower's financial year 2005?",
+    "generated_answer": "29",
+    "gold_answer": "28.999999999999996"
+  },
+  {
+    "label_id": 14,
+    "question_id": "finqa_train_5282",
+    "source_dataset": "FinQA",
+    "question": "What was the year-over-year change in Masco's income from financial investments, net, from 2011 to 2012, as reported in the 'Other income (expense), net' section of the company's 2012 financial statements?",
+    "generated_answer": "-49",
+    "gold_answer": "-49.0"
+  },
+  {
+    "label_id": 15,
+    "question_id": "tatqa_train_6875",
+    "source_dataset": "TAT-DQA",
+    "question": "What was the accrued compensation and employee benefits for Jabil Circuit Inc. as of August 31, 2018?",
+    "generated_answer": "570400",
+    "gold_answer": "570400.0"
+  },
+  {
+    "label_id": 16,
+    "question_id": "tatqa_train_6301",
+    "source_dataset": "TAT-DQA",
+    "question": "What was the amount of net cash used in investing activities for Greensky, Inc. in 2019, as reflected in its Consolidated Statements of Cash Flows?",
+    "generated_answer": "-15381",
+    "gold_answer": "15381.0"
+  },
+  {
+    "label_id": 17,
+    "question_id": "tatqa_train_5282",
+    "source_dataset": "TAT-DQA",
+    "question": "What is the percentage change in Altium Limited's total product revenue from 2018 to 2019, as reflected in the Key Financial Results section of the 2019 annual report?",
+    "generated_answer": "22.6",
+    "gold_answer": "23.0"
+  },
+  {
+    "label_id": 18,
+    "question_id": "tatqa_train_8832",
+    "source_dataset": "TAT-DQA",
+    "question": "What is the average cost of subscriptions for RingCentral between 2017 and 2019?",
+    "generated_answer": "118989.67",
+    "gold_answer": "119655.67"
+  },
+  {
+    "label_id": 19,
+    "question_id": "convfinqa_1807",
+    "source_dataset": "ConvFinQA",
+    "question": "What was the net change in value of BlackRock's multi-asset AUM during 2016?",
+    "generated_answer": "18671",
+    "gold_answer": "18671.0"
+  },
+  {
+    "label_id": 20,
+    "question_id": "finqa_train_2391",
+    "source_dataset": "FinQA",
+    "question": "What is the effective tax rate for Visa Inc. in 2016, considering the tax benefits related to share-based compensation costs as disclosed in the Notes to Consolidated Financial Statements for the year ended September 30, 2016?",
+    "generated_answer": "INSUFFICIENT_CONTEXT",
+    "gold_answer": "0.2938388625592417"
+  },
+  {
+    "label_id": 21,
+    "question_id": "finqa_train_3121",
+    "source_dataset": "FinQA",
+    "question": "What percentage of the notional contract amount of total gross derivatives held by PNC Financial Services at December 31, 2014, was attributed to derivatives not designated as hedging instruments under GAAP?",
+    "generated_answer": "85.58",
+    "gold_answer": "0.8558373516456715"
+  },
+  {
+    "label_id": 22,
+    "question_id": "tatqa_train_1479",
+    "source_dataset": "TAT-DQA",
+    "question": "What was the change in Teradyne's net income per common share-diluted from $2.35 in 2018 to 2019?",
+    "generated_answer": "0.25",
+    "gold_answer": "0.25"
+  },
+  {
+    "label_id": 23,
+    "question_id": "tatqa_train_8798",
+    "source_dataset": "TAT-DQA",
+    "question": "What is the average notional tax for the years 2017/18 and 2018/19 for Premier Foods Plc?",
+    "generated_answer": "15.8",
+    "gold_answer": "-15.8"
+  },
+  {
+    "label_id": 24,
+    "question_id": "tatqa_train_1984",
+    "source_dataset": "TAT-DQA",
+    "question": "What was the sum of the amortized costs of corporate bonds and US treasury securities as of December 31, 2018?",
+    "generated_answer": "196941",
+    "gold_answer": "196941.0"
+  },
+  {
+    "label_id": 25,
+    "question_id": "tatqa_dev_11204",
+    "source_dataset": "TAT-DQA",
+    "question": "What was the amount of gain or loss recognized in AOCI on foreign exchange contracts for carpenter-technology-corp in the year ended June 30, 2018?",
+    "generated_answer": "-0.4",
+    "gold_answer": "0.4"
+  },
+  {
+    "label_id": 26,
+    "question_id": "convfinqa_3418",
+    "source_dataset": "ConvFinQA",
+    "question": "What were the total payments made for the notes Entergy issued to NYPA that had 7 annual installments?",
+    "generated_answer": "756",
+    "gold_answer": "756.0"
+  },
+  {
+    "label_id": 27,
+    "question_id": "tatqa_train_8693",
+    "source_dataset": "TAT-DQA",
+    "question": "What was the impact of the New Revenue Standard adoption on Microchip Technology Inc.'s net accounts receivable as of April 1, 2018?",
+    "generated_answer": "340.1",
+    "gold_answer": "324.5"
+  },
+  {
+    "label_id": 28,
+    "question_id": "convfinqa_781",
+    "source_dataset": "ConvFinQA",
+    "question": "What were International Paper's industry segment operating profits in 2006?",
+    "generated_answer": "2074",
+    "gold_answer": "2074.0"
+  },
+  {
+    "label_id": 29,
+    "question_id": "finqa_train_3478",
+    "source_dataset": "FinQA",
+    "question": "What was the effective income tax rate that resulted in the $6.9 million income tax benefit from share-based compensation expense for Global Payments in 2015?",
+    "generated_answer": "32.7",
+    "gold_answer": "0.32701421800947866"
+  },
+  {
+    "label_id": 30,
+    "question_id": "tatqa_train_4043",
+    "source_dataset": "TAT-DQA",
+    "question": "What is the change in Income tax benefit (expense) for stmicroelectronics from 2018 to 2019?",
+    "generated_answer": "-60",
+    "gold_answer": "60.0"
+  }
+]
