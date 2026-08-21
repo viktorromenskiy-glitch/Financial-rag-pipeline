@@ -1,0 +1,27 @@
+{
+  "n": 250,
+  "overall": {
+    "generation_failure_candidate": 55,
+    "success": 186,
+    "reranking_failure": 7,
+    "retrieval_failure": 2
+  },
+  "by_source_dataset": {
+    "FinQA": {
+      "generation_failure_candidate": 25,
+      "success": 64,
+      "reranking_failure": 1
+    },
+    "ConvFinQA": {
+      "success": 29,
+      "reranking_failure": 3,
+      "generation_failure_candidate": 5
+    },
+    "TAT-DQA": {
+      "retrieval_failure": 2,
+      "success": 93,
+      "generation_failure_candidate": 25,
+      "reranking_failure": 3
+    }
+  }
+}
