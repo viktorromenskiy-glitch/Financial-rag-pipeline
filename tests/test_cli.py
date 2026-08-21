@@ -408,6 +408,33 @@ def test_write_eval_report_omits_regression_section_without_previous(tmp_path):
     assert "Regression vs run" not in report_path.read_text(encoding="utf-8")
 
 
+def test_write_eval_report_omits_latency_section_without_summary(tmp_path):
+    items = [{"question_id": "q1", "source_dataset": "FinQA"}]
+    results = [_eval_result("q1", judge_correct=True)]
+    report_path = tmp_path / "eval_report.md"
+
+    write_eval_report(report_path, results, items, run_id="test_run")
+
+    assert "## Latency" not in report_path.read_text(encoding="utf-8")
+
+
+def test_write_eval_report_includes_latency_section_when_given(tmp_path):
+    items = [{"question_id": "q1", "source_dataset": "FinQA"}]
+    results = [_eval_result("q1", judge_correct=True)]
+    report_path = tmp_path / "eval_report.md"
+    latency_summary = {
+        "retrieval_s": {"n": 1, "mean_s": 0.2, "median_s": 0.2, "p95_s": 0.2, "min_s": 0.2, "max_s": 0.2, "total_s": 0.2},
+        "rerank_s": None,
+    }
+
+    write_eval_report(report_path, results, items, run_id="test_run", latency_summary=latency_summary)
+
+    text = report_path.read_text(encoding="utf-8")
+    assert "## Latency" in text
+    assert "| retrieval_s | 1 | 0.20s | 0.20s | 0.20s |" in text
+    assert "| rerank_s | 0 | - | - | - |" in text
+
+
 # --- main() argparse wiring --------------------------------------------
 
 

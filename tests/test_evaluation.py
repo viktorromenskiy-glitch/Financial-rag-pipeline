@@ -224,6 +224,46 @@ def test_evaluate_answers_without_cache_always_judges():
     assert len(results) == 2
 
 
+def test_evaluate_answers_latency_sink_records_one_entry_per_real_call():
+    # pipeline/common/latency.py, "План доработки-2, пункт 2": latency_sink
+    # must get exactly one entry per actual judge call, never a cache hit.
+    judge = FakeJudge(["VERDICT: CORRECT", "VERDICT: INCORRECT"])
+    sink: list[float] = []
+    results = evaluate_answers(judge, [_item("q1"), _item("q2", generated="999")], cache=None, latency_sink=sink)
+    assert len(sink) == 2
+    assert all(s >= 0 for s in sink)
+    assert len(results) == 2
+
+
+def test_evaluate_answers_latency_sink_not_appended_for_cache_hits(tmp_path):
+    cache_path = tmp_path / "judge_cache.jsonl"
+    cache = JudgeCache(cache_path)
+    item = _item("q1")
+    key = cache_key(item["question"], item["context"], item["generated_answer"])
+    cache.append(
+        key,
+        EvalResult(
+            question_id="q1",
+            judge_scores={"verdict": "CORRECT", "judge_correct": True},
+            deterministic_match=True,
+            judge_agrees=True,
+        ),
+    )
+
+    sink: list[float] = []
+    judge = FakeJudge([])  # not called - the item is a cache hit
+    evaluate_answers(judge, [item], cache=cache, latency_sink=sink)
+    assert sink == []
+
+
+def test_evaluate_answers_latency_sink_defaults_to_none_without_error():
+    # Backward compatibility: existing callers that don't pass latency_sink
+    # must keep working exactly as before.
+    judge = FakeJudge(["VERDICT: CORRECT"])
+    results = evaluate_answers(judge, [_item("q1")], cache=None)
+    assert len(results) == 1
+
+
 # --- regression_report -----------------------------------------------------
 
 
