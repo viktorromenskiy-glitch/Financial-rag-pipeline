@@ -32,9 +32,13 @@ ws = wb.active
 ws.title = "Разметка (RU, справка)"
 ws.sheet_view.showGridLines = True
 
-body_font = Font(name="Arial", size=11)
-bold_font = Font(name="Arial", size=11, bold=True)
-italic_font = Font(name="Arial", size=10, italic=True)
+# Explicit black - see build_workbook.py for why (an unset "automatic"
+# color can render as white in a dark-themed viewer, invisible against a
+# colored fill).
+BLACK = "FF000000"
+body_font = Font(name="Arial", size=11, color=BLACK)
+bold_font = Font(name="Arial", size=11, bold=True, color=BLACK)
+italic_font = Font(name="Arial", size=10, italic=True, color=BLACK)
 grey_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
 
 note = (

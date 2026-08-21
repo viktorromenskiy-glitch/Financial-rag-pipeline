@@ -28,9 +28,15 @@ ws_instr.title = "Инструкция"
 ws_instr.sheet_view.showGridLines = False
 ws_instr.column_dimensions["A"].width = 110
 
-title_font = Font(name="Arial", size=14, bold=True)
-body_font = Font(name="Arial", size=11)
-bold_font = Font(name="Arial", size=11, bold=True)
+# Explicit black (not "automatic"/None) - some viewers (Excel/Sheets in
+# dark theme, some mobile apps) render an unset "automatic" font color as
+# white, which is invisible against the yellow input-cell fill. This was
+# reported by Viktor (entries didn't appear to show up) and is the most
+# likely cause - an explicit color removes the ambiguity everywhere.
+BLACK = "FF000000"
+title_font = Font(name="Arial", size=14, bold=True, color=BLACK)
+body_font = Font(name="Arial", size=11, color=BLACK)
+bold_font = Font(name="Arial", size=11, bold=True, color=BLACK)
 
 lines = [
     ("Калибровка LLM-судьи на человеческой разметке (план доработки-2, пункт 4)", title_font),
@@ -132,7 +138,7 @@ ws_instr.cell(
         "^ пример: 42 против 42.3 - небольшое расхождение в округлении, засчитано как CORRECT "
         "по тому же правилу, что использует судья."
     ),
-).font = Font(name="Arial", size=10, italic=True)
+).font = Font(name="Arial", size=10, italic=True, color=BLACK)
 ws_instr.row_dimensions[example_row + 1].height = 30
 
 # --- Sheet 2: Labeling -----------------------------------------------------
@@ -160,7 +166,7 @@ for i, row in enumerate(rows, start=2):
     ws.cell(row=i, column=5, value=row["gold_answer"]).font = body_font
     verdict_cell = ws.cell(row=i, column=6)
     verdict_cell.fill = yellow_fill
-    verdict_cell.font = body_font
+    verdict_cell.font = Font(name="Arial", size=12, bold=True, color=BLACK)
     ws.row_dimensions[i].height = 45
 
 dv = DataValidation(type="list", formula1='"CORRECT,INCORRECT"', allow_blank=True, showDropDown=False)
