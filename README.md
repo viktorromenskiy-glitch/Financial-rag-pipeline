@@ -73,6 +73,30 @@ Judge vs human calibration (blind labeling, n=30, stratified)	100% agreement (30
 
 Readiness criterion: baseline-relative (statistically significant improvement over the project's own baseline via paired bootstrap/McNemar), not an arbitrary fixed metric threshold.
 
+Considered and rejected
+
+Not every tested alternative made it into the final pipeline — several were measured, then explicitly not adopted, for reasons documented alongside their numbers elsewhere in this README and in the technical specification:
+
+Program-of-Thought generation instead of direct answers — tested on 30 gold-context questions, tied with Direct (0.733 = 0.733); rejected for added code-execution risk with no measured benefit.
+
+Fusion weights other than 0.5/0.5 vector/text — a grid search (n=250) found every alternative from 0.3/0.7 to 0.7/0.3 statistically indistinguishable from the default (p>0.25 everywhere); picking the numerically-best point after the fact would repeat a data-dredging mistake this project already avoids elsewhere, so the default stays.
+
+Reranker pool size 100 instead of 50 — tested (n=900); −0.33 pp vs. pool=50, not significant (p=0.58).
+
+Scaling the TAT-DQA end-to-end eval to n≈700-900 to directly detect routing's end-to-end effect — priced out at an estimated $23-29 (see Unit economics below), which is affordable; not done anyway, because the retrieval-level decision already stands on its own and the added run wasn't judged worthwhile.
+
+A general scale-aware rewrite of the numeric-answer checker (is_close_v2) into a proactive million/billion/currency/percent parser — technically sound (confirmed against the official TAT-QA evaluator's own scale-handling logic) but deliberately not adopted: the checker stays narrow and regression-tested only against cases actually encountered, not expanded ahead of need.
+
+Docker/FastAPI/observability-style production packaging, present in some competing portfolio projects (see Comparison to comparable financial-RAG portfolio projects below) — not adopted: it doesn't close this project's actual gap (retrieval/generation error attribution — see docs/tehnicheskoe_zadanie.md, section 21), and copying competitors' infrastructure surface wouldn't deepen this project's own measurement-driven strength.
+
+Retrieval progression (same n=900 test, full corpus, production embedding routing and enrichment — see Reranker pool size in Key decisions above for the same numbers in table form)
+
+Hybrid retrieval only, no reranker: Recall@5 = 0.834
++ Reranker, pool=10: Recall@5 = 0.890
++ Reranker, pool=50 (final configuration): Recall@5 = 0.944
+
+(Pool=100 was also tested and rejected — see Considered and rejected above.) This isolates the reranker's contribution under one fixed, controlled test. It deliberately does not include a "dense-only" or "BM25-only" starting point — those were never measured standalone in this project (see Comparison to published work below for Akarsu et al.'s published numbers on that specific split) — and it does not show contextual enrichment as a further step in this same chain, since enrichment's effect was measured under different conditions (see Results above), not as one more point in this particular n=900 pool-size sweep.
+
 Comparison to published work
 
 T²-RAGBench (Strich et al., EACL 2026 — aclanthology.org/2026.eacl-long.8) is a recent benchmark; its own paper reports retrieval-level findings (identifying hybrid BM25+dense as the most effective approach for this data) rather than end-to-end generation accuracy, so it isn't a direct source for a judge-accuracy comparison. A companion paper, Akarsu et al., "From BM25 to Corrective RAG: Benchmarking Retrieval Strategies for Text-and-Table Documents" (arXiv:2604.01733), benchmarks ten retrieval strategies on the identical dataset (same 23,088 queries, 7,318 documents) — the closest available apples-to-apples comparison point for this project's retrieval numbers:
