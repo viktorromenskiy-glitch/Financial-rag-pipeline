@@ -493,3 +493,16 @@ def test_main_eval_respects_explicit_run_id_and_options(monkeypatch):
     assert args.run_id == "my_run"
     assert args.limit == 10
     assert args.compare_to == "baseline_run"
+    assert args.retrieval_only is False
+
+
+def test_main_eval_retrieval_only_flag(monkeypatch):
+    captured = {}
+
+    def fake_cmd_eval(args):
+        captured["args"] = args
+
+    monkeypatch.setattr("pipeline.cli.cmd_eval", fake_cmd_eval)
+    main(["eval", "--questions", "q.parquet", "--run-id", "my_run", "--retrieval-only"])
+
+    assert captured["args"].retrieval_only is True
