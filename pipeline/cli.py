@@ -562,6 +562,31 @@ def _append_generation_checkpoint(path: Path, question_id: str, question: str, s
         )
 
 
+def _load_retrieval_trace_checkpoint(path: Path) -> dict[str, dict]:
+    """Loads results/<run_id>/retrieval_trace.jsonl - one line per
+    already-retrieved question_id (question_id/source_dataset/
+    candidate_top50/reranked_top5). Mirrors _load_generation_checkpoint
+    above; see _cmd_eval_retrieval_only's docstring for why this exists.
+    """
+    if not path.exists():
+        return {}
+    done: dict[str, dict] = {}
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            done[rec["question_id"]] = rec
+    return done
+
+
+def _append_retrieval_trace_record(path: Path, record: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
 def load_eval_results(path: Path) -> list[EvalResult]:
     if not path.exists():
         raise FileNotFoundError(f"No previous run found at {path} - check --compare-to")
@@ -700,16 +725,31 @@ def _cmd_eval_retrieval_only(args: argparse.Namespace, config, clients: dict, it
     run and join the two by question_id afterwards - see
     pipeline.attribution.attribute_errors().
 
-    No checkpoint/resume here (unlike the full path in cmd_eval): a
-    retrieval-only run is fast (no LLM calls) and cheap enough that if it's
-    interrupted, simply re-running from scratch costs a few hundred rerank
-    calls, not the risk of re-billing a full generation+judge run - so the
-    added complexity of a checkpoint isn't worth it for this path.
+    Checkpoint/resume (added 2026-08-21): this function used to only
+    accumulate `records` in memory and write retrieval_trace.jsonl once at
+    the very end - an interrupted Colab session lost every
+    already-completed question, not just the ones in flight, since
+    nothing hit disk before the final write. Same class of bug
+    _load_generation_checkpoint above was already fixed for. Now each
+    record is appended to retrieval_trace.jsonl immediately after it's
+    computed, and re-running the same --run-id skips question_ids already
+    present in that file instead of re-querying (and re-billing) them.
     """
     collection = clients["collection"]
     routing = config.embedding.routing
-    records = []
+    run_dir = Path("results") / args.run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    write_run_config(config.model_dump(), args.run_id)
+    trace_path = run_dir / "retrieval_trace.jsonl"
+
+    done = _load_retrieval_trace_checkpoint(trace_path)
+    if done:
+        print(f"  {len(done)} already retrieved (resumed from checkpoint), {len(items) - len(done)} remaining")
+
+    total_done = len(done)
     for i, item in enumerate(items):
+        if item["question_id"] in done:
+            continue
         query_model = _resolve_embedding_model(config, item["source_dataset"])
         is_routed_source = routing.enabled and item["source_dataset"] in routing.routed_sources
         candidates = retrieve(
@@ -728,25 +768,20 @@ def _cmd_eval_retrieval_only(args: argparse.Namespace, config, clients: dict, it
         else:
             ranked = candidates[: config.reranker.top_n]
 
-        records.append(
+        _append_retrieval_trace_record(
+            trace_path,
             {
                 "question_id": item["question_id"],
                 "source_dataset": item["source_dataset"],
                 "candidate_top50": _retrieved_docs_for_prediction(candidates),
                 "reranked_top5": _retrieved_docs_for_prediction(ranked),
-            }
+            },
         )
-        if (i + 1) % 25 == 0:
-            print(f"  {i + 1}/{len(items)} retrieved")
+        total_done += 1
+        if total_done % 25 == 0:
+            print(f"  {total_done}/{len(items)} retrieved")
 
-    run_dir = Path("results") / args.run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
-    write_run_config(config.model_dump(), args.run_id)
-    trace_path = run_dir / "retrieval_trace.jsonl"
-    with trace_path.open("w", encoding="utf-8") as f:
-        for r in records:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"Done. {len(records)} questions. Retrieval trace: {trace_path}")
+    print(f"Done. {total_done} questions. Retrieval trace: {trace_path}")
     print(
         "This run has no generated answers or judge verdicts - join retrieval_trace.jsonl "
         "with an existing full run's eval_results.jsonl by question_id (same --questions file) "
