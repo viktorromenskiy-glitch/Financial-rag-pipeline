@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -226,6 +227,7 @@ def evaluate_answers(
     cache: JudgeCache | None = None,
     prompt_version: str = PROMPT_VERSION,
     deterministic_check_enabled: bool = DETERMINISTIC_CHECK_ENABLED,
+    latency_sink: list[float] | None = None,
 ) -> list[EvalResult]:
     """items: list of {question_id, question, context, generated_answer,
     gold_answer} dicts (module 8 output joined with retrieved context and
@@ -233,6 +235,12 @@ def evaluate_answers(
 
     Loads the cache once up front (not per item - O(n), not O(n^2)) and
     skips re-judging any item whose cache key is already present.
+
+    latency_sink: if given, the wall-clock seconds of each actual
+    evaluate_answer() call (a real judge API call) is appended to it -
+    never for a cache hit, which takes microseconds and would silently
+    deflate the reported latency (see pipeline/common/latency.py, added
+    for docs/tehnicheskoe_zadanie.md "План доработки-2, пункт 2").
     """
     cached = cache.load() if cache is not None else {}
     results: list[EvalResult] = []
@@ -250,6 +258,7 @@ def evaluate_answers(
             )
             continue
 
+        start = time.perf_counter()
         result = evaluate_answer(
             judge,
             item["question_id"],
@@ -260,6 +269,8 @@ def evaluate_answers(
             prompt_version=prompt_version,
             deterministic_check_enabled=deterministic_check_enabled,
         )
+        if latency_sink is not None:
+            latency_sink.append(time.perf_counter() - start)
         if cache is not None:
             cache.append(key, result)
         results.append(result)

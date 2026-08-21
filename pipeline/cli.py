@@ -35,6 +35,7 @@ import argparse
 import hashlib
 import json
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +43,7 @@ import pandas as pd
 
 from config.config_schema import PipelineConfig, load_config
 from pipeline.chunking import chunk
+from pipeline.common.latency import summarize_latencies, write_latency_report
 from pipeline.common.run_config import write_run_config
 from pipeline.embedding import BATCH_SIZE, embed_documents, resolve_embedding_model
 from pipeline.enrichment import EnrichmentCheckpoint, enrich_document, enrich_documents
@@ -585,6 +587,7 @@ def write_eval_report(
     run_id: str,
     previous_results: list[EvalResult] | None = None,
     compare_to: str | None = None,
+    latency_summary: dict[str, dict | None] | None = None,
 ) -> None:
     """Writes results/<run_id>/eval_report.md.
 
@@ -641,6 +644,22 @@ def write_eval_report(
             more = " ..." if len(report["regressed"]) > 50 else ""
             lines.append(f"- Regressed question_ids: {shown}{more}")
 
+    if latency_summary is not None:
+        lines += [
+            "",
+            "## Latency (this run, real API calls only - excludes checkpoint/cache hits)",
+            "",
+            "| stage | n | mean | median | p95 |",
+            "|---|---|---|---|---|",
+        ]
+        for stage, stats in latency_summary.items():
+            if stats is None:
+                lines.append(f"| {stage} | 0 | - | - | - |")
+            else:
+                lines.append(
+                    f"| {stage} | {stats['n']} | {stats['mean_s']:.2f}s | {stats['median_s']:.2f}s | {stats['p95_s']:.2f}s |"
+                )
+
     lines += [
         "",
         "_Numbers here are from an actual run, not the docs/*.md checkpoints - treat "
@@ -673,6 +692,22 @@ def cmd_eval(args: argparse.Namespace) -> None:
     gen_checkpoint_path = run_dir / "generation_checkpoint.jsonl"
     generated = _load_generation_checkpoint(gen_checkpoint_path)
     print(f"  {len(generated)} already generated (resumed from checkpoint), {len(items) - len(generated)} remaining")
+
+    # Wall-clock latency per stage - added for docs/tehnicheskoe_zadanie.md
+    # "План доработки-2, пункт 2": cost is calculable from published API
+    # pricing (section 15), but latency isn't - this loop is fully
+    # sequential (no ThreadPoolExecutor), so real numbers only come from
+    # an actual timed run. Only real API calls are timed, never a
+    # checkpoint-resumed item (see the `continue` below) or a judge
+    # cache hit (see evaluate_answers' latency_sink) - see
+    # pipeline/common/latency.py's module docstring for why mixing those
+    # in would silently deflate the numbers.
+    latencies: dict[str, list[float]] = {
+        "retrieval_s": [],
+        "rerank_s": [],
+        "generation_s": [],
+        "judge_s": [],
+    }
 
     predictions = []
     eval_items = []
@@ -722,6 +757,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
         query_model = _resolve_embedding_model(config, item["source_dataset"])
         routing = config.embedding.routing
         is_routed_source = routing.enabled and item["source_dataset"] in routing.routed_sources
+        _t0 = time.perf_counter()
         candidates = retrieve(
             clients["voyage"],
             collection,
@@ -733,8 +769,11 @@ def cmd_eval(args: argparse.Namespace) -> None:
             exclude_source_datasets=list(routing.routed_sources) if (routing.enabled and not is_routed_source) else None,
             embedding_model=query_model,
         )
+        latencies["retrieval_s"].append(time.perf_counter() - _t0)
         if config.reranker.enabled and candidates:
+            _t0 = time.perf_counter()
             ranked = rerank(clients["cohere"], item["question"], candidates, top_n=config.reranker.top_n)
+            latencies["rerank_s"].append(time.perf_counter() - _t0)
         else:
             ranked = candidates[: config.reranker.top_n]
 
@@ -742,7 +781,9 @@ def cmd_eval(args: argparse.Namespace) -> None:
             skipped_no_candidates += 1
             continue
 
+        _t0 = time.perf_counter()
         answer = generate_answer(generator, item["question_id"], item["question"], ranked)
+        latencies["generation_s"].append(time.perf_counter() - _t0)
         context = "\n\n".join(c.full_indexed_content for c in ranked)
         retrieved_docs = _retrieved_docs_for_prediction(ranked)
         _append_generation_checkpoint(
@@ -781,10 +822,18 @@ def cmd_eval(args: argparse.Namespace) -> None:
         cache=judge_cache,
         prompt_version=config.judge.prompt_version,
         deterministic_check_enabled=config.judge.deterministic_check_enabled,
+        latency_sink=latencies["judge_s"],
     )
 
     print(f"Writing results to {run_dir} ...")
     write_run_config(config.model_dump(), args.run_id)
+    write_latency_report(latencies, args.run_id)
+    latency_summary = summarize_latencies(latencies)
+    for stage, stats in latency_summary.items():
+        if stats is None:
+            print(f"  {stage}: no data this run")
+        else:
+            print(f"  {stage}: n={stats['n']} mean={stats['mean_s']:.2f}s median={stats['median_s']:.2f}s p95={stats['p95_s']:.2f}s")
 
     with (run_dir / "predictions.jsonl").open("w", encoding="utf-8") as f:
         for p in predictions:
@@ -806,7 +855,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
             )
 
     previous_results = load_eval_results(Path("results") / args.compare_to / "eval_results.jsonl") if args.compare_to else None
-    write_eval_report(run_dir / "eval_report.md", results, items, args.run_id, previous_results, args.compare_to)
+    write_eval_report(run_dir / "eval_report.md", results, items, args.run_id, previous_results, args.compare_to, latency_summary)
     print(f"Done. Report: {run_dir / 'eval_report.md'}")
 
 
