@@ -1,41 +1,55 @@
-"""Plan generation-error-analysis, Phase 2 result: manual review of the 7
+"""Plan generation-error-analysis, Phase 2 result: manual review of the
 questions where the model answered FINAL ANSWER: INSUFFICIENT_CONTEXT in
-results/error_analysis_250 (all 7 are generation_failure_candidate - none
-overlap with Phase 1's 5 judge/is_close_v2 cases, since INSUFFICIENT_CONTEXT
-is non-numeric and is_close_v2 returns False on non-numeric input).
+results/error_analysis_250.
+
+Scope correction (found and fixed before this script's first run - see the
+CORRECTIONS table below and docs/tehnicheskoe_zadanie.md's Phase 2 write-up
+for the full account): 7 questions in the full 250-question set got this
+answer, but only 6 of them are actually generation_failure_candidate. The
+7th, tatqa_train_8524, is a reranking_failure (its gold document did not
+survive reranking into the top-5 the model actually saw) - the model
+answering INSUFFICIENT_CONTEXT there is the CORRECT, expected behavior for a
+genuine reranking failure, already accounted for in section 21's "5 of 9"
+cross-check, and out of scope for this generation-error-analysis plan
+entirely. It is deliberately excluded from CORRECTIONS below - tagging it
+here would have been a second, compounding error on top of Phase 0's original
+tally (which said "7" for this subcategory without filtering by
+failure_stage - also a slight overcount, corrected in the same doc update).
+None of the 6 in-scope cases overlap with Phase 1's 5 judge/is_close_v2
+cases, since INSUFFICIENT_CONTEXT is non-numeric and is_close_v2 returns
+False on non-numeric input.
 
 Builds on scripts/apply_phase1_judge_corrections.py - same non-destructive
 `manual_correction` annotation approach, same reasoning: read the actual
 gold-document text (data/t2-ragbench/*.parquet, keyed by context_id) for
-each of the 7 and determine whether the needed fact is genuinely present,
+each of the 6 and determine whether the needed fact is genuinely present,
 buried, or absent (plan_generation_error_analysis.md, Phase 2's three
 possible outcomes a/b/c). Also cross-checks sibling questions sharing the
 same context_id where useful (same technique as Phase 1).
 
 Result - two new patterns, not one uniform "retrieval gap":
 
-- context_extraction_gap (5 of 7): the needed number is not present in the
+- context_extraction_gap (4 of 6): the needed number is not present in the
   captured context_id text AT ALL, confirmed by full-text search for the
   relevant term/keyword (not a truncation artifact of this script - the
   parquet `context`/`pre_text`/`post_text` fields themselves stop short of
   the data). Two different manifestations: finqa_dev_788 and
   finqa_train_4449 give only narrative deltas/definitions, never the
-  absolute figure the question needs; tatqa_train_4974, tatqa_train_8524,
-  tatqa_train_8525 have TAT-DQA `context` text that explicitly promises a
-  table ("refer to the table within Item 7...") or is mid-sentence at the
-  point the needed section would start, and then just stops - the source
-  document's own text got cut before the relevant table. The model's
-  INSUFFICIENT_CONTEXT answer is epistemically correct in all 5 cases: the
-  document (context_id) was correctly retrieved into the top-5, but this
-  project's ingested TEXT for that context_id doesn't contain the fact.
-  This is the "retrieval succeeded, the ingested chunk itself is
-  incomplete" mechanism the plan's Phase 2 write-up anticipated - not a
-  reasoning failure and not (per this project's classify() semantics, see
-  pipeline/attribution.py) a retrieval_failure or reranking_failure either,
-  since gold_context_id membership is a red herring here: the right
-  *document* was found, its *captured text* just doesn't carry the needed
-  table. Tracked as its own category rather than folded into
-  generation_failure_candidate.
+  absolute figure the question needs; tatqa_train_4974 and tatqa_train_8525
+  have TAT-DQA `context` text that explicitly promises a table ("refer to
+  the table within Item 7...") or is mid-sentence at the point the needed
+  section would start, and then just stops - the source document's own text
+  got cut before the relevant table. The model's INSUFFICIENT_CONTEXT
+  answer is epistemically correct in all 4 cases: the document (context_id)
+  was correctly retrieved into the top-5, but this project's ingested TEXT
+  for that context_id doesn't contain the fact. This is the "retrieval
+  succeeded, the ingested chunk itself is incomplete" mechanism the plan's
+  Phase 2 write-up anticipated - not a reasoning failure and not (per this
+  project's classify() semantics, see pipeline/attribution.py) a
+  retrieval_failure or reranking_failure either, since gold_context_id
+  membership is a red herring here: the right *document* was found, its
+  *captured text* just doesn't carry the needed table. Tracked as its own
+  category rather than folded into generation_failure_candidate.
 
 - question_label_mismatch (1 of 7, finqa_train_2391): the number IS
   reproducible from data present in the context (tax benefit $62M / stock
@@ -53,7 +67,7 @@ Result - two new patterns, not one uniform "retrieval gap":
   value - not confidently a model error, not confidently "success" either.
   Tracked as its own category, not folded into either.
 
-- confirmed_generation_error (1 of 7, tatqa_train_4256): the needed number
+- confirmed_generation_error (1 of 6, tatqa_train_4256): the needed number
   (130, "Canceled" row of a stock-option roll-forward) is the only such
   figure in the whole context, unambiguous - a competent reader would
   answer 130 despite the question's slightly imprecise date framing ("as of
@@ -61,9 +75,10 @@ Result - two new patterns, not one uniform "retrieval gap":
   that date). Genuine generation-side over-caution, not a context gap. NOT
   reclassified - stays generation_failure_candidate.
 
-Net effect on generation_failure_candidate: 51 (post Phase 1) -> 45 (-5
+Net effect on generation_failure_candidate: 51 (post Phase 1) -> 46 (-4
 context_extraction_gap, -1 question_label_mismatch; the 1 confirmed error
-was already counted and stays).
+was already counted and stays; tatqa_train_8524 was never in this pool, see
+scope correction above).
 
 Same non-destructive design as Phase 1's script: does not touch
 results/error_analysis_250/predictions.jsonl or eval_results.jsonl, does not
@@ -143,18 +158,6 @@ CORRECTIONS = {
             "table was not captured for this context_id."
         ),
     },
-    "tatqa_train_8524": {
-        "reason": CONTEXT_EXTRACTION_GAP,
-        "corrected_stage": None,
-        "evidence": (
-            "Question needs Autodesk's unbilled deferred revenue as % of total revenue, Jan 31 2018. "
-            "Full `context` field for c7abe3bab25cfcd2d5ee093a124c56ca (1518 chars, confirmed complete) "
-            'is only revenue-recognition POLICY narrative (what subscription/maintenance/other revenue '
-            'consist of) that explicitly says "refer to the table within Item 7... for comparison" and '
-            "then stops - the actual numeric table it points to was never captured for this context_id. "
-            "Model's INSUFFICIENT_CONTEXT is correct."
-        ),
-    },
     "tatqa_train_8525": {
         "reason": CONTEXT_EXTRACTION_GAP,
         "corrected_stage": None,
@@ -225,8 +228,11 @@ def cumulative_corrected_stage(r: dict) -> str:
     if mc1 is not None:
         if mc1["corrected_stage"] is not None:
             stage = mc1["corrected_stage"]
-        else:
+        elif mc1["reason"] != "confirmed_generation_error":
             stage = mc1["reason"]  # e.g. context_data_inconsistency
+        # confirmed_generation_error (Phase 1, tatqa_train_8832): no change,
+        # stage stays generation_failure_candidate - it is a confirmation of
+        # the existing classification, not a move to a new bucket.
     mc2 = r.get("manual_correction_phase2")
     if mc2 is not None:
         if mc2["corrected_stage"] is not None:
@@ -253,11 +259,14 @@ def main() -> None:
     summary = json.loads(ATTRIBUTION_SUMMARY_PATH.read_text(encoding="utf-8"))
     summary["phase2_corrected_overall"] = dict(Counter(cumulative_corrected_stage(r) for r in corrected))
     summary["phase2_corrections_note"] = (
-        "7 questions manually reviewed (plan_generation_error_analysis.md phase 2) where the model "
-        "answered FINAL ANSWER: INSUFFICIENT_CONTEXT. See phase2_manual_corrections.jsonl for the "
-        "per-question reason and evidence. phase2_corrected_overall is CUMULATIVE (Phase 1 + Phase 2 "
-        "corrections both applied) - phase1_corrected_overall above reflects Phase 1 alone, unchanged, "
-        "as a historical snapshot; original `overall` remains the untouched raw judge-derived classification."
+        "6 questions manually reviewed (plan_generation_error_analysis.md phase 2) - the "
+        "generation_failure_candidate cases where the model answered FINAL ANSWER: INSUFFICIENT_CONTEXT. "
+        "(A 7th question, tatqa_train_8524, also answered INSUFFICIENT_CONTEXT but is a reranking_failure, "
+        "not generation_failure_candidate - correctly excluded, see this script's module docstring.) See "
+        "phase2_manual_corrections.jsonl for the per-question reason and evidence. phase2_corrected_overall "
+        "is CUMULATIVE (Phase 1 + Phase 2 corrections both applied) - phase1_corrected_overall above "
+        "reflects Phase 1 alone, unchanged, as a historical snapshot; original `overall` remains the "
+        "untouched raw judge-derived classification."
     )
     ATTRIBUTION_SUMMARY_PATH.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
