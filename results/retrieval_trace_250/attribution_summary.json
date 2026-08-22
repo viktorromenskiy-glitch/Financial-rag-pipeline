@@ -23,5 +23,13 @@
       "generation_failure_candidate": 25,
       "reranking_failure": 3
     }
-  }
+  },
+  "phase1_corrected_overall": {
+    "generation_failure_candidate": 51,
+    "success": 189,
+    "reranking_failure": 7,
+    "retrieval_failure": 2,
+    "context_data_inconsistency": 1
+  },
+  "phase1_corrections_note": "5 questions manually reviewed (plan_generation_error_analysis.md phase 1) where judge_correct=False but is_close_v2 deterministic_match=True. See phase1_manual_corrections.jsonl for the per-question reason and evidence. Original `overall` above is left untouched (raw deterministic classification from judge output, unmodified); phase1_corrected_overall reflects the reviewed correction."
 }
