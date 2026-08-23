@@ -18,14 +18,22 @@ Residual pool (computed dynamically here, not hardcoded - see
 _residual_question_ids() below): every question_id currently classified
 generation_failure_candidate in results/retrieval_trace_250/
 attribution_results.jsonl, EXCEPT the ones Phase 1 or Phase 2 already
-manually confirmed as a specific, understood generation error (reason ==
-"confirmed_generation_error" - tatqa_train_8832: table-column misread;
-tatqa_train_4256: over-cautious refusal on an unambiguous number) - those
-two don't need a reasoning trace, their mechanism is already documented in
-phase1_manual_corrections.jsonl / phase2_manual_corrections.jsonl. This
-computation is intentionally live against the current attribution_results.jsonl
-rather than a fixed list, so re-running this script after any future
-Phase 1/2-style correction automatically picks up the right residual set.
+carry ANY manual_correction / manual_correction_phase2 annotation at all
+(5 from Phase 1 + 6 from Phase 2 = 11) - every one of those 11 already has
+its root cause forensically documented in phase1_manual_corrections.jsonl /
+phase2_manual_corrections.jsonl (dataset gold-label defects, judge-rule
+violations, context-extraction gaps, a mislabeled question, and 2 confirmed
+real generation errors whose mechanism is already understood) - none of
+them need a raw_response reasoning trace, only the un-annotated 55-11=44
+still need Phase 4 to figure out why they're wrong. (Earlier version of
+this script only excluded the 2 reason=="confirmed_generation_error"
+cases, leaving a residual pool of 53 instead of 44 - caught before any
+paid calls were made, when a live run printed "Residual pool: 53" instead
+of the expected ~44. Fixed by excluding on "has any manual_correction",
+not on a specific reason value.) This computation is intentionally live
+against the current attribution_results.jsonl rather than a fixed list,
+so re-running this script after any future Phase 1/2-style correction
+automatically picks up the right residual set.
 
 Context reproduction (plan's explicit caveat, repeated here in code - do
 not remove this caveat when editing): this replays generate_answer() on the
@@ -72,8 +80,6 @@ ATTRIBUTION_RESULTS_PATH = RUN_DIR / "attribution_results.jsonl"
 PREDICTIONS_PATH = Path("results/error_analysis_250/predictions.jsonl")
 OUTPUT_PATH = RUN_DIR / "generation_failure_traces.jsonl"
 
-ALREADY_EXPLAINED_REASON = "confirmed_generation_error"
-
 
 class _StoredCandidate:
     """Stand-in for pipeline.reranking.RerankedCandidate, built from a
@@ -95,19 +101,19 @@ def _load_jsonl(path: Path) -> list[dict]:
 
 def _residual_question_ids() -> list[str]:
     """generation_failure_candidate question_ids minus the ones Phase 1/2
-    already fully explained (see module docstring). Order follows
-    attribution_results.jsonl's own order (question_id order of the
-    original 250-question eval), for a deterministic, reproducible run
-    order."""
+    already fully explained (see module docstring: ANY manual_correction or
+    manual_correction_phase2 annotation means it's already explained,
+    regardless of which reason it carries - not just
+    "confirmed_generation_error"). Order follows attribution_results.jsonl's
+    own order (question_id order of the original 250-question eval), for a
+    deterministic, reproducible run order."""
     residual = []
     for r in _load_jsonl(ATTRIBUTION_RESULTS_PATH):
         if r["failure_stage"] != "generation_failure_candidate":
             continue
-        mc1 = r.get("manual_correction")
-        mc2 = r.get("manual_correction_phase2")
-        if mc1 is not None and mc1["reason"] == ALREADY_EXPLAINED_REASON:
+        if r.get("manual_correction") is not None:
             continue
-        if mc2 is not None and mc2["reason"] == ALREADY_EXPLAINED_REASON:
+        if r.get("manual_correction_phase2") is not None:
             continue
         residual.append(r["question_id"])
     return residual
@@ -164,6 +170,24 @@ def main() -> None:
     if not remaining:
         print("Nothing to do - all residual question_ids already have a trace recorded.")
         return
+
+    # pipeline.cli.main() normally does this before touching config/env vars
+    # (see its own "from dotenv import load_dotenv; load_dotenv()", and
+    # scripts/check_environment.py's copy of the same pattern) - this script
+    # calls load_config()/build_clients() directly instead of going through
+    # cli.main(), so it has to do the same load_dotenv() itself, or a real
+    # .env on disk is silently never read into os.environ. (Missing here in
+    # the first version of this script - caught when a live Colab run failed
+    # with "MONGODB_URI environment variable is not set" right after
+    # check_environment.py, using the same .env, had just passed - the only
+    # difference being check_environment.py calls load_dotenv() and this
+    # script didn't.)
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
 
     config = load_config()
     clients = build_clients(config)
