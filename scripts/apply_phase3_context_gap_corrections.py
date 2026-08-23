@@ -100,10 +100,13 @@ context_extraction_gap cases move to their OWN buckets, not success - same
 convention Phase 2 established (a reasonable refusal given a mislabeled
 question or an incomplete context is not the same thing as the model
 getting the judged answer right); the 2 irreproducible_on_replay cases keep
-their stage unchanged, tracked separately. 38 questions remain squarely in
+their stage unchanged, tracked separately. 36 questions remain squarely in
 scope for Phase 4's raw_response taxonomy work (44 replayed minus these 6
 resolved-away minus the 2 irreproducible cases which don't need a
-reasoning-failure taxonomy entry).
+reasoning-failure taxonomy entry). Phase 4's full taxonomy additionally
+folds in 2 cases already explained without replay in Phases 1-2
+(tatqa_train_8832, tatqa_train_4256), for 38 total - matching the
+generation_failure_candidate bucket size.
 """
 from __future__ import annotations
 
