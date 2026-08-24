@@ -18,6 +18,10 @@ from dataclasses import dataclass
 import pytest
 
 from pipeline.generation import (
+    PROMPT_TEMPLATE,
+    PROMPT_TEMPLATE_CITE_AND_CHECK,
+    PROMPT_TEMPLATE_FORMULA_BASE,
+    PROMPT_TEMPLATE_VARIANTS,
     GeneratedAnswer,
     build_context_block,
     build_prompt,
@@ -75,6 +79,62 @@ def test_build_prompt_includes_question_and_context():
     assert "FINAL ANSWER:" in prompt  # format instruction must reach the model
 
 
+def test_build_prompt_defaults_to_baseline_template():
+    candidates = [FakeCandidate("doc")]
+    assert build_prompt("q?", candidates) == build_prompt("q?", candidates, template=PROMPT_TEMPLATE)
+
+
+def test_build_prompt_accepts_a_variant_template():
+    candidates = [FakeCandidate("revenue was $100 million")]
+    prompt = build_prompt("What was the revenue?", candidates, template=PROMPT_TEMPLATE_CITE_AND_CHECK)
+    assert "What was the revenue?" in prompt
+    assert "revenue was $100 million" in prompt
+    assert "FINAL ANSWER:" in prompt
+
+
+# --- Фаза 5 prompt variants (docs/tehnicheskoe_zadanie.md, section 28) ---
+
+
+def test_prompt_template_variants_baseline_is_unmodified_production_template():
+    # PROMPT_TEMPLATE_VARIANTS["baseline"] must be the exact same object
+    # as PROMPT_TEMPLATE - a Фаза 5 variant must never silently become
+    # the default (see the module docstring's "kept separate on purpose"
+    # rationale).
+    assert PROMPT_TEMPLATE_VARIANTS["baseline"] is PROMPT_TEMPLATE
+
+
+def test_prompt_template_variants_has_exactly_the_three_known_keys():
+    assert set(PROMPT_TEMPLATE_VARIANTS) == {"baseline", "cite_and_check", "formula_base"}
+
+
+@pytest.mark.parametrize(
+    "template",
+    [PROMPT_TEMPLATE, PROMPT_TEMPLATE_CITE_AND_CHECK, PROMPT_TEMPLATE_FORMULA_BASE],
+)
+def test_every_prompt_variant_keeps_the_final_answer_contract(template):
+    # Every variant must still ask for the same "FINAL ANSWER: <value>"
+    # marker - _extract_final_answer() is not variant-aware, so a variant
+    # that dropped or renamed the marker would silently break extraction.
+    candidates = [FakeCandidate("doc")]
+    prompt = build_prompt("q?", candidates, template=template)
+    assert "FINAL ANSWER: <value>" in prompt
+    assert "INSUFFICIENT_CONTEXT" in prompt
+
+
+def test_cite_and_check_variant_requires_citing_the_source_row():
+    candidates = [FakeCandidate("doc")]
+    prompt = build_prompt("q?", candidates, template=PROMPT_TEMPLATE_CITE_AND_CHECK)
+    assert "table row/column" in prompt
+    assert "Recompute" in prompt
+
+
+def test_formula_base_variant_requires_stating_numerator_and_denominator():
+    candidates = [FakeCandidate("doc")]
+    prompt = build_prompt("q?", candidates, template=PROMPT_TEMPLATE_FORMULA_BASE)
+    assert "numerator and the denominator" in prompt
+    assert "a decrease is negative" in prompt
+
+
 # --- _extract_final_answer -----------------------------------------------
 
 
@@ -123,3 +183,12 @@ def test_generate_answer_wires_prompt_and_extraction_together():
     assert fake.call_count == 1
     assert "What was cash flow?" in fake.last_prompt
     assert "cash flow was 500" in fake.last_prompt
+
+
+def test_generate_answer_threads_template_through_to_build_prompt():
+    candidates = [FakeCandidate("cash flow was 500")]
+    fake = FakeGenerator(response="FINAL ANSWER: 500")
+
+    generate_answer(fake, "q1", "What was cash flow?", candidates, template=PROMPT_TEMPLATE_FORMULA_BASE)
+
+    assert "numerator and the denominator" in fake.last_prompt
