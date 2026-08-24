@@ -46,3 +46,9 @@ retry:
   wait_min_seconds: 1
   wait_max_seconds: 60
   # ретраить только transient-ошибки (429/5xx/timeout), не 4xx — см. ТЗ п.11
+
+persistence:
+  # Канонический путь сохранения результатов платных прогонов на Google Drive —
+  # см. "Правила сохранения долгих платных прогонов" в проекте и pipeline/common/persist.py.
+  # Регистр важен: "RAG-project" — как уже создано на Drive (notebooks/experiments_weeks_1_2.ipynb).
+  google_drive_results_dir: "/content/drive/MyDrive/RAG-project/results"
