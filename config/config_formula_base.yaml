@@ -1,0 +1,57 @@
+# Фаза 5 A/B-вариант (docs/tehnicheskoe_zadanie.md, section 28): идентичен
+# config.yaml во всём, кроме generation.prompt_variant. Используется в
+# Фазе 6 для парного прогона против baseline тем же способом:
+#   python -m pipeline.cli eval --config config/config_formula_base.yaml \
+#     --questions data/t2-ragbench/eval_subset_250.parquet --run-id <...>
+# Таргет: категория C таксономии (docs/tehnicheskoe_zadanie.md, section 27) — 3/25 (12%),
+# подтверждено точной математикой (не предположением).
+
+mongodb:
+  uri: ${MONGODB_URI}                 # из .env, не хардкод
+  db_name: "rag_project"
+  collection_name: "t2_ragbench_full"
+  vector_index_name: "vector_index_full"
+  text_index_name: "text_index_full"
+
+embedding:
+  model: "voyage-4"
+  batch_size: 32
+  routing:
+    enabled: true                     # per-dataset embedding routing — см. tehnicheskoe_zadanie.md п.3a (добавлено 2026-08-15)
+    finance_model: "voyage-finance-2"
+    routed_sources: ["TAT-DQA"]       # только TAT-DQA (Recall@5 +1.9pp, McNemar p=0.0005, n=2500) — ConvFinQA (-1.9pp, p=0.0000) и FinQA (-0.9pp, не устойчиво) остаются на embedding.model
+
+enrichment:
+  enabled: true                       # решение подтверждено 2026-08-18 полнокорпусным тестом (n=900, tehnicheskoe_zadanie.md п.5): эффект enrichment+reranker вместе не обнаружен на уровне ≥2пп (Δ=+0.1пп, McNemar p=1.0), но и вреда не показано — единственный значимый измеренный эффект остаётся +0.78пп без reranker'а на уменьшенном корпусе (n=1535, p=0.0164); стоимость на весь корпус умеренная (~$10), оснований выключать по умолчанию нет
+  model: "claude-haiku-4-5-20251001"
+  temperature: 0.0
+  prompt_version: "v1"                # часть ключа кэша судьи и run_config.json — см. ТЗ п.8/п.11
+
+retrieval:
+  pool_size: 50
+  weights:
+    vector: 0.5
+    text: 0.5
+
+reranker:
+  enabled: true
+  model: "rerank-v4.0-pro"
+  pool_size: 50
+  top_n: 5
+
+generation:
+  model: "claude-sonnet-5"
+  temperature: 0.0
+  prompt_variant: "formula_base"       # Фаза 5 — см. pipeline/generation.py, PROMPT_TEMPLATE_FORMULA_BASE
+
+judge:
+  model: "claude-sonnet-5"
+  temperature: 0.0
+  prompt_version: "v3"                # bumped 2026-08-15 with JUDGE_PROMPT revision (pipeline/evaluation.py) — must match PROMPT_VERSION there so judge_cache.jsonl is correctly invalidated
+  deterministic_check_enabled: true
+
+retry:
+  stop_after_attempt: 5
+  wait_min_seconds: 1
+  wait_max_seconds: 60
+  # ретраить только transient-ошибки (429/5xx/timeout), не 4xx — см. ТЗ п.11
