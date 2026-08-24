@@ -54,3 +54,6 @@ retry:
   wait_min_seconds: 1
   wait_max_seconds: 60
   # ретраить только transient-ошибки (429/5xx/timeout), не 4xx — см. ТЗ п.11
+
+persistence:
+  google_drive_results_dir: "/content/drive/MyDrive/RAG-project/results"
