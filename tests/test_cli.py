@@ -43,6 +43,7 @@ from pipeline.cli import (
     _infer_source_dataset,
     _load_generation_checkpoint,
     _load_retrieval_trace_checkpoint,
+    _resolve_prompt_template,
     _retrieved_docs_for_prediction,
     load_eval_questions,
     load_eval_results,
@@ -50,6 +51,7 @@ from pipeline.cli import (
     write_eval_report,
 )
 from pipeline.evaluation import EvalResult
+from pipeline.generation import PROMPT_TEMPLATE, PROMPT_TEMPLATE_CITE_AND_CHECK, PROMPT_TEMPLATE_FORMULA_BASE
 
 
 # --- _extract_text -----------------------------------------------------
@@ -110,6 +112,23 @@ def test_infer_source_dataset_case_insensitive():
 def test_infer_source_dataset_falls_back_through_candidates():
     # first candidate (id) is None/unrecognized, second (context_id) matches
     assert _infer_source_dataset(None, "finqa_train_9") == "FinQA"
+
+
+def test_resolve_prompt_template_baseline():
+    assert _resolve_prompt_template("baseline") is PROMPT_TEMPLATE
+
+
+def test_resolve_prompt_template_cite_and_check():
+    assert _resolve_prompt_template("cite_and_check") is PROMPT_TEMPLATE_CITE_AND_CHECK
+
+
+def test_resolve_prompt_template_formula_base():
+    assert _resolve_prompt_template("formula_base") is PROMPT_TEMPLATE_FORMULA_BASE
+
+
+def test_resolve_prompt_template_raises_with_helpful_message_on_typo():
+    with pytest.raises(ValueError, match="Unknown generation.prompt_variant 'ct_and_check'"):
+        _resolve_prompt_template("ct_and_check")
 
 
 def test_infer_source_dataset_unknown_when_nothing_matches():
