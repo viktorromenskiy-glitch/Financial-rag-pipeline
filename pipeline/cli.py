@@ -48,7 +48,7 @@ from pipeline.common.run_config import write_run_config
 from pipeline.embedding import BATCH_SIZE, embed_documents, resolve_embedding_model
 from pipeline.enrichment import EnrichmentCheckpoint, enrich_document, enrich_documents
 from pipeline.evaluation import EvalResult, JudgeCache, evaluate_answers, regression_report
-from pipeline.generation import generate_answer
+from pipeline.generation import PROMPT_TEMPLATE_VARIANTS, generate_answer
 from pipeline.indexing import (
     build_full_indexed_content,
     dedupe_documents,
@@ -256,6 +256,22 @@ def _resolve_embedding_model(config: PipelineConfig, source_dataset: str) -> str
         frozenset(routing.routed_sources),
         config.embedding.model,
     )
+
+
+def _resolve_prompt_template(prompt_variant: str) -> str:
+    """Фаза 5 (docs/tehnicheskoe_zadanie.md, section 28): looks up
+    generation.prompt_variant in pipeline.generation.PROMPT_TEMPLATE_VARIANTS.
+    Kept as a standalone function (not inlined in cmd_eval) so the error
+    message on a typo'd variant name is unit-testable without spinning up
+    real API clients - see test_cli.py.
+    """
+    try:
+        return PROMPT_TEMPLATE_VARIANTS[prompt_variant]
+    except KeyError:
+        raise ValueError(
+            f"Unknown generation.prompt_variant {prompt_variant!r} in config - "
+            f"must be one of {sorted(PROMPT_TEMPLATE_VARIANTS)}"
+        ) from None
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +824,14 @@ def cmd_eval(args: argparse.Namespace) -> None:
     generator = ClaudeGenerator(clients["anthropic"], config.generation.model, config.generation.temperature)
     judge = ClaudeJudge(clients["anthropic"], config.judge.model, config.judge.temperature)
 
+    # Фаза 5 (docs/tehnicheskoe_zadanie.md, section 28): config.generation.prompt_variant
+    # selects a pipeline.generation.PROMPT_TEMPLATE_VARIANTS key ("baseline"
+    # by default - the unmodified production PROMPT_TEMPLATE). Validated
+    # here, not in the pydantic schema (config_schema.py's GenerationConfig
+    # keeps prompt_variant as a plain str), so a new variant added to
+    # generation.py needs no schema change - only this dict.
+    prompt_template = _resolve_prompt_template(config.generation.prompt_variant)
+
     run_dir = Path("results") / args.run_id
     judge_cache = JudgeCache(run_dir / "judge_cache.jsonl")
     gen_checkpoint_path = run_dir / "generation_checkpoint.jsonl"
@@ -903,7 +927,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
             continue
 
         _t0 = time.perf_counter()
-        answer = generate_answer(generator, item["question_id"], item["question"], ranked)
+        answer = generate_answer(generator, item["question_id"], item["question"], ranked, template=prompt_template)
         latencies["generation_s"].append(time.perf_counter() - _t0)
         context = "\n\n".join(c.full_indexed_content for c in ranked)
         retrieved_docs = _retrieved_docs_for_prediction(ranked)
