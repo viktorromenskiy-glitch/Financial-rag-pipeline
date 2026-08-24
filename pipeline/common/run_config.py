@@ -47,6 +47,7 @@ def build_run_config(config: dict, run_id: str) -> dict:
         "reranker_model": config["reranker"]["model"],
         "reranker_pool_size": config["reranker"]["pool_size"],
         "generation_model": config["generation"]["model"],
+        "generation_prompt_variant": config["generation"]["prompt_variant"],
         "judge_model": config["judge"]["model"],
         "judge_prompt_version": config["judge"]["prompt_version"],
         "judge_deterministic_check_enabled": config["judge"]["deterministic_check_enabled"],
