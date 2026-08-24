@@ -48,6 +48,45 @@ is the same "let it think, but delimit the final output" pattern as
 <scratchpad>/<answer> tag conventions - it removes the tension that seems
 to cause the occasional non-compliant leak, rather than just re-stating
 the same prohibition more forcefully.
+
+2026-08-23 (Фаза 5, two new named variants - PROMPT_TEMPLATE itself
+unchanged): docs/tehnicheskoe_zadanie.md section 27 taxonomized all 25
+confirmed generation_failure_candidate cases by root cause. Two clusters
+dominated and are targeted here by separate prompt variants, kept
+separate on purpose so a Phase 6 A/B run (see plan_generation_error_analysis.md
+in the project, "Фаза 6") can attribute any effect to a specific
+intervention rather than a bundled change ("один вариант вмешательства -
+один скрипт - одна проверка"):
+
+- PROMPT_TEMPLATE_CITE_AND_CHECK targets categories A (wrong table
+  row/column/entity, 10/25), D (incomplete computation, 5/25), B
+  (multi-entity ambiguity, 2/25), H (a correct intermediate result
+  overridden by further reasoning, 1/25) and J (unwarranted refusal
+  despite an unambiguous answer, 1/25) - 19/25 (76%) of the taxonomy.
+  Adds an explicit "cite the row/column/period/entity you're using, then
+  recompute once and confirm before answering" requirement. Two
+  concrete real cases motivate this: `finqa_train_6044` cited "Document
+  2 (2016 report)" out loud while the question asked about 2018 - the
+  model's own words would have caught this if it had been required to
+  name the period *before* using the number; `finqa_train_2917` computed
+  the correct value (0.5) explicitly, then talked itself into a wrong
+  answer (0) with no new fact - a required final "does my last computed
+  number still hold" check targets exactly that pattern.
+- PROMPT_TEMPLATE_FORMULA_BASE targets category C (sign or formula-base
+  error, 3/25, 12%) - confirmed by exact arithmetic, not inference, in
+  section 27 (e.g. `finqa_test_579`: model divided by the pre-tax gain
+  and got 15.38, gold divides by the after-tax gain and is 18.18 - both
+  numbers were already correct in the model's own working, only the
+  denominator choice was wrong). Adds an explicit requirement to state
+  the numerator and denominator of any ratio in words, and to preserve
+  the sign of an "increase"/"decrease" in the final value.
+
+Both variants keep the "FINAL ANSWER:" marker contract unchanged -
+_extract_final_answer() below applies identically regardless of which
+template produced raw_response. PROMPT_TEMPLATE (no suffix) remains the
+production baseline and default for build_prompt()/generate_answer();
+callers opt into a variant explicitly via the new `template` parameter
+(pipeline/cli.py's `eval` subcommand exposes this as `--prompt-variant`).
 """
 
 from __future__ import annotations
@@ -78,6 +117,62 @@ Formatting rules for <value>:
 - If the answer is a short phrase (not a number) - e.g. a company name or date - give just that phrase, nothing appended.
 - If the context does not contain enough information to answer, use: FINAL ANSWER: INSUFFICIENT_CONTEXT
 """
+
+# Фаза 5 variant targeting taxonomy categories A/D/B/H/J (see module
+# docstring above) - same context/question slots and same FINAL ANSWER
+# contract as PROMPT_TEMPLATE, with an explicit citation-then-verify
+# requirement inserted before the formatting rules.
+PROMPT_TEMPLATE_CITE_AND_CHECK = """You are answering a question about a company's financial report using the context documents below.
+
+Context:
+{context}
+
+Question: {question}
+
+Work through this step by step before giving your final answer:
+
+1. For every number you use, state exactly where it comes from - which document, which table row/column label, and which period. If the context contains more than one company, segment, or level of aggregation (e.g. a single segment vs. the consolidated total) that could plausibly answer the question, say explicitly which one you are using and why - do not silently default to whichever number appears first or is largest.
+2. Do the calculation.
+3. Recompute it once more from the numbers you cited in step 1 and confirm the result still holds before reporting it. Do not discard or change a value you already computed correctly unless you find a specific new fact in the context that contradicts it - "on reflection", "to be safe", or re-reading the question again is not on its own a valid reason to change a correct calculation.
+4. If a specific number needed to answer the question is genuinely not present anywhere in the context after this check, answer INSUFFICIENT_CONTEXT. But if the number IS present in the context and is the only plausible candidate, give that answer - do not refuse just because a secondary detail in the question's wording (e.g. an approximate date) does not exactly match the text.
+
+When you are done, output your final answer on its own line, in exactly this format, with nothing else on that line:
+
+FINAL ANSWER: <value>
+
+Formatting rules for <value>:
+- If the answer is numeric, express it as a plain number with no currency symbol, no thousands separator (comma), and no unit word like "million"/"billion"/"thousand" - e.g. "77143", not "$77,143 million".
+- Express any percentage as a plain number from 0 to 100, not a 0-1 fraction and not with a "%" sign - e.g. "12.5", not "0.125" and not "12.5%".
+- If the answer is a short phrase (not a number) - e.g. a company name or date - give just that phrase, nothing appended.
+- If the context does not contain enough information to answer, use: FINAL ANSWER: INSUFFICIENT_CONTEXT
+"""
+
+# Фаза 5 variant targeting taxonomy category C (sign/formula-base error).
+PROMPT_TEMPLATE_FORMULA_BASE = """You are answering a question about a company's financial report using the context documents below.
+
+Context:
+{context}
+
+Question: {question}
+
+You may briefly work through the calculation or reasoning if it helps you get the right answer - that's fine. Before computing any ratio or percentage, explicitly state the numerator and the denominator in words (e.g. "tax rate = tax paid / after-tax gain", not just "/ pre-tax gain" by default) - re-read the question to check which quantity it is actually asking you to divide by, rather than assuming the more obvious or larger base. If the question asks for an "increase" or "decrease", keep the sign of that direction in your final numeric answer (a decrease is negative). When you are done, output your final answer on its own line, in exactly this format, with nothing else on that line:
+
+FINAL ANSWER: <value>
+
+Formatting rules for <value>:
+- If the answer is numeric, express it as a plain number with no currency symbol, no thousands separator (comma), and no unit word like "million"/"billion"/"thousand" - e.g. "77143", not "$77,143 million".
+- Express any percentage as a plain number from 0 to 100, not a 0-1 fraction and not with a "%" sign - e.g. "12.5", not "0.125" and not "12.5%". Preserve the sign: a decrease is negative (e.g. "-12.5"), an increase is positive.
+- If the answer is a short phrase (not a number) - e.g. a company name or date - give just that phrase, nothing appended.
+- If the context does not contain enough information to answer, use: FINAL ANSWER: INSUFFICIENT_CONTEXT
+"""
+
+# Name -> template, for CLI/script selection (pipeline/cli.py's
+# `eval --prompt-variant`). "baseline" is the production default.
+PROMPT_TEMPLATE_VARIANTS = {
+    "baseline": PROMPT_TEMPLATE,
+    "cite_and_check": PROMPT_TEMPLATE_CITE_AND_CHECK,
+    "formula_base": PROMPT_TEMPLATE_FORMULA_BASE,
+}
 
 # Matches "final answer:" case-insensitively, wherever it appears in the
 # response (there should be exactly one, on its own line, per the prompt
@@ -131,8 +226,12 @@ def build_context_block(candidates: list) -> str:
     return "\n\n".join(blocks)
 
 
-def build_prompt(question: str, candidates: list) -> str:
-    return PROMPT_TEMPLATE.format(context=build_context_block(candidates), question=question)
+def build_prompt(question: str, candidates: list, template: str = PROMPT_TEMPLATE) -> str:
+    """template defaults to the production baseline PROMPT_TEMPLATE - pass
+    one of the PROMPT_TEMPLATE_VARIANTS values (or PROMPT_TEMPLATE_CITE_AND_CHECK
+    / PROMPT_TEMPLATE_FORMULA_BASE directly) to run a Фаза 5 intervention
+    instead. Any template must accept the same {context}/{question} slots."""
+    return template.format(context=build_context_block(candidates), question=question)
 
 
 @retryable()
@@ -145,13 +244,17 @@ def generate_answer(
     question_id: str,
     question: str,
     candidates: list,
+    template: str = PROMPT_TEMPLATE,
 ) -> GeneratedAnswer:
     """candidates: top-N context documents, already ranked (module 7's
     RerankedCandidate list, or module 6's Candidate list if
     reranker.enabled is false - see specifikatsiya_moduley.md, module 8,
     "Зависимости"). Not re-sliced or re-sorted here - the caller decides
-    how many documents to include."""
-    prompt = build_prompt(question, candidates)
+    how many documents to include.
+
+    template defaults to the production baseline PROMPT_TEMPLATE - see
+    build_prompt() for how to select a Фаза 5 variant instead."""
+    prompt = build_prompt(question, candidates, template=template)
     raw_response = _generate_with_retry(generator, prompt)
     answer_text = _extract_final_answer(raw_response)
     return GeneratedAnswer(question_id=question_id, answer_text=answer_text, raw_response=raw_response)
