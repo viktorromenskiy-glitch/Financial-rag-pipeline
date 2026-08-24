@@ -118,6 +118,18 @@ class RetryConfig(BaseModel):
         return self
 
 
+class PersistenceConfig(BaseModel):
+    # "Правила сохранения долгих платных прогонов" (project doc,
+    # 2026-08-24): THE canonical persistent-storage root, set once here,
+    # not retyped in any Colab cell/script. pipeline/common/persist.py's
+    # find_canonical_root()/save_run_to_drive() read it from here.
+    # Exact casing matters - "RAG-project" (capital RAG, lowercase
+    # "project") matches the folder already created on Drive
+    # (notebooks/experiments_weeks_1_2.ipynb) - a mismatched case here is
+    # precisely the bug that rule exists to prevent.
+    google_drive_results_dir: str = "/content/drive/MyDrive/RAG-project/results"
+
+
 class PipelineConfig(BaseModel):
     mongodb: MongoDBConfig
     embedding: EmbeddingConfig
@@ -127,6 +139,7 @@ class PipelineConfig(BaseModel):
     generation: GenerationConfig
     judge: JudgeConfig
     retry: RetryConfig
+    persistence: PersistenceConfig = PersistenceConfig()
 
 
 def _substitute_env_vars(value: Any) -> Any:
