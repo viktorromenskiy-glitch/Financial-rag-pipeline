@@ -85,6 +85,15 @@ class RerankerConfig(BaseModel):
 class GenerationConfig(BaseModel):
     model: str
     temperature: float = Field(ge=0.0, le=1.0)
+    # Фаза 5 (docs/tehnicheskoe_zadanie.md, section 28): selects a key of
+    # pipeline.generation.PROMPT_TEMPLATE_VARIANTS. Defaults to
+    # "baseline" (the production PROMPT_TEMPLATE, unchanged) so existing
+    # config.yaml files and every prior saved run keep working without
+    # this field being set. cmd_eval in pipeline/cli.py validates the
+    # value against the actual variant dict at run time - kept as a
+    # plain str here (not a Literal) so a new variant added to
+    # generation.py doesn't require a schema change here too.
+    prompt_variant: str = "baseline"
 
 
 class JudgeConfig(BaseModel):
