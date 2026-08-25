@@ -1,4 +1,3 @@
-%%writefile /content/Financial-rag-pipeline/scripts/mcnemar_phase6.py
 """McNemar's test between the three Phase 6 A/B variants, on real committed
 results (results/<run_id>/eval_results.jsonl, judge_correct field - the
 primary accuracy metric per eval_report.md / pipeline/cli.py's
