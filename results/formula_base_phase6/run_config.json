@@ -1,0 +1,17 @@
+{
+  "run_id": "formula_base_phase6",
+  "created_at": "2026-08-25T17:14:47.750634+00:00",
+  "embedding_model": "voyage-4",
+  "enrichment_enabled": true,
+  "enrichment_model": "claude-haiku-4-5-20251001",
+  "enrichment_prompt_version": "v1",
+  "retrieval_pool_size": 50,
+  "reranker_enabled": true,
+  "reranker_model": "rerank-v4.0-pro",
+  "reranker_pool_size": 50,
+  "generation_model": "claude-sonnet-5",
+  "generation_prompt_variant": "formula_base",
+  "judge_model": "claude-sonnet-5",
+  "judge_prompt_version": "v3",
+  "judge_deterministic_check_enabled": true
+}
