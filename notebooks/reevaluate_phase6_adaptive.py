@@ -81,7 +81,7 @@ except ImportError:
 import pipeline.cli as cli
 from config.config_schema import load_config
 from pipeline.common.is_close_v2 import is_close_v2
-from pipeline.common.persist import save_run_to_drive, verify_run_files
+from pipeline.common.persist import find_canonical_root, verify_run_files
 from pipeline.evaluation import JUDGE_PROMPT, _extract_verdict, _judge_with_retry
 
 config = load_config(CONFIG_PATH)
@@ -130,7 +130,19 @@ print(f"Loaded {len(items)} items across {len(VARIANTS)} variants (expected {250
 if len(items) != 250 * len(VARIANTS):
     raise RuntimeError(f"Expected exactly {250 * len(VARIANTS)} items (250 per variant), got {len(items)} - stopping before spending anything.")
 
-run_dir = Path("results") / RUN_ID
+# Пишем чекпоинты (raw_draws.jsonl) СРАЗУ на Drive, не на локальный
+# эфемерный диск с последующим копированием в конце - в отличие от
+# run_reliability_pilot.py (600 вызовов, короткий прогон). Здесь прогон
+# на порядок больше (2250+ вызовов) и реально уже один раз оборвался
+# посреди выполнения (Colab-рантайм слетел на 1758-м вызове) - локальный
+# чекпоинт пропал целиком, потому что /content не переживает перезапуск
+# рантайма, а копирование на Drive (save_run_to_drive) происходило только
+# в самом конце. find_canonical_root() всё равно подтверждает, что мы
+# пишем именно в сконфигурированный корень, а не в похожую по имени
+# директорию (правило раздела 1, пп.4-5) - просто без отдельного шага
+# копирования после.
+drive_root = find_canonical_root(config.persistence.google_drive_results_dir)
+run_dir = drive_root / RUN_ID
 run_dir.mkdir(parents=True, exist_ok=True)
 raw_path = run_dir / "raw_draws.jsonl"
 
@@ -276,7 +288,12 @@ verify_run_files(
 )
 print(f"Verified: raw_draws.jsonl has {total_raw_expected} records, reeval_summary.jsonl has {total_items} records.")
 
-save_run_to_drive(run_dir, config.persistence.google_drive_results_dir, RUN_ID)
+# Уже на Drive (писали туда с первого вызова) - отдельного шага
+# копирования нет, поэтому здесь просто громко печатаем финальный
+# абсолютный путь (правило раздела 1, п.6), как обычно делает
+# save_run_to_drive() в других скриптах.
+resolved_run_dir = run_dir.resolve()
+print(f"\n{'=' * 70}\nSAVED TO PERSISTENT STORAGE (written directly during the run): {resolved_run_dir}\n{'=' * 70}\n")
 
 print(
     f"\nПереоценка (пункт 4) и логирование судейских черновиков (пункт 7, "
