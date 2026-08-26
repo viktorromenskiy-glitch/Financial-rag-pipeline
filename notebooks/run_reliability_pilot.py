@@ -119,6 +119,21 @@ from config.config_schema import load_config
 from pipeline.common.persist import save_run_to_drive, verify_run_files
 from pipeline.evaluation import JUDGE_PROMPT, _extract_verdict, _judge_with_retry
 
+# This script calls load_config()/build_clients() directly rather than
+# going through pipeline.cli.main() (which calls load_dotenv() itself) -
+# same situation as scripts/check_environment.py before its 2026-08-21 fix
+# and scripts/analyze_generation_failures.py's first bug (both documented
+# in claude/plan_generation_error_analysis.md): without this call, a real
+# .env on disk is silently never read into os.environ, and load_config()
+# fails with "MONGODB_URI environment variable is not set" even though
+# the file is right there.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 config = load_config(CONFIG_PATH)
 clients = cli.build_clients(config)
 judge = cli.ClaudeJudge(clients["anthropic"], config.judge.model, config.judge.temperature)
