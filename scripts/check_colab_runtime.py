@@ -171,6 +171,19 @@ print("\n[5/6] Configured persistent-storage root (config.yaml -> persistence.go
 configured_root: str | None = None
 try:
     sys.path.insert(0, str(REPO_ROOT))
+    # load_config() reads ${MONGODB_URI} etc. from os.environ, not from
+    # .env directly - same recurring bug as everywhere else in this repo
+    # that calls load_config()/build_clients() without going through
+    # pipeline.cli.main() (which calls load_dotenv() itself). Without this,
+    # step 5 would fail with a misleading "environment variable not set"
+    # even when step 4 above just confirmed .env has all 4 keys.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(ENV_PATH)
+    except ImportError:
+        pass
+
     from config.config_schema import load_config  # needs pyyaml + pydantic
 
     configured_root = load_config(str(CONFIG_PATH)).persistence.google_drive_results_dir
