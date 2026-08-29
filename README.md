@@ -8,7 +8,7 @@ This is a working proof-of-concept: given a financial filing (10-K style — mix
 
 Headline numbers: 76.0% answer accuracy end-to-end (retrieval + reranking + generation + judging, n=250, the currently committed and reproducible run — see Known limitations below for an earlier run that measured 76.8% but whose raw output was lost), and a retrieval stage that beats the closest published comparison by +11 to +13 percentage points (see Comparison to published work below). Estimated serving cost: about $0.016 per question (~1.6 cents) once the corpus is indexed — full derivation in Unit economics below.
 
-What it is, plainly: a rigorously measured answer to "which RAG design choices actually help on hard financial documents, and by how much" — every claim below is backed by a statistical test against this project's own baseline, not a single demo run. What it isn't: a production system — no query-time classifier, serving API, or monitoring yet; the complete, honest list of what's confirmed versus still open is in Known limitations, in the technical section below.
+What it is, plainly: a rigorously measured answer to "which RAG design choices actually help on hard financial documents, and by how much" — every claim below is backed by a statistical test against this project's own baseline, not a single demo run. What it isn't: a production system — no query-time classifier, serving API, or monitoring yet; and not a drop-in tool for arbitrary client documents — ingestion is currently limited to the T²-RAGBench benchmark format (see Known limitations). The 76.0% headline figure is this pipeline's measured performance on that fixed benchmark, not a guarantee of performance on any other dataset. The complete, honest list of what's confirmed versus still open is in Known limitations, in the technical section below.
 
 Everything from here down is the deep-tech appendix — architecture, every experiment with its statistics, comparisons to published work and to open RAG frameworks, cost derivation, and known limitations. Written for engineers and technical reviewers; the summary above is enough if that's not what you're looking for.
 
@@ -161,6 +161,8 @@ Dataset
 
 T²-RAGBench — FinQA + ConvFinQA + TAT-DQA combined. 7,318 documents (text + tables), 23,088 questions. Chosen specifically because it's a hard, realistic case: exact numbers, mixed text/table format, high cost of error.
 
+Attribution: T²-RAGBench (Strich et al., EACL 2026 — aclanthology.org/2026.eacl-long.8) combines three source datasets, each with its own paper — FinQA (Chen et al., EMNLP 2021 — aclanthology.org/2021.emnlp-main.300), ConvFinQA (Chen et al., EMNLP 2022 — aclanthology.org/2022.emnlp-main.421), and TAT-QA/TAT-DQA (Zhu et al., ACL-IJCNLP 2021 — aclanthology.org/2021.acl-long.254; Zhu et al., ACM MM 2022 — arXiv:2207.11871). All four are openly licensed for reuse including commercial use (FinQA and ConvFinQA: MIT; TAT-QA/TAT-DQA and T²-RAGBench itself: CC-BY-4.0, which requires attribution — hence this section) — this project does not redistribute the raw dataset files themselves; see How to run above for where to obtain them.
+
 Tech stack
 
 MongoDB Atlas (hybrid $rankFusion search) · Voyage AI (voyage-4 + voyage-finance-2, per-dataset routing) · Cohere Rerank v4.0 Pro · Claude Haiku 4.5 (contextual enrichment) · Claude Sonnet 5 (generation + judge)
@@ -173,6 +175,10 @@ Adjust config/config.yaml if needed (pool sizes, which optional stages — enric
 Build/refresh the corpus: python -m pipeline.cli index --data-dir data/t2-ragbench
 Run an evaluation: python -m pipeline.cli eval --questions data/t2-ragbench/eval_subset_250.parquet --run-id my_run (add --compare-to <previous_run_id> for a per-question regression report)
 Each run's configuration snapshot, predictions, and report are saved under results/<run_id>/ (pipeline/common/run_config.py, eval_report.md).
+
+How to verify without spending money
+
+Running the full pipeline needs four paid credentials (Voyage, Cohere, Anthropic, MongoDB Atlas), so a reviewer can't casually re-run it end-to-end for free. Two things don't need any of that: pip install -r requirements.txt && python -m pytest tests/ runs the full test suite (245 tests, 19 files) against no external services at all — retrieval and reranking logic are exercised through fakes/mongomock standing in for the real MongoDB/Cohere clients, not real API calls; ingestion is tested against a real slice of the T²-RAGBench parquet files when present locally, and skips itself automatically otherwise (that piece needs the dataset on disk, but never a paid API call). And results/error_analysis_250/ (plus the other results/<run_id>/ directories) are the actual committed output of real paid runs — predictions, judge verdicts, and the full per-question audit trail already sitting in this repository, not numbers to take on faith.
 
 Minimal demo
 
