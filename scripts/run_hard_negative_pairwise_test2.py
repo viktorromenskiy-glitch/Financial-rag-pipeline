@@ -60,11 +60,18 @@ before spending anything).
 
 Requires a real MongoDB Atlas connection (to fetch full_indexed_content for
 the sibling documents, which were never part of the original retrieval
-trace) and a real Cohere API key - same as every other paid script in this
-project, this runs in Colab with .env populated, not in the sandbox that
-wrote it. Checkpointed/resumable by (question_id, category), per
-docs/svod_pravil_raboty.md section 1 (every paid run must save its result
-incrementally, not just in memory).
+trace), a Google Drive mount, and a real Cohere API key - same as every
+other paid script in this project, this runs in Colab with .env populated
+and Drive mounted, not in the sandbox that wrote it. Checkpointed/resumable
+by (question_id, category) locally, per docs/svod_pravil_raboty.md section 1
+(every paid run must save its result incrementally, not just in memory) -
+AND, once the full pair set is complete, verified and copied to
+config.persistence.google_drive_results_dir via pipeline.common.persist
+(the module every paid Colab script in this project must use, per the two
+incidents documented in that module's own docstring: a fully-lost run and a
+silently-misdirected Drive copy). A local-only checkpoint does not survive
+an actual Colab disconnect (the whole reason persist.py exists) - it only
+protects against the script itself crashing mid-run within a live session.
 
 Usage (Colab, after scripts/check_environment.py has passed):
     !python scripts/run_hard_negative_pairwise_test2.py --dry-run   # free, no API calls - just prints the pair count/cost
@@ -272,6 +279,29 @@ def run(dry_run: bool) -> None:
             f"WARNING: {bad_integrity} pairs failed the content_sha256 integrity "
             f"check against retrieval_trace_250 - corpus may have drifted since "
             f"2026-08-21. Do not trust results without reviewing these first."
+        )
+
+    # Mandatory save-to-Drive step (docs/svod_pravil_raboty.md section 1 /
+    # "Правила сохранения долгих платных прогонов", pipeline/common/persist.py
+    # module docstring - two real past incidents on this project, a fully
+    # lost paid run and a silently-misdirected Drive copy, are why this is
+    # not optional or a separate cell to remember later). Only runs once the
+    # full pair set is actually complete - a partial/interrupted run leaves
+    # its local checkpoint file in place for the next --resume, but does not
+    # get copied to Drive as if it were finished (save_run_to_drive() refuses
+    # to overwrite an existing destination, so a half-done copy would block
+    # the real one).
+    if total_done == len(pairs):
+        from pipeline.common.persist import save_run_to_drive, verify_run_files
+
+        verify_run_files(OUT_DIR, {OUT_PATH.name: len(pairs)})
+        save_run_to_drive(OUT_DIR, config.persistence.google_drive_results_dir, run_id="hard_negative_pairwise_test2")
+    else:
+        print(
+            f"NOT saved to Drive yet: {total_done}/{len(pairs)} pairs done this run "
+            f"(some were likely already checkpointed from a prior interrupted run). "
+            f"Re-run this same command to finish, then the Drive save will happen "
+            f"automatically."
         )
 
 
