@@ -1,12 +1,27 @@
 Measurement-Driven Financial RAG
 
+[![CI](https://github.com/viktorromenskiy-glitch/Financial-rag-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/viktorromenskiy-glitch/Financial-rag-pipeline/actions/workflows/ci.yml) [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/) [![Tests: 245 passing](https://img.shields.io/badge/tests-245%20passing-brightgreen)](tests/) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A financial-document RAG pipeline (text + tables) validated through paired statistical testing and power analysis, not intuition. Hybrid search, contextual enrichment, reranking, and LLM-judge evaluation — built and evaluated end-to-end on 7,300+ real financial filings requiring precise numeric answers.
+
+At a glance
+
+| Metric | Value |
+|---|---|
+| Questions / documents | 23,088 questions · 7,318 real financial filings (T²-RAGBench) |
+| End-to-end accuracy | 76.0% (n=250, LLM judge + deterministic numeric check) |
+| Retrieval Recall@5 | 94.4% (n=900, full corpus) |
+| Hard-negative pairwise accuracy | 95.1% – 100.0% (n=571 forced pairwise comparisons) |
+| Cost per question | ~$0.016 |
+| Automated tests | 245, 19 files, zero paid API calls |
 
 Business summary
 
 This is a working proof-of-concept: given a financial filing (10-K style — mixed narrative text and tables), it finds the right passage and returns a precise, numeric answer rather than a paraphrase. Built and evaluated on 7,318 real financial documents and 23,088 questions (T²-RAGBench) — a harder, more realistic test than the clean-prose demos most RAG projects use, since financial answers have to be exact and the source data mixes text with tables.
 
 Headline numbers: 76.0% answer accuracy end-to-end (retrieval + reranking + generation + judging, n=250, the currently committed and reproducible run — see Known limitations below for an earlier run that measured 76.8% but whose raw output was lost), and a retrieval stage that beats the closest published comparison by +11 to +13 percentage points (see Comparison to published work below). Estimated serving cost: about $0.016 per question (~1.6 cents) once the corpus is indexed — full derivation in Unit economics below.
+
+> **Key finding:** retrieval is substantially more reliable than final answer generation. Recall@5 reaches 94.4%, but end-to-end accuracy is 76.0% — most of that gap comes from the generation stage, not from finding the right document (full error attribution below).
 
 What it is, plainly: a rigorously measured answer to "which RAG design choices actually help on hard financial documents, and by how much" — every claim below is backed by a statistical test against this project's own baseline, not a single demo run. What it isn't: a production system — no query-time classifier, serving API, or monitoring yet; and not a drop-in tool for arbitrary client documents — ingestion is currently limited to the T²-RAGBench benchmark format (see Known limitations). The 76.0% headline figure is this pipeline's measured performance on that fixed benchmark, not a guarantee of performance on any other dataset. The complete, honest list of what's confirmed versus still open is in Known limitations, in the technical section below.
 
