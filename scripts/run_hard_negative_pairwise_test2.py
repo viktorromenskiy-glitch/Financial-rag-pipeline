@@ -58,25 +58,38 @@ true unit is per-document rather than per-call, at most 2x that, ~$2.86 -
 either way negligible; run with --dry-run first to see the exact count
 before spending anything).
 
+**Checkpoint location - writes directly to Google Drive, not to a local
+file copied at the end.** Per docs/svod_pravil_raboty.md (project rules,
+"Технические заметки про Colab-сессии"): /content is wiped on every Colab
+runtime restart, but a mounted Drive persists across restarts - and a real
+past incident on this project (reevaluate_phase6_adaptive.py, 2026-08-26)
+lost 1758 of ~2500 already-paid judge calls precisely because its checkpoint
+lived under /content and the Drive copy was only planned for the very end.
+So this script resolves its output directory via
+pipeline.common.persist.find_canonical_root(config.persistence.
+google_drive_results_dir) and appends each pair's result there as it's
+produced - there is no separate local copy and no "copy to Drive" step to
+forget. Re-running the same command after any interruption (crash, Colab
+disconnect, manual stop) resumes from whatever is already on Drive.
+verify_run_files() runs at the end purely to confirm the already-durable
+output is complete (exact expected line count), not to trigger a copy.
+
 Requires a real MongoDB Atlas connection (to fetch full_indexed_content for
 the sibling documents, which were never part of the original retrieval
-trace), a Google Drive mount, and a real Cohere API key - same as every
-other paid script in this project, this runs in Colab with .env populated
-and Drive mounted, not in the sandbox that wrote it. Checkpointed/resumable
-by (question_id, category) locally, per docs/svod_pravil_raboty.md section 1
-(every paid run must save its result incrementally, not just in memory) -
-AND, once the full pair set is complete, verified and copied to
-config.persistence.google_drive_results_dir via pipeline.common.persist
-(the module every paid Colab script in this project must use, per the two
-incidents documented in that module's own docstring: a fully-lost run and a
-silently-misdirected Drive copy). A local-only checkpoint does not survive
-an actual Colab disconnect (the whole reason persist.py exists) - it only
-protects against the script itself crashing mid-run within a live session.
+trace), a mounted Google Drive, and a real Cohere API key - same as every
+other paid script in this project, this runs in Colab with .env populated,
+not in the sandbox that wrote it.
 
 Usage (Colab, after scripts/check_environment.py has passed):
-    !python scripts/run_hard_negative_pairwise_test2.py --dry-run   # free, no API calls - just prints the pair count/cost
-    !python scripts/run_hard_negative_pairwise_test2.py             # the real paid run
-    !python scripts/run_hard_negative_pairwise_test2.py --summarize # free, offline - reads the .jsonl this script already wrote
+    !python scripts/run_hard_negative_pairwise_test2.py --dry-run
+        # free, no API/Drive calls - just prints the pair count/cost
+    !python scripts/run_hard_negative_pairwise_test2.py
+        # the real paid run - writes straight to Drive, resumable
+    !python scripts/run_hard_negative_pairwise_test2.py --summarize
+        # free, offline - reads pairwise_results.jsonl and prints/writes a summary
+    !python scripts/run_hard_negative_pairwise_test2.py --summarize --path <path/to/pairwise_results.jsonl>
+        # same, but from an explicit path (e.g. a local copy pulled off Drive,
+        # or the file as received back for review outside Colab)
 """
 from __future__ import annotations
 
@@ -92,8 +105,12 @@ import json
 STRESS_ANALYSIS_PATH = Path("results/hard_negative_stress_250/stress_analysis.json")
 EVAL_SUBSET_PATH = Path("data/t2-ragbench/eval_subset_250.parquet")
 TRACE_PATH = Path("results/retrieval_trace_250/retrieval_trace.jsonl")
-OUT_DIR = Path("results/hard_negative_pairwise_test2")
-OUT_PATH = OUT_DIR / "pairwise_results.jsonl"
+RUN_ID = "hard_negative_pairwise_test2"
+RESULTS_FILENAME = "pairwise_results.jsonl"
+# Used only by --summarize when no --path is given and nothing has been
+# pulled off Drive into the local repo checkout - the real run never writes
+# here (see module docstring: it writes straight to the Drive-mounted path).
+DEFAULT_LOCAL_SUMMARIZE_PATH = Path("results") / RUN_ID / RESULTS_FILENAME
 COST_PER_CALL = 0.0025  # tehnicheskoe_zadanie.md section 15 - assumption, not a confirmed Cohere billing fact
 
 CATEGORIES = [
@@ -191,25 +208,51 @@ def run(dry_run: bool) -> None:
     print(f"Estimated cost at ${COST_PER_CALL}/call: ${len(pairs) * COST_PER_CALL:.2f}")
 
     if dry_run:
-        print("--dry-run: stopping before any MongoDB/Cohere call.")
+        print("--dry-run: stopping before any MongoDB/Cohere/Drive call.")
         return
 
     from config.config_schema import load_config
     from pipeline.cli import _retrieved_docs_for_prediction, build_clients
+    from pipeline.common.persist import find_canonical_root, verify_run_files
     from pipeline.reranking import rerank
     from pipeline.retrieval import Candidate
+
+    # MUST run before load_config()/build_clients() - this script calls them
+    # directly rather than going through pipeline.cli.main() (which does
+    # this itself). Skipping it is the exact bug documented in
+    # docs/svod_pravil_raboty.md as having repeated 4 times already across
+    # this project's scripts (including check_environment.py, the script
+    # written specifically to catch environment problems) - .env on disk
+    # would be silently ignored and load_config() would fail with a
+    # confusing "environment variable not set" even though the file exists.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+    config = load_config()
+
+    # Resolve the OUTPUT directory on the mounted Drive FIRST, before any
+    # paid call - find_canonical_root() raises immediately (Drive not
+    # mounted / wrong account / configured path typo'd) rather than letting
+    # the run start against a location that would silently fail to persist.
+    drive_root = find_canonical_root(config.persistence.google_drive_results_dir)
+    out_dir = drive_root / RUN_ID
+    out_path = out_dir / RESULTS_FILENAME
+    print(f"Output (Drive-mounted, written incrementally): {out_path}")
 
     q_text = build_question_text_map()
     known_hashes = load_known_content_hashes()
 
-    config = load_config()
     clients = build_clients(config)
     collection = clients["collection"]
     cohere_client = clients["cohere"]
 
-    done = load_checkpoint(OUT_PATH)
+    done = load_checkpoint(out_path)
     if done:
-        print(f"{len(done)} pairs already done (resumed), {len(pairs) - len(done)} remaining")
+        print(f"{len(done)} pairs already done (resumed from Drive), {len(pairs) - len(done)} remaining")
 
     content_cache: dict[str, str] = {}
 
@@ -262,14 +305,14 @@ def run(dry_run: bool) -> None:
             ),
             "content_integrity_verified": content_integrity_verified,
         }
-        append_result(OUT_PATH, record)
+        append_result(out_path, record)  # straight to Drive - see module docstring
         total_done += 1
         if total_done % 25 == 0:
             print(f"  {total_done}/{len(pairs)} pairs done")
 
-    print(f"Done. {total_done} pairs. Results: {OUT_PATH}")
+    print(f"Done. {total_done} pairs. Results (already on Drive): {out_path}")
     bad_integrity = 0
-    with OUT_PATH.open() as f:
+    with out_path.open() as f:
         for line in f:
             rec = json.loads(line)
             if any(v is False for v in rec["content_integrity_verified"].values()):
@@ -281,27 +324,16 @@ def run(dry_run: bool) -> None:
             f"2026-08-21. Do not trust results without reviewing these first."
         )
 
-    # Mandatory save-to-Drive step (docs/svod_pravil_raboty.md section 1 /
-    # "Правила сохранения долгих платных прогонов", pipeline/common/persist.py
-    # module docstring - two real past incidents on this project, a fully
-    # lost paid run and a silently-misdirected Drive copy, are why this is
-    # not optional or a separate cell to remember later). Only runs once the
-    # full pair set is actually complete - a partial/interrupted run leaves
-    # its local checkpoint file in place for the next --resume, but does not
-    # get copied to Drive as if it were finished (save_run_to_drive() refuses
-    # to overwrite an existing destination, so a half-done copy would block
-    # the real one).
     if total_done == len(pairs):
-        from pipeline.common.persist import save_run_to_drive, verify_run_files
-
-        verify_run_files(OUT_DIR, {OUT_PATH.name: len(pairs)})
-        save_run_to_drive(OUT_DIR, config.persistence.google_drive_results_dir, run_id="hard_negative_pairwise_test2")
+        # Confirms completeness of output that has been durable on Drive
+        # since it was written, not a "copy the results now" step.
+        verify_run_files(out_dir, {RESULTS_FILENAME: len(pairs)})
+        print(f"\n{'=' * 70}\nVERIFIED COMPLETE ON DRIVE: {out_path}\n{'=' * 70}")
     else:
         print(
-            f"NOT saved to Drive yet: {total_done}/{len(pairs)} pairs done this run "
-            f"(some were likely already checkpointed from a prior interrupted run). "
-            f"Re-run this same command to finish, then the Drive save will happen "
-            f"automatically."
+            f"NOT yet complete: {total_done}/{len(pairs)} pairs done so far, "
+            f"already durable on Drive at {out_path}. Re-run this same command "
+            f"to finish - it will resume from here."
         )
 
 
@@ -351,12 +383,12 @@ def natural_order_from_test1(question_id: str, gold_id: str, sibling_id: str, tr
     return None  # both missed top-5 - order beyond rank 5 was never recorded
 
 
-def summarize() -> None:
-    if not OUT_PATH.exists():
-        print(f"{OUT_PATH} does not exist yet - run the paid step first (see module docstring).")
+def summarize(path: Path) -> None:
+    if not path.exists():
+        print(f"{path} does not exist - run the paid step first, or pass --path to an existing pairwise_results.jsonl.")
         return
 
-    results = [json.loads(line) for line in OUT_PATH.open()]
+    results = [json.loads(line) for line in path.open()]
 
     trace_by_qid: dict[str, dict] = {}
     with TRACE_PATH.open() as f:
@@ -406,17 +438,23 @@ def summarize() -> None:
     }
 
     print(json.dumps(summary, indent=2))
-    summary_path = OUT_DIR / "pairwise_summary.json"
+    summary_path = path.parent / "pairwise_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2))
     print(f"\nWrote {summary_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dry-run", action="store_true", help="Print the pair list/cost estimate only, no MongoDB/Cohere calls.")
-    parser.add_argument("--summarize", action="store_true", help="Offline: summarize an already-written pairwise_results.jsonl. No API calls.")
+    parser.add_argument("--dry-run", action="store_true", help="Print the pair list/cost estimate only, no MongoDB/Cohere/Drive calls.")
+    parser.add_argument("--summarize", action="store_true", help="Offline: summarize an existing pairwise_results.jsonl. No API calls.")
+    parser.add_argument(
+        "--path",
+        type=Path,
+        default=None,
+        help=f"With --summarize: path to pairwise_results.jsonl (default: {DEFAULT_LOCAL_SUMMARIZE_PATH}, a local copy - the real run writes to Drive, not here).",
+    )
     args = parser.parse_args()
     if args.summarize:
-        summarize()
+        summarize(args.path or DEFAULT_LOCAL_SUMMARIZE_PATH)
     else:
         run(dry_run=args.dry_run)
