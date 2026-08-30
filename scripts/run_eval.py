@@ -1,4 +1,3 @@
-@@ -1,36 +0,0 @@
 """Runs step 3 only (a full eval run) - migration doesn't need to be
 repeated, the corpus in Atlas is already correctly migrated
 (source_dataset backfilled, TAT-DQA documents already on voyage-finance-2
