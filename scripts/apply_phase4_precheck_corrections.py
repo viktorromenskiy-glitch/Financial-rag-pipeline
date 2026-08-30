@@ -9,10 +9,11 @@ model reasoning failures and more like further instances of the same
 dataset/question defect pattern Phases 1-3 already found. Given repeated
 self-caught quality problems while drafting a first-pass analysis alone
 (an arithmetic slip fixed 2026-08-23, and three iterations needed to write a
-document that actually stood on its own for an external reader - see
-claude/pravila_podgotovki_vneshnih_dokumentov.md in the project), this round
-was not resolved by solo analysis. Instead it went through the process now
-codified in claude/pravila_vneshney_ekspertizy.md: multiple independent
+document that actually stood on its own for an external reader - documented
+in this project's internal working rules, not in this repository), this
+round was not resolved by solo analysis. Instead it went through the process
+now codified in this project's internal external-review procedure (also not
+in this repository): multiple independent
 external model reviews of the same primary-source material (raw
 table/pre_text/post_text/context, full raw_response, and sibling questions
 sharing the same context_id - the same forensic method Phases 1-3 used),
@@ -23,8 +24,8 @@ that - a check against the real, filed source document (SEC EDGAR / company
 investor-relations site) where the working hypothesis was specifically "the
 needed number is missing from the extracted fragment" rather than "which of
 several present numbers was intended". Full per-case reasoning chains and the
-review process are in the project docs (claude/phase4_final_taxonomy.md,
-claude/pravila_vneshney_ekspertizy.md); this docstring summarizes the result.
+review process are in this project's internal working materials (not in
+this repository); this docstring summarizes the result.
 
 Result, by category:
 
@@ -247,8 +248,8 @@ CORRECTIONS = {
             "Confirmed via 3-reviewer external check where the majority view (2 of 3 reviewers) argued "
             "for success/gold_label_defect but did so using an arithmetically incorrect rebuttal "
             "(asserted \"standard rounding gives 22.6, not 23\" without checking whole-percent rounding "
-            "specifically) - resolved by direct verification rather than vote count; see "
-            "claude/pravila_vneshney_ekspertizy.md, \"Прямая, однозначно проверяемая математика\"."
+            "specifically) - resolved by direct verification rather than vote count, per this project's "
+            "internal rule that direct, unambiguously checkable math takes precedence over review consensus."
         ),
     },
     "tatqa_train_7624": {
@@ -334,7 +335,8 @@ CORRECTIONS = {
             "not, per the source text. A direct check against Vodafone's real FY2019 annual report/results "
             "documents did not resolve this either - the specific reconciliation note, if present, sits "
             "deeper in the document than available fetch tooling could reliably reach (confirmed on two "
-            "separate large source documents in this batch; see claude/pravila_vneshney_ekspertizy.md). "
+            "separate large source documents in this batch, per this project's internal external-review "
+            "procedure). "
             "Separately, the question's use of \"average\" for a single fiscal year is suspicious - "
             "sibling tatqa_train_2108 gives a standalone, non-averaged 2018 figure (4,408) - but this is "
             "an unproven observation, not a resolution, and is recorded as such rather than treated as an "
