@@ -262,7 +262,7 @@ def apply_corrections(records: list[dict]) -> list[dict]:
             seen.add(qid)
             c = CORRECTIONS[qid]
             r["manual_correction_phase3"] = {
-                "reviewed": "plan_generation_error_analysis phase 3 (raw_response taxonomy pre-check), 2026-08-23",
+                "reviewed": "internal error-analysis plan, phase 3 (raw_response taxonomy pre-check), 2026-08-23",
                 "reason": c["reason"],
                 "corrected_stage": c["corrected_stage"],
                 "evidence": c["evidence"],
