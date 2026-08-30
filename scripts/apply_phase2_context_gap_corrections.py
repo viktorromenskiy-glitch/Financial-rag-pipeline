@@ -208,7 +208,7 @@ def apply_corrections(records: list[dict]) -> list[dict]:
             seen.add(qid)
             c = CORRECTIONS[qid]
             r["manual_correction_phase2"] = {
-                "reviewed": "plan_generation_error_analysis phase 2, 2026-08-22",
+                "reviewed": "internal error-analysis plan, phase 2, 2026-08-22",
                 "reason": c["reason"],
                 "corrected_stage": c["corrected_stage"],
                 "evidence": c["evidence"],
