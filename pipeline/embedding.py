@@ -17,8 +17,8 @@ test) found voyage-finance-2 measurably helps TAT-DQA retrieval
 (Recall@5 +1.9pp, p=0.0005) but measurably hurts ConvFinQA (-1.9pp,
 p=0.0000) and gives no reliable benefit on FinQA (-0.9pp, p=0.0214, not
 robust to correction) - contradicting the uniform "+3-8pp everywhere"
-prediction from three independent AI-consultant reviews (Gemini/Kimi/Grok)
-that was never itself measured, only extrapolated from Voyage AI's own
+prediction from three independent AI-consultant reviews that was never
+itself measured, only extrapolated from Voyage AI's own
 retrieval-only NDCG@10 benchmark. A uniform model swap was rejected in
 favor of per-source_dataset routing (voyage-finance-2 for TAT-DQA only,
 voyage-4 for ConvFinQA/FinQA) - see resolve_embedding_model() below.
