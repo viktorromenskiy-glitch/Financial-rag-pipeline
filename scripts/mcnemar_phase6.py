@@ -4,7 +4,7 @@ primary accuracy metric per eval_report.md / pipeline/cli.py's
 generate_eval_report).
 
 Paired test, matched by question_id (retrieval/reranking config is
-identical across variants per notebooks/run_phase6_ab_eval.py's comment,
+identical across variants per scripts/run_phase6_ab_eval.py's comment,
 so all three runs share the same 250 questions).
 """
 import json
