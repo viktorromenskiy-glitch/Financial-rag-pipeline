@@ -489,7 +489,8 @@ def _retrieved_docs_for_prediction(ranked) -> list[dict]:
     backfill that already-committed run (section 14: "не восполняется
     задним числом") - it closes the gap for every run from here on.
 
-    Compact by design (revised 2026-08-20, plan_dorabotki_2.md item 1):
+    Compact by design (revised 2026-08-20, per an internal design note not
+    in this repository):
     does NOT copy full_indexed_content into predictions.jsonl or
     generation_checkpoint.jsonl. MongoDB is already the authoritative store
     for chunk text, keyed by context_id - duplicating the full text here
