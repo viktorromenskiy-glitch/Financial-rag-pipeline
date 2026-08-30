@@ -9,8 +9,9 @@ itself, separate from whether the judge is right. This is the empirical
 input to picking K (how many repeated judge calls per answer are enough
 for a stable majority-vote verdict) for any future re-judging.
 
-Sample (n=40, fixed, not re-derived here - see nedeterminizm_judge_ekspertiza.md
-section 5.1/8 for the 4 known-unstable ids, and this file's QUESTION_IDS
+Sample (n=40, fixed, not re-derived here - see this project's internal
+working materials, not in this repository, section 5.1/8 for the 4
+known-unstable ids, and this file's QUESTION_IDS
 below for the 36 added by stratified sampling proportional to
 (source_dataset x numeric/text) over the 246-question remainder of
 results/baseline_phase6/predictions.jsonl, random.seed(20260826)):
@@ -60,8 +61,8 @@ PREDICTIONS_PATH = "results/baseline_phase6/predictions.jsonl"
 RUN_ID = "reliability_pilot_track_a"
 K = 15
 
-# Fixed sample: 4 known-unstable ids (nedeterminizm_judge_ekspertiza.md,
-# section 5.1) + 36 stratified by (source_dataset x numeric/text) over the
+# Fixed sample: 4 known-unstable ids (internal working materials, not in
+# this repository, section 5.1) + 36 stratified by (source_dataset x numeric/text) over the
 # 246-question remainder, random.seed(20260826). Allocation: TAT-DQA
 # numeric=18, TAT-DQA text=1, ConvFinQA numeric=5, FinQA numeric=12,
 # FinQA text=0. Fixed here as a literal list, not re-derived, so re-running
