@@ -95,7 +95,8 @@ Result, by category:
   Vodafone's real FY2019 report did not resolve it either (the needed
   reconciliation note, if it exists, is deeper in the document than the
   available fetch tooling could reliably reach - confirmed on two separate
-  large annual-report/10-K documents, see pravila_vneshney_ekspertizy.md).
+  large annual-report/10-K documents, see this project's internal
+  external-review procedure, not in this repository).
   Left unresolved rather than guessed at, per this project's standing rule
   against fabricating explanations that do not check out arithmetically.
 
@@ -150,7 +151,7 @@ CORRECTIONS = {
             "853.5+0.049 - the eval program added 4.9% as the raw number 0.049 instead of applying it "
             "as a growth rate, a genuine gold-side defect - but that does not make the model's own "
             "895.5 the correct answer either. Confirmed via 3-reviewer external check "
-            "(claude/phase4_final_taxonomy.md, case #1)."
+            "(this project's case-review log, not in this repository, case #1)."
         ),
     },
     "finqa_test_690": {
@@ -161,7 +162,7 @@ CORRECTIONS = {
             "December 31, 2011\". Table: 1/1/2011=117.61, 12/31/2011=118.7 -> (118.7-117.61)/117.61 = "
             "0.93% (model's answer). gold_answer=0.1761 = (117.61-100)/100 - the change over the PRIOR "
             "period (1/2/2010 to 1/1/2011), not the period literally named in the question. Confirmed "
-            "via 3-reviewer external check (claude/phase4_final_taxonomy.md, case #2)."
+            "via 3-reviewer external check (this project's case-review log, not in this repository, case #2)."
         ),
     },
     "finqa_train_2273": {
@@ -173,7 +174,7 @@ CORRECTIONS = {
             "2017 acquisition=13 -> 75+13=88 (model's answer, exactly matching the two named 2017 line "
             "items). gold_answer=125 = 75+13+37, where 37 is 2016's unrealized-allocations figure - the "
             "eval program summed in an extra year the question never asked about. Confirmed via "
-            "3-reviewer external check (claude/phase4_final_taxonomy.md, case #3)."
+            "3-reviewer external check (this project's case-review log, not in this repository, case #3)."
         ),
     },
     "finqa_train_518": {
@@ -186,7 +187,7 @@ CORRECTIONS = {
             "31, 2008\" - the value AS OF the requested date is explicitly 1.3 (model's answer). "
             "gold_answer=2.5 = 1.2+1.3, summing the value at two different dates as if they were "
             "additive amounts rather than reading the single point-in-time value the question asks for. "
-            "Confirmed via 3-reviewer external check (claude/phase4_final_taxonomy.md, case #4)."
+            "Confirmed via 3-reviewer external check (this project's case-review log, not in this repository, case #4)."
         ),
     },
     "tatqa_train_4978": {
@@ -202,7 +203,7 @@ CORRECTIONS = {
             "Post-Retirement Life Insurance Plan contributions ((145-157)/157=-7.64%), a different table "
             "than the one the question names - a real, separate question_label_mismatch-shaped issue on "
             "the gold side - but that does not make the model's own 8.43% correct. Confirmed via "
-            "3-reviewer external check (claude/phase4_final_taxonomy.md, case #5)."
+            "3-reviewer external check (this project's case-review log, not in this repository, case #5)."
         ),
     },
     "tatqa_train_6282": {
@@ -213,7 +214,7 @@ CORRECTIONS = {
             "year ended December 31, 2019\". 2019 figures: 123.9 vs 96.4 -> 27.5 (model's answer). "
             "gold_answer=22.9 = 112.9-90.0, the 2018 figures - the eval program used the wrong year's "
             "column entirely, despite the question naming 2019 explicitly. Confirmed via 3-reviewer "
-            "external check (claude/phase4_final_taxonomy.md, case #6)."
+            "external check (this project's case-review log, not in this repository, case #6)."
         ),
     },
     "tatqa_train_6820": {
@@ -230,7 +231,7 @@ CORRECTIONS = {
             "(5723 vs 5734) - independent proof the eval program's own convention for this table is the "
             "\"Total\" row, making this case's own non-Total-row gold an inconsistent application of that "
             "same convention. Confirmed via 3-reviewer external check "
-            "(claude/phase4_final_taxonomy.md, case #7)."
+            "(this project's case-review log, not in this repository, case #7)."
         ),
     },
     "tatqa_train_5282": {
@@ -267,7 +268,7 @@ CORRECTIONS = {
             "such by all reviewers); the eval program produced a real, source-derivable number under a "
             "narrower scope than the literal question asks for, which is the same shape of defect as the "
             "other question_label_mismatch cases in this batch. Confirmed via 3-reviewer external check "
-            "(claude/phase4_final_taxonomy.md, case #9)."
+            "(this project's case-review log, not in this repository, case #9)."
         ),
     },
     "tatqa_train_1350": {
@@ -278,7 +279,7 @@ CORRECTIONS = {
             "$0.02 -> average=(0.01+0.02)/2=0.015 (model's answer, arithmetic matches the literal "
             "question). gold_answer=0.01 is just the 2019 figure alone - the eval program never actually "
             "averaged the two years the question asks for. Confirmed via 3-reviewer external check "
-            "(claude/phase4_final_taxonomy.md, case #10)."
+            "(this project's case-review log, not in this repository, case #10)."
         ),
     },
     "tatqa_train_8654": {
@@ -289,7 +290,7 @@ CORRECTIONS = {
             "acquisition. Meta Networks table: current=356, fixed=68 -> 288 (model's answer, exactly the "
             "acquisition the question names). gold_answer=22390 = 23,344-954, the current/fixed assets "
             "of Wombat Security - a DIFFERENT acquisition described in the same source document. "
-            "Confirmed via 3-reviewer external check (claude/phase4_final_taxonomy.md, case #11)."
+            "Confirmed via 3-reviewer external check (this project's case-review log, not in this repository, case #11)."
         ),
     },
     "finqa_train_6066": {
@@ -306,7 +307,7 @@ CORRECTIONS = {
             "representation nor the model's own answer (5,467, the change in the LIFO reduction effect - "
             "the only cost-of-sales-adjacent figures present in the captured text fragment) matches the "
             "real reported change. Confirmed via 3-reviewer external check plus direct primary-source "
-            "verification (claude/phase4_final_taxonomy.md, case #12)."
+            "verification (this project's case-review log, not in this repository, case #12)."
         ),
     },
     "finqa_train_932": {
@@ -320,7 +321,7 @@ CORRECTIONS = {
             "matches (4916-4484)/4484 to 14 significant figures exactly - the year-over-year GROWTH of "
             "carrying value 2011->2012, an entirely different metric than the carrying-vs-fair-value "
             "spread the question asks for. Confirmed via 3-reviewer external check "
-            "(claude/phase4_final_taxonomy.md, case #13)."
+            "(this project's case-review log, not in this repository, case #13)."
         ),
     },
     "tatqa_train_2109": {
@@ -340,7 +341,7 @@ CORRECTIONS = {
             "Separately, the question's use of \"average\" for a single fiscal year is suspicious - "
             "sibling tatqa_train_2108 gives a standalone, non-averaged 2018 figure (4,408) - but this is "
             "an unproven observation, not a resolution, and is recorded as such rather than treated as an "
-            "explanation. Left unresolved per claude/phase4_final_taxonomy.md, case #14."
+            "explanation. Left unresolved per this project's case-review log, not in this repository, case #14."
         ),
     },
     "tatqa_train_7746": {
@@ -355,7 +356,7 @@ CORRECTIONS = {
             "difference (~1.33M) but exactly his Total contributions difference "
             "(1,234,800-1,210,440=24,360) - the same systematic question-label bug in two independent "
             "rows of the same table. Confirmed via 3-reviewer external check "
-            "(claude/phase4_final_taxonomy.md, case #15)."
+            "(this project's case-review log, not in this repository, case #15)."
         ),
     },
 }
@@ -436,10 +437,12 @@ def main() -> None:
     summary = json.loads(ATTRIBUTION_SUMMARY_PATH.read_text(encoding="utf-8"))
     summary["phase4_corrected_overall"] = dict(Counter(cumulative_corrected_stage(r) for r in corrected))
     summary["phase4_corrections_note"] = (
-        "15 questions manually reviewed (plan_generation_error_analysis.md phase 4 precheck) - the "
+        "15 questions manually reviewed (internal working plan, not in this repository, phase 4 "
+        "precheck) - the "
         "most disputed cases out of the 36-question pool squarely in scope for Phase 4's raw_response "
-        "taxonomy work. Reviewed via a multi-reviewer external process (claude/pravila_vneshney_"
-        "ekspertizy.md in the project) rather than solo analysis, after solo drafts of this same review "
+        "taxonomy work. Reviewed via a multi-reviewer external process (this project's internal "
+        "external-review procedure, not in this repository) rather than solo analysis, after solo "
+        "drafts of this same review "
         "needed repeated self-correction. 13 of 15 leave generation_failure_candidate: 3 gold_label_defect "
         "cases move to success (model's answer is objectively, independently verifiable correct); "
         "7 question_label_mismatch, 1 context_data_inconsistency, and 1 judge_tolerance_gap case move to "
@@ -452,7 +455,7 @@ def main() -> None:
         "arithmetic slip, and a hallucinated company/figures not present in the source) stay in "
         "generation_failure_candidate - each also has a separately-documented, but non-exculpatory, "
         "dataset-side issue. Full per-question evidence in "
-        "phase4_manual_corrections.jsonl and claude/phase4_final_taxonomy.md. phase4_corrected_overall is "
+        "phase4_manual_corrections.jsonl and this project's case-review log, not in this repository. phase4_corrected_overall is "
         "CUMULATIVE (Phase 1 + 2 + 3 + 4 corrections all applied) - phase1/2/3_corrected_overall above "
         "remain unchanged historical snapshots; original `overall` remains the untouched raw "
         "judge-derived classification."
