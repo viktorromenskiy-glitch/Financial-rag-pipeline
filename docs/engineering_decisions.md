@@ -1,6 +1,6 @@
 # Engineering Decisions
 
-This project's full engineering journal — architecture forks, statistical tests, error taxonomies, and a day-by-day experiment log — is maintained in Russian in this repository's `docs/` directory (that was the project's working language during development). This page distills the three decision points with the clearest evidence trail, in English, for readers who don't read Russian. Nothing here is new: every number and claim below is already in the Russian journal, just narrated for a reader who wants the reasoning without the full 800+ lines.
+This page summarizes three decision points — vector database choice, a reranker false negative and its root-cause diagnosis, and how an unverified reference repo's numbers were treated — picked out for the clearest end-to-end evidence trail (question → alternatives → evidence → decision). Nothing here is new: every number and claim below is drawn from this project's full engineering journal in the rest of this repository's `docs/` directory (architecture forks, statistical tests, error taxonomies, and a day-by-day experiment log, maintained in Russian — the project's working language during development), just narrated in English for a reader who wants the reasoning behind these three specific decisions without the full 800+ lines.
 
 ## Decision 1 — Vector database: MongoDB Atlas over LanceDB / Qdrant
 
