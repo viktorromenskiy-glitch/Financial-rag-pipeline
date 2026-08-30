@@ -216,7 +216,7 @@ def test_generation_checkpoint_missing_file_returns_empty(tmp_path):
 
 def test_generation_checkpoint_roundtrip(tmp_path):
     path = tmp_path / "generation_checkpoint.jsonl"
-    # Compact schema (plan_dorabotki_2.md item 1) - no full_indexed_content,
+    # Compact schema (internal design note, not in this repository) - no full_indexed_content,
     # just context_id/rank/score/content_sha256.
     retrieved_docs = [{"context_id": "doc1", "rank": 1, "score": 0.9, "content_sha256": "abc123"}]
     _append_generation_checkpoint(path, "q1", "What was revenue?", "FinQA", "100", "100", "ctx text", retrieved_docs)
@@ -263,8 +263,8 @@ def test_generation_checkpoint_missing_retrieved_docs_defaults_to_empty_list(tmp
 
 
 # --- retrieval trace checkpoint round-trip (eval --retrieval-only) --------
-# Same bug class as the generation checkpoint above (plan_dorabotki_2.md
-# item 7, step 2 run planning, 2026-08-21): _cmd_eval_retrieval_only used
+# Same bug class as the generation checkpoint above (internal design note,
+# not in this repository, step 2 run planning, 2026-08-21): _cmd_eval_retrieval_only used
 # to only accumulate records in memory and write retrieval_trace.jsonl once
 # at the very end, so an interrupted Colab run lost every already-completed
 # question, not just the ones in flight.
@@ -329,8 +329,8 @@ def test_retrieved_docs_for_prediction_from_reranked_candidates():
     # reranker-enabled branch: cmd_eval's `ranked` holds
     # pipeline.reranking.RerankedCandidate objects (relevance_score, not
     # score) - the helper must not depend on that field name, and must not
-    # copy full_indexed_content into the result (plan_dorabotki_2.md item 1
-    # - compact evidence trace, MongoDB is the authoritative text store).
+    # copy full_indexed_content into the result (internal design note, not
+    # in this repository - compact evidence trace, MongoDB is the authoritative text store).
     ranked = [
         FakeRerankedCandidate("doc1", "chunk one text", relevance_score=0.9),
         FakeRerankedCandidate("doc2", "chunk two text", relevance_score=0.5),
