@@ -1,4 +1,4 @@
-"""Priority 2 (claude/plan_prioritet2_hard_negatives.md), Test 2: forced
+"""Priority 2 (internal adversarial-robustness plan, not in this repository), Test 2: forced
 pairwise reranking against financial hard negatives.
 
 **This is the paid step.** Test 1 (scripts/analyze_hard_negative_stress.py,
@@ -16,7 +16,7 @@ candidates, `Candidate(gold)` and `Candidate(sibling)`, `top_n=2`, nothing
 else in the batch.
 
 **Design revision found during self-review, before running anything
-(2026-08-29):** the original plan (claude/plan_prioritet2_hard_negatives.md)
+(2026-08-29):** the original plan (internal working materials, not in this repository)
 proposed calling this only for pairs where the sibling was NOT naturally in
 candidate_top50 ("already covered by Test 1 otherwise"). Rechecking that
 reasoning found two problems, both fixed here:
@@ -27,7 +27,7 @@ reasoning found two problems, both fixed here:
    only stores the top-5 post-rerank slice, not full ranks 6-50, so we don't
    know which of the two Cohere actually preferred. Checked directly against
    this project's committed data: this only changes 1 of 571 pairs (see
-   claude/test1_hard_negative_stress_results.md's follow-up note) - small in
+   the internal stress-test results note, not in this repository) - small in
    practice, but the earlier reasoning was wrong in principle, not just by
    a rounding error, so it is not reused here.
 2. Reading pairwise order off a 50-candidate natural batch and reading it
