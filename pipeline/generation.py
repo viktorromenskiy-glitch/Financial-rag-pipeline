@@ -53,8 +53,9 @@ the same prohibition more forcefully.
 unchanged): docs/tehnicheskoe_zadanie.md section 27 taxonomized all 25
 confirmed generation_failure_candidate cases by root cause. Two clusters
 dominated and are targeted here by separate prompt variants, kept
-separate on purpose so a Phase 6 A/B run (see plan_generation_error_analysis.md
-in the project, "Фаза 6") can attribute any effect to a specific
+separate on purpose so a Phase 6 A/B run (see this project's internal
+error-analysis plan, not in this repository, "Фаза 6") can attribute any
+effect to a specific
 intervention rather than a bundled change ("один вариант вмешательства -
 один скрипт - одна проверка"):
 
