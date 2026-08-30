@@ -1,4 +1,4 @@
-"""Priority 2 (adversarial-robustness plan, claude/plan_prioritet2_hard_negatives.md),
+"""Priority 2 (adversarial-robustness plan, internal working materials not in this repository),
 Test 1: retrospective, zero-cost stress test of retrieval/reranking against
 financial hard negatives - documents that are lexically/semantically close
 to a question's gold document but wrong (same company/different year, same
