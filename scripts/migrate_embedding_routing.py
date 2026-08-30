@@ -1,4 +1,3 @@
-@@ -1,110 +0,0 @@
 """One-off migration: backfill source_dataset onto every already-indexed
 document, and switch TAT-DQA documents' embedding_voyage field over to the
 already-computed voyage-finance-2 vectors (per-dataset embedding routing,
