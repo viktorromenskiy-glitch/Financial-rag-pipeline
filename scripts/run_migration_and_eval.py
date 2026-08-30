@@ -1,4 +1,3 @@
-@@ -1,55 +0,0 @@
 """Runs step 2 (migrate_embedding_routing.py - backfill source_dataset,
 switch TAT-DQA documents to their already-computed voyage-finance-2
 vectors) followed by step 3 (a full eval run under per-dataset embedding
