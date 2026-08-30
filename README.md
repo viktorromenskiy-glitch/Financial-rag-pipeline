@@ -203,6 +203,8 @@ pip install -r requirements-demo.txt (only pulls gradio; the pipeline's own depe
 python -m demo.app — opens at http://127.0.0.1:7860
 
 Documentation
+docs/engineering_decisions.md — English summary of the three decisions with the clearest evidence trail (vector database choice, the reranker-truncation false negative and its diagnosis, and how external reference repos were fact-checked rather than trusted at face value), distilled from the journal below for readers who don't read Russian
+The files below are the project's full engineering journal, maintained in Russian (the project's working language during development):
 docs/tehnicheskoe_zadanie.md — full technical specification, every decision with its measured justification, including the per-dataset routing derivation (section 3a) and the full-corpus enrichment validation (section 5)
 docs/specifikatsiya_moduley.md — module-by-module input/output contracts
 docs/RAG_arkhitektura_i_tochki_vetvleniya.md — architecture and every decision branch considered
