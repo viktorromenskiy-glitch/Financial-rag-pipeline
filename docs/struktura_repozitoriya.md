@@ -60,17 +60,13 @@ financial-rag-pipeline/
 │       └── eval_subset_250.parquet   # честная eval-выборка (250 вопросов, стратифицированно) — источник baseline Recall@5=0.808,
 │                                      #   критична для воспроизводимости; при потере пересборка не гарантирует те же вопросы
 │
-├── notebooks/                       # уже рабочие Colab-скрипты недель 1-2 — референс реализации, переносить логику, не переписывать с нуля.
-│   │                                 # Список ниже — иллюстративный, сверить с реальными именами файлов в Google Drive перед заливкой
-│   │                                 # (см. открытый вопрос: есть ли отдельные ноутбуки для тестов 2.1, 2.4, 2.5)
-│   ├── test_1_3_embedding_comparison.ipynb
-│   ├── test_2_2_reranker_v2.ipynb
-│   ├── test_2_2_pool_size.ipynb
-│   └── test_2_3_contextual_chunks_v2.ipynb
+├── notebooks/                       # исходный референс-ноутбук недель 1-2 (архитектурные развилки 1-9), не переписывать с нуля.
+│   └── experiments_weeks_1_2.ipynb
 │
-├── scripts/                          # одноразовые/вспомогательные Colab-скрипты, вынесенные из корня репозитория (Tier 2 реорганизации).
-│   │                                  # Не часть пайплайна (`pipeline/`) — это скрипты для миграций данных, разовых экспериментов
-│   │                                  # и служебных операций над MongoDB Atlas, запускаемые вручную из Colab.
+├── scripts/                          # одноразовые/вспомогательные Colab-скрипты, вынесенные из корня репозитория (Tier 2 реорганизации),
+│   │                                  # плюс скрипты более поздних фаз (6+), изначально ошибочно залитые в `notebooks/` и перенесённые сюда.
+│   │                                  # Не часть пайплайна (`pipeline/`) — это скрипты для миграций данных, разовых экспериментов,
+│   │                                  # A/B-прогонов и служебных операций над MongoDB Atlas, запускаемые вручную из Colab.
 │   │                                  # 4 файла ниже переименованы при переносе — префикс `test_` убран, т.к. pytest не собирает
 │   │                                  # корневые `test_*.py` как тесты (см. `tests/`), и это имя вводило в заблуждение.
 │   ├── create_temp_cluster_indexes.py         # создание Atlas Search индексов на временном M10-кластере
@@ -82,7 +78,11 @@ financial-rag-pipeline/
 │   ├── routing_e2e_significance.py            # было: test_routing_e2e_significance.py — McNemar-тест значимости routing end-to-end
 │   ├── voyage_finance2_ab.py                  # было: test_voyage_finance2_ab.py — A/B тест voyage-4 vs voyage-finance-2
 │   ├── voyage_finance2_significance.py        # было: test_voyage_finance2_significance.py — тест значимости для voyage-finance-2
-│   └── update_atlas_search_indexes.py         # обновление Atlas Search индексов после миграции
+│   ├── update_atlas_search_indexes.py         # обновление Atlas Search индексов после миграции
+│   ├── run_phase6_ab_eval.py                  # A/B-прогон трёх вариантов промпта генерации (Фаза 6)
+│   ├── reevaluate_phase6_adaptive.py          # адаптивный пересуд 750 ответов Фазы 6 улучшенной judge-процедурой
+│   ├── run_reliability_pilot.py               # пилот надёжности judge (Track A) — измерение non-determinism самого judge
+│   └── run_unanswerable_probe.py              # пилот unanswerable/out-of-corpus вопросов (adversarial-robustness, Приоритет 3)
 │
 ├── docs/
 │   ├── tehnicheskoe_zadanie.md
