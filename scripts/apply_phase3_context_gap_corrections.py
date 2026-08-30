@@ -308,7 +308,7 @@ def main() -> None:
     summary = json.loads(ATTRIBUTION_SUMMARY_PATH.read_text(encoding="utf-8"))
     summary["phase3_corrected_overall"] = dict(Counter(cumulative_corrected_stage(r) for r in corrected))
     summary["phase3_corrections_note"] = (
-        "8 questions manually reviewed (plan_generation_error_analysis.md phase 3 pre-check) - flagged "
+        "8 questions manually reviewed (internal error-analysis plan, not in this repository, phase 3 pre-check) - flagged "
         "while doing the first-pass raw_response taxonomy read of the 44-question Phase 3 replay "
         "(results/retrieval_trace_250/generation_failure_traces.jsonl) as looking like they might not be "
         "genuine generation-reasoning errors, then independently verified against the gold-document "
