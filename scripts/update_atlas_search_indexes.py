@@ -1,4 +1,3 @@
-@@ -1,123 +0,0 @@
 """Adds `source_dataset` as a filterable field to both Atlas Search
 indexes (vector_index_full, text_index_full), via pymongo's driver-native
 search-index management (Collection.list_search_indexes() /
