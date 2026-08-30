@@ -1,4 +1,3 @@
-@@ -1,128 +0,0 @@
 """Step 2 of the full-corpus reranker+enrichment validation. Creates the 4
 Atlas Search indexes needed on the NEW temporary cluster (this is a fresh
 cluster/collection, so these are created from scratch via
