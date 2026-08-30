@@ -5,7 +5,7 @@ in section 30 ("is the 'no significant difference' finding an artifact of a
 noisy single-call judge?") without re-running anything paid.
 
 Input: results/phase6_reeval_adaptive/reeval_summary.jsonl - one record per
-(variant, question_id), produced by notebooks/reevaluate_phase6_adaptive.py.
+(variant, question_id), produced by scripts/reevaluate_phase6_adaptive.py.
 Each original single judge call was re-run 3 times independently (escalating
 to 15 calls on disagreement) to get a majority-vote verdict per answer
 (`new_judge_correct`), instead of trusting one noisy call. `deterministic_match`
