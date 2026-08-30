@@ -384,7 +384,7 @@ def apply_corrections(records: list[dict]) -> list[dict]:
             c = CORRECTIONS[qid]
             r["manual_correction_phase4"] = {
                 "reviewed": (
-                    "plan_generation_error_analysis phase 4 precheck (15 most-disputed cases, "
+                    "internal error-analysis plan, phase 4 precheck (15 most-disputed cases, "
                     "multi-reviewer external process), 2026-08-23"
                 ),
                 "reason": c["reason"],
