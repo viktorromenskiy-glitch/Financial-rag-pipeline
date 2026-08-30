@@ -1,6 +1,6 @@
-"""Builds the out-of-corpus probe question set for plan_adversarial_robustness_priorities.md
-Priority 3 ("unanswerable/out-of-corpus"), motivated by:
-  claude/plan_adversarial_robustness_priorities.md, section on Priority 3:
+"""Builds the out-of-corpus probe question set for the adversarial-robustness
+plan's Priority 3 ("unanswerable/out-of-corpus"), motivated by this project's
+internal working materials (not in this repository), section on Priority 3:
   "Дёшево тестируется: сконструировать вопросы про периоды/темы,
   отсутствующие в корпусе, и проверить, отказывается ли система отвечать
   или генерирует правдоподобное, но необоснованное число."
