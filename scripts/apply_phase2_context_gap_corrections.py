@@ -23,8 +23,9 @@ Builds on scripts/apply_phase1_judge_corrections.py - same non-destructive
 `manual_correction` annotation approach, same reasoning: read the actual
 gold-document text (data/t2-ragbench/*.parquet, keyed by context_id) for
 each of the 6 and determine whether the needed fact is genuinely present,
-buried, or absent (plan_generation_error_analysis.md, Phase 2's three
-possible outcomes a/b/c). Also cross-checks sibling questions sharing the
+buried, or absent (this project's internal error-analysis plan, not in
+this repository, Phase 2's three possible outcomes a/b/c). Also
+cross-checks sibling questions sharing the
 same context_id where useful (same technique as Phase 1).
 
 Result - two new patterns, not one uniform "retrieval gap":
@@ -259,7 +260,7 @@ def main() -> None:
     summary = json.loads(ATTRIBUTION_SUMMARY_PATH.read_text(encoding="utf-8"))
     summary["phase2_corrected_overall"] = dict(Counter(cumulative_corrected_stage(r) for r in corrected))
     summary["phase2_corrections_note"] = (
-        "6 questions manually reviewed (plan_generation_error_analysis.md phase 2) - the "
+        "6 questions manually reviewed (internal error-analysis plan, not in this repository, phase 2) - the "
         "generation_failure_candidate cases where the model answered FINAL ANSWER: INSUFFICIENT_CONTEXT. "
         "(A 7th question, tatqa_train_8524, also answered INSUFFICIENT_CONTEXT but is a reranking_failure, "
         "not generation_failure_candidate - correctly excluded, see this script's module docstring.) See "
