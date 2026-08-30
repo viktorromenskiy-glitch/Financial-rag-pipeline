@@ -230,7 +230,7 @@ def main() -> None:
     original_summary = json.loads(ATTRIBUTION_SUMMARY_PATH.read_text(encoding="utf-8"))
     original_summary["phase1_corrected_overall"] = dict(corrected_stage_counts(corrected))
     original_summary["phase1_corrections_note"] = (
-        "5 questions manually reviewed (plan_generation_error_analysis.md phase 1) where "
+        "5 questions manually reviewed (internal error-analysis plan, not in this repository, phase 1) where "
         "judge_correct=False but is_close_v2 deterministic_match=True. See "
         "phase1_manual_corrections.jsonl for the per-question reason and evidence. Original "
         "`overall` above is left untouched (raw deterministic classification from judge "
