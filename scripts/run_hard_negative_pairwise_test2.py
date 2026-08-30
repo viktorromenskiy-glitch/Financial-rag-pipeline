@@ -59,8 +59,9 @@ either way negligible; run with --dry-run first to see the exact count
 before spending anything).
 
 **Checkpoint location - writes directly to Google Drive, not to a local
-file copied at the end.** Per docs/svod_pravil_raboty.md (project rules,
-"Технические заметки про Colab-сессии"): /content is wiped on every Colab
+file copied at the end.** Per this project's internal working rules (not in
+this repository, "Технические заметки про Colab-сессии"): /content is wiped
+on every Colab
 runtime restart, but a mounted Drive persists across restarts - and a real
 past incident on this project (reevaluate_phase6_adaptive.py, 2026-08-26)
 lost 1758 of ~2500 already-paid judge calls precisely because its checkpoint
@@ -219,10 +220,11 @@ def run(dry_run: bool) -> None:
 
     # MUST run before load_config()/build_clients() - this script calls them
     # directly rather than going through pipeline.cli.main() (which does
-    # this itself). Skipping it is the exact bug documented in
-    # docs/svod_pravil_raboty.md as having repeated 4 times already across
-    # this project's scripts (including check_environment.py, the script
-    # written specifically to catch environment problems) - .env on disk
+    # this itself). Skipping it is the exact bug documented in this
+    # project's internal working rules (not in this repository) as having
+    # repeated 4 times already across this project's scripts (including
+    # check_environment.py, the script written specifically to catch
+    # environment problems) - .env on disk
     # would be silently ignored and load_config() would fail with a
     # confusing "environment variable not set" even though the file exists.
     try:
