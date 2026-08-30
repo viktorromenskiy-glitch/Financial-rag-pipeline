@@ -1,9 +1,8 @@
-"""Deterministic retrieval/generation error attribution (plan doradotki-2,
-item 7 - see docs/tehnicheskoe_zadanie.md for the full writeup).
+"""Deterministic retrieval/generation error attribution (see
+docs/tehnicheskoe_zadanie.md for the full writeup).
 
 Origin and scope correction (important - read before using this module).
-ChatGPT's original recommendation (see the re-uploaded audit doc, section
-"2. Как сделать автоматическую attribution") scoped this to FinQA only,
+An external audit's original recommendation scoped this to FinQA only,
 reasoning that FinQA is the one T2-RAGBench source with an official
 sub-document "gold_inds" (supporting facts) field, while ConvFinQA/TAT-DQA
 have no comparable gold-evidence annotation. That premise turned out not to
@@ -12,14 +11,15 @@ context_id (see README "Chunking (one document = one chunk)"), and
 data/t2-ragbench/eval_subset_250.parquet already carries an authoritative
 `context_id` column per question for ALL THREE sources - the document that
 question was written against - not just FinQA. So the "gold_inds -> your
-internal context_id" mapping problem ChatGPT worried about (gold_inds are
-sub-document supporting facts, not directly usable as a chunk id) does not
-arise at this project's document-level chunking granularity: gold_context_id
-IS just eval_subset_250.parquet's `context_id` column, verbatim, for every
-source. This module therefore attributes all three sources, not FinQA-only
-- see docs/tehnicheskoe_zadanie.md for the full writeup of this correction.
+internal context_id" mapping problem the external audit worried about
+(gold_inds are sub-document supporting facts, not directly usable as a
+chunk id) does not arise at this project's document-level chunking
+granularity: gold_context_id IS just eval_subset_250.parquet's `context_id`
+column, verbatim, for every source. This module therefore attributes all
+three sources, not FinQA-only - see docs/tehnicheskoe_zadanie.md for the
+full writeup of this correction.
 
-What this module does NOT do, deliberately (per the same source document's
+What this module does NOT do, deliberately (per the same external audit's
 own later self-correction): it does not attempt a fuzzy/semantic match
 between gold and retrieved context - only exact context_id membership in
 the top-50 (pre-rerank) and top-5 (post-rerank) pools. And it does not
@@ -27,7 +27,7 @@ build a single "one classifier fits all three datasets" black box beyond
 this one binary in/out-of-pool check - the underlying gold-evidence
 granularity (whole document) is uniform across sources here, which is what
 makes a shared classifier honest in this specific case, unlike the
-sub-document "gold_inds"-based classifier ChatGPT's own document warned
+sub-document "gold_inds"-based classifier that same external audit warned
 against building as one universal thing.
 
 What this module needs that no committed run currently has: `candidate_top50`
