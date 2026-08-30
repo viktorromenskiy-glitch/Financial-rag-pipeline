@@ -1,4 +1,3 @@
-@@ -1,156 +0,0 @@
 """Step 1 of the full-corpus reranker+enrichment validation
 (docs/tehnicheskoe_zadanie.md, section 5, "Открытый риск, не закрытый
 тестами").
