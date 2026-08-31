@@ -1,0 +1,57 @@
+def hit_flags(results_dict, eval_df, k=5):
+    flags = {}
+    for _, row in eval_df.iterrows():
+        q = row["question"]
+        top_ids = [d["context_id"] for d in results_dict[q][:k]]
+        flags[q] = 1 if row["context_id"] in top_ids else 0
+    return flags
+
+flags_pool50 = hit_flags(reranked50, eval_set, k=5)
+flags_pool100 = hit_flags(reranked100, eval_set, k=5)
+
+questions = eval_set["question"].tolist()
+n = len(questions)
+recall50 = sum(flags_pool50.values()) / n
+recall100 = sum(flags_pool100.values()) / n
+print(f"n = {n}")
+print(f"Пул=50 Recall@5: {recall50:.4f}")
+print(f"Пул=100 Recall@5: {recall100:.4f}")
+
+def exact_mcnemar(flags_a, flags_b, questions):
+    a = b = c = d = 0
+    for q in questions:
+        fa, fb = flags_a[q], flags_b[q]
+        if fa == 1 and fb == 1: a += 1
+        elif fa == 1 and fb == 0: b += 1
+        elif fa == 0 and fb == 1: c += 1
+        else: d += 1
+    return a, b, c, d
+
+from scipy.stats import binomtest
+
+a, b, c, d = exact_mcnemar(flags_pool50, flags_pool100, questions)
+print(f"\na(оба верно)={a}, b(сломано)={b}, c(спасено)={c}, d(оба неверно)={d}")
+print(f"Discordant pairs: b+c={b+c} ({(b+c)/n*100:.1f}%)")
+if b + c > 0:
+    p_exact = binomtest(min(b, c), b + c, 0.5).pvalue
+else:
+    p_exact = 1.0
+print(f"McNemar exact p-value: {p_exact:.4f}")
+
+print(f"\n=== ИТОГ ===")
+print(f"Разница пул=100 vs пул=50: {recall100-recall50:+.4f} ({(recall100-recall50)*100:+.2f} п.п.), p={p_exact:.4f} (n={n})")
+if p_exact < 0.05:
+    print("Значимо -- пул=100 статистически лучше пул=50.")
+else:
+    print("Не значимо -- пул=50, похоже, уже близко к плато для нашего корпуса, дальнейшее расширение не оправдано.")
+n = 900
+Пул=50 Recall@5: 0.9444
+Пул=100 Recall@5: 0.9411
+
+a(оба верно)=842, b(сломано)=8, c(спасено)=5, d(оба неверно)=45
+Discordant pairs: b+c=13 (1.4%)
+McNemar exact p-value: 0.5811
+
+=== ИТОГ ===
+Разница пул=100 vs пул=50: -0.0033 (-0.33 п.п.), p=0.5811 (n=900)
+Не значимо -- пул=50, похоже, уже близко к плато для нашего корпуса, дальнейшее расширение не оправдано.
