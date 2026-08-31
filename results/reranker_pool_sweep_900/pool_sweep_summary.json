@@ -1,1 +1,46 @@
-"""ghj,f"""
+{
+  "description": "Reranker candidate-pool-size sweep (docs/tehnicheskoe_zadanie.md, section 6): Recall@5 at pool sizes 10/50/100 vs. no-reranker baseline, on the full stratified n=900 eval set (300 questions per source_dataset). Cohere Rerank v4.0 Pro, top_n=5, full untruncated document text.",
+  "provenance": "Recovered 2026-08-31 from experiments_weeks_1_2.ipynb (Colab notebook, Google Drive), cells 151 and 154 - this run predates the project's 'always copy paid-API output off the ephemeral runtime immediately' rule (see README Known limitations, the lost 0.768/0.760 run), so no dedicated results file was committed at the time it was run. This summary is transcribed directly from the notebook's own printed cell output, not recomputed or re-derived - the per-question hit/miss arrays themselves (flags_baseline, flags_pool10, flags_pool50, flags_pool100) were not separately saved and are not recoverable; only the aggregate counts below (which the notebook printed at run time) are available.",
+  "n": 900,
+  "recall_at_5_by_pool": {
+    "baseline_no_reranker": 0.8344,
+    "pool_10": 0.8900,
+    "pool_50": 0.9444,
+    "pool_100": 0.9411
+  },
+  "mcnemar_pool10_vs_pool50": {
+    "a_both_correct": 795,
+    "b_pool10_only": 6,
+    "c_pool50_only": 55,
+    "d_both_wrong": 44,
+    "discordant_pairs": 61,
+    "discordant_pct": 6.8,
+    "recall_diff_pool50_minus_pool10": 0.0544,
+    "recall_diff_pp": 5.44,
+    "p_chi2": 0.0000,
+    "p_exact_mcnemar": 0.0000,
+    "significant_at_0.05": true
+  },
+  "mcnemar_baseline_vs_pool50": {
+    "a_both_correct": 744,
+    "b_baseline_only": 7,
+    "c_pool50_only": 106,
+    "d_both_wrong": 43,
+    "p_chi2": 0.0000,
+    "significant_at_0.05": true
+  },
+  "mcnemar_pool50_vs_pool100": {
+    "a_both_correct": 842,
+    "b_pool50_only": 8,
+    "c_pool100_only": 5,
+    "d_both_wrong": 45,
+    "discordant_pairs": 13,
+    "discordant_pct": 1.4,
+    "recall_diff_pool100_minus_pool50": -0.0033,
+    "recall_diff_pp": -0.33,
+    "p_exact_mcnemar": 0.5811,
+    "significant_at_0.05": false
+  },
+  "internal_consistency_check": "pool_50 hit count (a+c in the pool10_vs_pool50 table, and a+b in the pool50_vs_pool100 table) is 850/900 in both independently-computed contingency tables, matching recall_at_5_by_pool.pool_50 = 850/900 = 0.9444 exactly - the two recovered cells are mutually consistent, not just individually plausible.",
+  "conclusion": "pool=50 is a statistically significant improvement over pool=10 (p<0.0001) and over the no-reranker baseline (p<0.0001); pool=100 shows no significant improvement over pool=50 (p=0.58) - pool=50 is the point of diminishing returns and is the project's default configuration (see docs/tehnicheskoe_zadanie.md, section 6)."
+}
