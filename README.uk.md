@@ -51,6 +51,24 @@ Ingestion (FinQA + ConvFinQA + TAT-DQA)
   → Generation (пряма відповідь, Claude Sonnet 5, інваріантний до знаку/масштабу формат)
   → LLM Judge Evaluation (суддя Claude Sonnet 5 + детермінована числова перевірка)
 
+Той самий пайплайн у вигляді діаграми:
+
+```mermaid
+flowchart TD
+    subgraph indexing["Індексація (одноразова)"]
+        A["Ingestion<br/>FinQA + ConvFinQA + TAT-DQA"] --> B["Chunking<br/>один документ = один чанк"]
+        B --> C["Contextual enrichment<br/>Claude Haiku 4.5 (опційно)"]
+        C --> D["Embedding<br/>Voyage-4, per-dataset routing на voyage-finance-2"]
+        D --> E["MongoDB Atlas<br/>векторний індекс + повнотекстовий індекс"]
+    end
+    subgraph query["Запит (на кожне питання)"]
+        F["Hybrid retrieval<br/>$rankFusion: BM25 + dense, top-50"] --> G["Reranking<br/>Cohere Rerank v4.0 Pro, повний текст, top-5"]
+        G --> H["Generation<br/>Claude Sonnet 5, інваріантний до знаку/масштабу формат"]
+        H --> I["LLM Judge Evaluation<br/>суддя Claude Sonnet 5 + детермінована перевірка is_close_v2"]
+    end
+    E --> F
+```
+
 Кожен компонент (reranker, enrichment, модель судді, embedding-модель + routing, розмір пулу) перемикається через конфіг, не хардкод — див. config/config.yaml. config/config_schema.py валідує конфіг при старті й одразу падає на відсутньому полі чи некоректному значенні, до першого API-виклику. Кожен етап, що викликає зовнішній API, використовує єдину retry-політику (pipeline/common/retry.py), яка ретраїть лише transient-помилки (429, 5xx, тайм-аути з'єднання), ніколи не 4xx.
 
 Результати (end-to-end, повний пайплайн, n=250 запитань)
@@ -123,6 +141,8 @@ Production-обв'язка на кшталт Docker/FastAPI/observability, пр�
 | generation_failure_candidate (gold-документ дійшов до топ-5, відповідь все одно неправильна) | 55 | 22.0% |
 | reranking_failure (gold-документ був у пулі топ-50, але reranker його відсіяв) | 7 | 2.8% |
 | retrieval_failure (gold-документ не потрапив навіть у пул топ-50) | 2 | 0.8% |
+
+![Діаграма атрибуції помилок: success 186 (74.4%), generation_failure_candidate 55 (22.0%), reranking_failure 7 (2.8%), retrieval_failure 2 (0.8%), n=250](docs/images/error_attribution_n250.svg)
 
 Звірено із закомміченим прогоном: 55 випадків generation_failure_candidate плюс 5 із 9 випадків retrieval/reranking_failure (інші 4 з цих 9 все одно отримали правильну підсумкову відповідь, попри те що gold-документ не пережив retrieval) у сумі дають рівно ті самі 60 неправильних відповідей, що і в «Результатах» вище — без розбіжностей. З цих 60 помилок лише 5 (8.3%) пояснюються провалом retrieval/reranking; решта 55 (91.7%) сталися при тому, що потрібний документ уже був у контексті моделі — кількісно, а не просто за відсутністю контрприкладу, підтверджуючи, що retrieval/reranking не є вузьким місцем цього проєкту: подальше зростання accuracy потрібно шукати на стороні generation/обчислення, а не в подальшому налаштуванні retrieval.
 
