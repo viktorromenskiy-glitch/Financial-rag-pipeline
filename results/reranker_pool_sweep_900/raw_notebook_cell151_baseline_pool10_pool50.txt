@@ -1,4 +1,4 @@
-def hit_flags(results_dict, eval_df, k=5):
+def hit_flags(results_dict, eval_df, k=5, id_field="context_id"):
     flags = {}
     for _, row in eval_df.iterrows():
         q = row["question"]
@@ -6,16 +6,28 @@ def hit_flags(results_dict, eval_df, k=5):
         flags[q] = 1 if row["context_id"] in top_ids else 0
     return flags
 
+def hit_flags_baseline(candidates_dict, eval_df, k=5):
+    flags = {}
+    for _, row in eval_df.iterrows():
+        q = row["question"]
+        top_ids = [d["context_id"] for d in candidates_dict[q][:k]]
+        flags[q] = 1 if row["context_id"] in top_ids else 0
+    return flags
+
+flags_baseline = hit_flags_baseline(candidates50, eval_set, k=5)
+flags_pool10 = hit_flags(reranked10, eval_set, k=5)
 flags_pool50 = hit_flags(reranked50, eval_set, k=5)
-flags_pool100 = hit_flags(reranked100, eval_set, k=5)
 
 questions = eval_set["question"].tolist()
 n = len(questions)
+
+recall_baseline = sum(flags_baseline.values()) / n
+recall10 = sum(flags_pool10.values()) / n
 recall50 = sum(flags_pool50.values()) / n
-recall100 = sum(flags_pool100.values()) / n
 print(f"n = {n}")
+print(f"Baseline (без reranker) Recall@5: {recall_baseline:.4f}")
+print(f"Пул=10 Recall@5: {recall10:.4f}")
 print(f"Пул=50 Recall@5: {recall50:.4f}")
-print(f"Пул=100 Recall@5: {recall100:.4f}")
 
 def exact_mcnemar(flags_a, flags_b, questions):
     a = b = c = d = 0
@@ -27,31 +39,52 @@ def exact_mcnemar(flags_a, flags_b, questions):
         else: d += 1
     return a, b, c, d
 
-from scipy.stats import binomtest
+from scipy.stats import chi2, binomtest
 
-a, b, c, d = exact_mcnemar(flags_pool50, flags_pool100, questions)
-print(f"\na(оба верно)={a}, b(сломано)={b}, c(спасено)={c}, d(оба неверно)={d}")
+print("\n=== Пул=10 vs Пул=50 ===")
+a, b, c, d = exact_mcnemar(flags_pool10, flags_pool50, questions)
+print(f"a(оба верно)={a}, b(сломано)={b}, c(спасено)={c}, d(оба неверно)={d}")
 print(f"Discordant pairs: b+c={b+c} ({(b+c)/n*100:.1f}%)")
 if b + c > 0:
+    diff = abs(b - c) - 1
+    stat = (diff * diff) / (b + c)
+    p_chi2 = 1 - chi2.cdf(stat, df=1)
     p_exact = binomtest(min(b, c), b + c, 0.5).pvalue
 else:
-    p_exact = 1.0
-print(f"McNemar exact p-value: {p_exact:.4f}")
+    p_chi2 = p_exact = 1.0
+print(f"McNemar chi2 p-value: {p_chi2:.4f}")
+print(f"McNemar exact (binomial) p-value: {p_exact:.4f}")
 
-print(f"\n=== ИТОГ ===")
-print(f"Разница пул=100 vs пул=50: {recall100-recall50:+.4f} ({(recall100-recall50)*100:+.2f} п.п.), p={p_exact:.4f} (n={n})")
-if p_exact < 0.05:
-    print("Значимо -- пул=100 статистически лучше пул=50.")
+print("\n=== Baseline vs Пул=50 (для полноты, ожидаемо значимо) ===")
+a2, b2, c2, d2 = exact_mcnemar(flags_baseline, flags_pool50, questions)
+if b2 + c2 > 0:
+    diff2 = abs(b2 - c2) - 1
+    stat2 = (diff2 * diff2) / (b2 + c2)
+    p2 = 1 - chi2.cdf(stat2, df=1)
 else:
-    print("Не значимо -- пул=50, похоже, уже близко к плато для нашего корпуса, дальнейшее расширение не оправдано.")
-n = 900
-Пул=50 Recall@5: 0.9444
-Пул=100 Recall@5: 0.9411
+    p2 = 1.0
+print(f"a={a2}, b={b2}, c={c2}, d={d2}, McNemar p-value: {p2:.4f}")
 
-a(оба верно)=842, b(сломано)=8, c(спасено)=5, d(оба неверно)=45
-Discordant pairs: b+c=13 (1.4%)
-McNemar exact p-value: 0.5811
+print("\n=== ИТОГ ===")
+print(f"Разница пул=50 vs пул=10: {recall50-recall10:+.4f} ({(recall50-recall10)*100:+.2f} п.п.), p={p_exact:.4f} (n={n})")
+if p_exact < 0.05:
+    print("Значимо -- пул=50 статистически лучше пул=10.")
+else:
+    print("Не значимо даже на увеличенной выборке -- разница неотличима от шума, пул=50 обоснован только прецедентом статьи, не собственной значимостью.")
+n = 900
+Baseline (без reranker) Recall@5: 0.8344
+Пул=10 Recall@5: 0.8900
+Пул=50 Recall@5: 0.9444
+
+=== Пул=10 vs Пул=50 ===
+a(оба верно)=795, b(сломано)=6, c(спасено)=55, d(оба неверно)=44
+Discordant pairs: b+c=61 (6.8%)
+McNemar chi2 p-value: 0.0000
+McNemar exact (binomial) p-value: 0.0000
+
+=== Baseline vs Пул=50 (для полноты, ожидаемо значимо) ===
+a=744, b=7, c=106, d=43, McNemar p-value: 0.0000
 
 === ИТОГ ===
-Разница пул=100 vs пул=50: -0.0033 (-0.33 п.п.), p=0.5811 (n=900)
-Не значимо -- пул=50, похоже, уже близко к плато для нашего корпуса, дальнейшее расширение не оправдано.
+Разница пул=50 vs пул=10: +0.0544 (+5.44 п.п.), p=0.0000 (n=900)
+Значимо -- пул=50 статистически лучше пул=10.
