@@ -50,6 +50,24 @@ Ingestion (FinQA + ConvFinQA + TAT-DQA)
   → Generation (direct answer, Claude Sonnet 5, sign/scale-invariant format)
   → LLM Judge Evaluation (Claude Sonnet 5 judge + deterministic numeric cross-check)
 
+Same pipeline as a diagram:
+
+```mermaid
+flowchart TD
+    subgraph indexing["Indexing (one-time)"]
+        A["Ingestion<br/>FinQA + ConvFinQA + TAT-DQA"] --> B["Chunking<br/>one document = one chunk"]
+        B --> C["Contextual enrichment<br/>Claude Haiku 4.5 (optional)"]
+        C --> D["Embedding<br/>Voyage-4, per-dataset routing to voyage-finance-2"]
+        D --> E["MongoDB Atlas<br/>vector index + full-text index"]
+    end
+    subgraph query["Query time (per question)"]
+        F["Hybrid retrieval<br/>$rankFusion: BM25 + dense, top-50"] --> G["Reranking<br/>Cohere Rerank v4.0 Pro, full text, top-5"]
+        G --> H["Generation<br/>Claude Sonnet 5, sign/scale-invariant format"]
+        H --> I["LLM Judge Evaluation<br/>Claude Sonnet 5 judge + is_close_v2 deterministic check"]
+    end
+    E --> F
+```
+
 Every component (reranker, enrichment, judge model, embedding model + routing, pool size) is switchable via config, not hardcoded — see config/config.yaml. config/config_schema.py validates the config at startup and fails immediately on a missing field or bad value, before any API call. Every stage that calls an external API shares one retry policy (pipeline/common/retry.py) that retries only transient failures (429, 5xx, connection timeouts), never a 4xx.
 
 Results (end-to-end, full pipeline, n=250 questions)
@@ -122,6 +140,8 @@ Of the 60 questions the judge marked wrong in the committed error_analysis_250 r
 | generation_failure_candidate (gold document reached the top-5; answer still wrong) | 55 | 22.0% |
 | reranking_failure (gold document in the top-50 pool, dropped by reranking) | 7 | 2.8% |
 | retrieval_failure (gold document never in the top-50 pool) | 2 | 0.8% |
+
+![Error attribution bar chart: success 186 (74.4%), generation_failure_candidate 55 (22.0%), reranking_failure 7 (2.8%), retrieval_failure 2 (0.8%), n=250](docs/images/error_attribution_n250.svg)
 
 Cross-checked against the committed run: the 55 generation_failure_candidate cases plus 5 of the 9 retrieval/reranking_failure cases (the other 4 got the right final answer anyway, despite the gold document not surviving retrieval) account for exactly the 60 wrong answers in Results above — no discrepancy. Of those 60 errors, only 5 (8.3%) are attributable to retrieval or reranking; the remaining 55 (91.7%) happened with the correct document already in the model's context — confirming, quantitatively rather than just by absence of a counter-example, that retrieval/reranking is not this project's binding constraint: further accuracy gains would need to come from the generation/computation stage, not more retrieval tuning.
 
