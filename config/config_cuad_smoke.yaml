@@ -1,0 +1,86 @@
+# День 3 (plan_rabot_posle_ekspertizy_agent_profil.md): CUAD smoke-test config.
+#
+# "Смок-тест на CUAD... без изменения кода агента — только конфигурация
+# retrieval-индекса и индексация новых документов." Этот файл — тот самый
+# конфиг: он не меняет ни одной строки в agent/ или pipeline/, только
+# указывает на ОТДЕЛЬНУЮ MongoDB-коллекцию/индексы, чтобы 4 контракта CUAD
+# ни при каких условиях не попали в основной финансовый корпус
+# (t2_ragbench_full) и не смешались с ним при retrieval.
+#
+# embedding.routing.enabled: false — per-dataset routing (voyage-finance-2
+# для TAT-DQA) не имеет смысла для source_dataset="CUAD" (см.
+# pipeline/cuad_smoke.py); при routing.enabled=false
+# pipeline.embedding.resolve_embedding_model всегда возвращает
+# embedding.model независимо от routed_sources, так что оставлять список
+# routed_sources пустым здесь безопасно.
+#
+# Все остальные секции (enrichment/retrieval/reranker/generation/judge)
+# СОЗНАТЕЛЬНО совпадают с config/config.yaml — цель смок-теста -
+# проверить робастность УЖЕ ВАЛИДИРОВАННОГО пайплайна на другом домене
+# документов, а не протестировать новую, урезанную конфигурацию.
+
+mongodb:
+  uri: ${MONGODB_URI}
+  db_name: "rag_project"
+  collection_name: "cuad_smoke_v1"       # отдельная коллекция — не t2_ragbench_full
+  vector_index_name: "cuad_smoke_vector_index"
+  text_index_name: "cuad_smoke_text_index"
+
+embedding:
+  model: "voyage-4"
+  batch_size: 32
+  routing:
+    enabled: false                       # CUAD не участвует в per-dataset routing (см. выше)
+    finance_model: "voyage-finance-2"
+    routed_sources: []
+
+enrichment:
+  enabled: true                          # то же значение, что в продакшн-конфиге — см. заметку выше
+  model: "claude-haiku-4-5-20251001"
+  temperature: 0.0
+  prompt_version: "v1"
+
+retrieval:
+  pool_size: 50
+  weights:
+    vector: 0.5
+    text: 0.5
+
+reranker:
+  enabled: true
+  model: "rerank-v4.0-pro"
+  pool_size: 50
+  top_n: 5
+
+generation:
+  model: "claude-sonnet-5"
+  temperature: 0.0
+
+judge:
+  model: "claude-sonnet-5"
+  temperature: 0.0
+  prompt_version: "v3"
+  deterministic_check_enabled: true      # ignored for CUAD calls - scripts/run_cuad_smoke.py passes deterministic_check_enabled=False explicitly (CUAD gold answers are text spans, not numbers - see that script)
+
+retry:
+  stop_after_attempt: 5
+  wait_min_seconds: 1
+  wait_max_seconds: 60
+
+agent:
+  max_additional_tool_calls: 2           # same bounded-loop config as production - this is what's being robustness-checked
+  max_wall_clock_seconds: 120
+
+agent_eval:
+  # Меньше вопросов (5, не 20-30), поэтому меньше и предохранители на
+  # весь прогон - см. AgentEvalConfig в config/config_schema.py для
+  # расчёта на 20-30 вопросов; здесь тот же принцип "1 обязательный + до
+  # agent.max_additional_tool_calls дополнительных assessment-вызовов +
+  # 1 генерация" на вопрос, но n=5, а не 20-30.
+  max_llm_calls: 60
+  max_wall_clock_seconds: 1200
+  max_estimated_cost_usd: 2.0
+  cost_per_llm_call_usd: 0.02
+
+persistence:
+  google_drive_results_dir: "/content/drive/MyDrive/RAG-project/results"
