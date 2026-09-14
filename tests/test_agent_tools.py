@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import pytest
 
+import agent.tools as agent_tools
 from agent.tools import SEARCH_DOCUMENTS_TOOL_SPEC, search_documents
 
 
@@ -149,3 +150,101 @@ def test_search_documents_query_is_echoed_back_on_the_result():
     collection = FakeCollection(results=[])
     result = search_documents(voyage, collection, None, "total assets 2021", **_search_kwargs(reranker_enabled=False))
     assert result.query == "total assets 2021"
+
+
+def test_search_documents_default_degraded_is_false():
+    # Day 1 call sites/tests never pass degraded=/degradation_reason= -
+    # the День 2 fields must default to "not degraded" so nothing above
+    # breaks.
+    voyage = FakeVoyageClient()
+    collection = FakeCollection(results=[])
+    result = search_documents(voyage, collection, None, "q", **_search_kwargs())
+    assert result.degraded is False
+    assert result.degradation_reason is None
+
+
+# --- День 2: graceful degradation on a transient MongoDB/Cohere failure --
+#
+# agent.tools.retrieve/agent.tools.rerank are monkeypatched directly here
+# (rather than making FakeCollection.aggregate/FakeCohereClient.rerank
+# raise) so these tests exercise only search_documents()'s own degrade-or-
+# raise logic, not pipeline.reranking.rerank()'s real @retryable() retry
+# loop, which would otherwise actually sleep through several exponential-
+# backoff attempts (tenacity's wait_random_exponential(min=1, max=60)) for
+# every test run - that retry timing is pipeline/reranking.py's/
+# pipeline/retrieval.py's own concern and already outside this module's
+# responsibility.
+
+
+class _FakeConnectionError(Exception):
+    """Class name alone (via the "Connection" fragment) is enough for
+    pipeline.common.retry.is_transient_error to classify this as
+    transient - see that module's _TRANSIENT_NAME_FRAGMENTS."""
+
+
+def test_search_documents_degrades_to_empty_candidates_on_transient_mongodb_failure(monkeypatch):
+    def _raise_transient(*args, **kwargs):
+        raise _FakeConnectionError("connection reset")
+
+    monkeypatch.setattr(agent_tools, "retrieve", _raise_transient)
+
+    result = search_documents(FakeVoyageClient(), FakeCollection(results=[]), None, "q", **_search_kwargs())
+
+    assert result.candidates == ()
+    assert result.context_ids == frozenset()
+    assert result.degraded is True
+    assert "retrieval_unavailable" in result.degradation_reason
+    assert "_FakeConnectionError" in result.degradation_reason
+
+
+def test_search_documents_reraises_non_transient_mongodb_failure(monkeypatch):
+    # A real bug (e.g. a malformed pipeline -> pymongo OperationFailure with
+    # no retryable status code) must still surface, not be silently
+    # swallowed as "no evidence found".
+    def _raise_bug(*args, **kwargs):
+        raise ValueError("not a transient error")
+
+    monkeypatch.setattr(agent_tools, "retrieve", _raise_bug)
+
+    with pytest.raises(ValueError):
+        search_documents(FakeVoyageClient(), FakeCollection(results=[]), None, "q", **_search_kwargs())
+
+
+def test_search_documents_degrades_to_unreranked_on_transient_cohere_failure(monkeypatch):
+    voyage = FakeVoyageClient()
+    collection = FakeCollection(
+        results=[
+            {"context_id": "ctx_1", "full_indexed_content": "doc 1", "score": 0.9},
+            {"context_id": "ctx_2", "full_indexed_content": "doc 2", "score": 0.5},
+        ]
+    )
+
+    def _raise_transient(*args, **kwargs):
+        raise _FakeConnectionError("service unavailable")
+
+    monkeypatch.setattr(agent_tools, "rerank", _raise_transient)
+
+    result = search_documents(
+        voyage, collection, FakeCohereClient(results=[]), "q", **_search_kwargs(reranker_enabled=True, reranker_top_n=1)
+    )
+
+    # Falls back to the unreranked top reranker_top_n candidates (the same
+    # slice used when reranker_enabled=False) instead of losing retrieval's
+    # results entirely.
+    assert len(result.candidates) == 1
+    assert result.candidates[0].context_id == "ctx_1"
+    assert result.degraded is True
+    assert "reranker_unavailable" in result.degradation_reason
+
+
+def test_search_documents_reraises_non_transient_cohere_failure(monkeypatch):
+    voyage = FakeVoyageClient()
+    collection = FakeCollection(results=[{"context_id": "ctx_1", "full_indexed_content": "doc 1", "score": 0.9}])
+
+    def _raise_bug(*args, **kwargs):
+        raise ValueError("not a transient error")
+
+    monkeypatch.setattr(agent_tools, "rerank", _raise_bug)
+
+    with pytest.raises(ValueError):
+        search_documents(voyage, collection, FakeCohereClient(results=[]), "q", **_search_kwargs(reranker_enabled=True))
