@@ -1,0 +1,58 @@
+{
+  "_license_notice": "Documents and questions below are real excerpts from the CUAD (Contract Understanding Atticus Dataset) v1 corpus, https://github.com/TheAtticusProject/cuad, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Attribution: Hendrycks et al., 'CUAD: An Expert-Annotated NLP Dataset for Legal Contract Review', NeurIPS 2021 Datasets and Benchmarks Track, arXiv:2103.06268. Used here for a Day 3 out-of-domain robustness smoke test only - see plan_rabot_posle_ekspertizy_agent_profil.md and README.md's Agent section for why this is NOT a claim of product portability to the legal domain.",
+  "documents": [
+    {
+      "document_id": "GALACTICOMMTECHNOLOGIESINC_11_07_1997-EX-10.46-WEB HOSTING AGREEMENT",
+      "text": "EXHIBIT 10.46\n\n                             WEB HOSTING AGREEMENT\n\nThis agreement shall void and nullify any and all previous agreements to this date between Galacticomm and Horst Entertainment Inc.\n\nThere shall be no additional fees of any kind paid to Galaticomm, other than those stated within this agreement for software usage and/or bandwidth usage.\n\nHorst Entertainment agrees to pay Galactcomm $0.01 (one cent) per access up to 400,000 accesses thereafter payment shall be $0.005 (one-half cent) per access. Horst Entertainment shall send this amount to Galacticomm by no later than Wednesday for accesses used from the previuos week (Monday thru Sunday).\n\nGalacticomm must provide a person(s) to correct any technical problems (Server being down or inaccessible) 24 hours per day, 7 days per week. This person(s) must be available by beeper or telephone. Horst Entertainment shall provide this same 24 hour service at the broadcast location.\n\nIn the event Galacticomm, Inc. chooses to terminate this agreement, Horst Entertainment Inc. will have the right to purchase a license copy of the software in the amount of $15,000.00.\n\nAll parties have read and fully agree to all terms and conditions as set forth in this Web Hosting Agreement. Any disputes arising herein shall be settled in a court in FLorida.\n\n/s/ Yannick Tessier                               9/9/97 - -----------------------                           ------      Galacticomm                                   Date\n\n[ILLEGIBLE] HORST                                 9/9/97 - -------------------------                         ------  Horst Entertainment Inc.                          Date"
+    },
+    {
+      "document_id": "CardlyticsInc_20180112_S-1_EX-10.16_11002987_EX-10.16_Maintenance Agreement3",
+      "text": "SCHEDULE TO Software License, Customization and Maintenance Agreement    Supplier Name:  Cardlytics, Inc.  Agreement Number:  CW251207\n\nSupplier Address:\n\n\n\n621 North Avenue NE Suite C-30 Atlanta, GA 30308\n\nAddendum Number:\n\n\n\nCW255039\n\nSupplier Telephone:  888.798.5802  Addendum Effective Date  March 3, 2011\n\nThis Schedule (\"Schedule\") is made as of the effective date set forth above to that Software License, Customization, and Maintenance Agreement, by and between Cardlytics, Inc. (\"Supplier\") and Bank of America, N. A, (\"Bank of America\"), dated November 5, 2010, as amended (\"SLCMA\"). Each capitalized term used but not defined herein shall have the meaning assigned in the SLCMA.\n\nWHEREAS, Bank of America and Supplier entered into the SLCMA in order to set forth the terms and conditions pursuant to which Supplier provides certain Software to Bank of America,\n\nWHEREAS, the parties desire to add to the SLCMA the Supplier Offer Placement System Software;\n\nNOW THEREFORE, in consideration of the promises and accords made herein, and the exchange of such good and valuable consideration, the receipt and sufficiency of which is hereby acknowledged, Bank of America and Supplier agree as follows:\n\nThe attached Schedule [A] is hereby incorporated into the SLCMA describing the Offer Placement System Software for use by Bank of America.\n\nTHE FOREGOING IS UNDERSTOOD AND AGREED TO BY:   Cardlytics, Inc. (\"Supplier\")   Bank of America, N.A. (\"Bank of America\")\n\nBy:  /s/ Scott Grimes  By:  /s/ Chandra Torrence\n\nName: Scott Grimes  Name: Chandra Torrence\n\nTitle:  Chief Executive Officer  Title:  V.P., Sourcing Manager\n\nDate:  3/4/11  Date:  3/3/11    1.\n\nSource: CARDLYTICS, INC., S-1, 1/12/2018"
+    },
+    {
+      "document_id": "SoupmanInc_20150814_8-K_EX-10.1_9230148_EX-10.1_Franchise Agreement3",
+      "text": "Attachment C to Master Franchise Agreement   MULTI-STATE ADDENDUM   CALIFORNIA APPENDIX    1. California Business and Professions Code Sections 20000 through 20043 provide rights to you concerning termination or non-renewal of a franchise. If the Master Franchise Agreement contains provisions that are inconsistent with the law, the law will control.\n\n 2. The Master Franchise Agreement provides for termination upon bankruptcy. This provision may not be enforceable under Federal Bankruptcy Law (11 U.S.C.A. Sec. 101 et seq. ).\n\n 3. The Master Franchise Agreement contains covenants not to compete which extend beyond the termination of the agreement. These provisions may not be enforceable under California law.\n\n 4. Section 31125 of the California Corporation Code requires the franchisor to provide you with a disclosure document before asking you to agree to a material modification of an existing franchise.\n\n 5. Neither the franchisor, any person or franchise broker in Item 2 of the Disclosure Document is subject to any currently effective order of any national securities association or national securities exchange, as defined in the Securities Exchange Act of 1934, 15 U.S.C.A. 79a et seq., suspending or expelling such persons from membership in such association or exchange.\n\n 6. The Master Franchise Agreement requires non-binding mediation. The mediation will occur in New York with the costs being borne by equally by the parties. Prospective franchisees are encouraged to consult private legal counsel to determine the applicability of California and federal laws (such as Business and Professions Code Section 20040.5 and Code of Civil Procedure Section 1281) to any provisions of a franchise agreement restricting venue to a forum outside the State of California.\n\n 7. The Master Franchise Agreement requires application of the laws of New York. This provision may not be enforceable under California law.\n\n 8. You must sign a general release if you renew or transfer your franchise. California Corporation Code 31512 voids a waiver of your rights under the Franchise Investment Law (California Corporations Code 31000 through 31516). Business and Professions Code 20010 voids a waiver of your rights under the Franchise Relations Act (Business and Professions Code 20000 through 20043).\n\n 9. THE CALIFORNIA FRANCHISE INVESTMENT LAW REQUIRES THAT A COPY OF ALL PROPOSED AGREEMENTS RELATING TO THE SALE OF THE FRANCHISE BE DELIVERED TOGETHER WITH THE DISCLOSURE DOCUMENT.\n\n 10. The Master Franchise Agreement contains a liquidated damages clause. Under California Civil Code Section 1671, certain liquidated damages clauses are unenforceable.\n\n 11. OUR WEBSITE, www.originalsoupman.com, HAS NOT BEEN REVIEWED OR APPROVED BY THE CALIFORNIA DEPARTMENT OF BUSINESS OVERSIGHT. ANY COMPLAINTS CONCERNING THE CONTENT OF THIS WEBSITE MAY BE DIRECTED TO THE CALIFORNIA DEPARTMENT OF BUSINESS OVERSIGHT at www.dbo.ca.gov.\n\n\n\nSource: SOUPMAN, INC., 8-K, 8/14/2015"
+    },
+    {
+      "document_id": "PcquoteComInc_19990721_S-1A_EX-10.11_6377149_EX-10.11_Co-Branding Agreement2",
+      "text": "[LOGO]\n\nAMENDMENT TO SECTION 2, PART B OF THE CO-BRANDING AGREEMENT\n\nThis amendment to Section 2 (titled \"Term\"), Part B of the Co-Branding Agreement is made effective December 9, 1996 by and between PC Quote, Inc. (hereinafter referred to as \"PCQ\") and A.B. Watley, Inc. (hereinafter referred to as \"ABW\"), who are also the parties contracted in the aforementioned Co-Branding Agreement. This Amendment shall apply to said PCQ and ABW and all of their subsidiaries and related companies.\n\n[***]\n\nSource: PCQUOTE COM INC, S-1/A, 7/21/1999\n\n\n\n\n\nAGREED TO BY:\n\n/s/ Steven Malin /s/ Howard Meltzer - -------------------------- --------------------------------- A.B. Watley, Inc. PC Quote, Inc. Mr. Steven Malin Mr. Howard Meltzer Director President Date:  12/5/96 Date:   12/12/96      -------------- ----------------\n\nSource: PCQUOTE COM INC, S-1/A, 7/21/1999"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "cuad_smoke_1",
+      "document_id": "GALACTICOMMTECHNOLOGIESINC_11_07_1997-EX-10.46-WEB HOSTING AGREEMENT",
+      "category": "Document Name",
+      "question": "Highlight the parts (if any) of this contract related to \"Document Name\" that should be reviewed by a lawyer. Details: The name of the contract",
+      "gold_answer": "WEB HOSTING AGREEMENT"
+    },
+    {
+      "question_id": "cuad_smoke_2",
+      "document_id": "GALACTICOMMTECHNOLOGIESINC_11_07_1997-EX-10.46-WEB HOSTING AGREEMENT",
+      "category": "Agreement Date",
+      "question": "Highlight the parts (if any) of this contract related to \"Agreement Date\" that should be reviewed by a lawyer. Details: The date of the contract",
+      "gold_answer": "9/9/97"
+    },
+    {
+      "question_id": "cuad_smoke_3",
+      "document_id": "CardlyticsInc_20180112_S-1_EX-10.16_11002987_EX-10.16_Maintenance Agreement3",
+      "category": "Effective Date",
+      "question": "Highlight the parts (if any) of this contract related to \"Effective Date\" that should be reviewed by a lawyer. Details: The date when the contract is effective ",
+      "gold_answer": "March 3, 2011"
+    },
+    {
+      "question_id": "cuad_smoke_4",
+      "document_id": "SoupmanInc_20150814_8-K_EX-10.1_9230148_EX-10.1_Franchise Agreement3",
+      "category": "Governing Law",
+      "question": "Highlight the parts (if any) of this contract related to \"Governing Law\" that should be reviewed by a lawyer. Details: Which state/country's law governs the interpretation of the contract?",
+      "gold_answer": "The Master Franchise Agreement requires application of the laws of New York."
+    },
+    {
+      "question_id": "cuad_smoke_5",
+      "document_id": "PcquoteComInc_19990721_S-1A_EX-10.11_6377149_EX-10.11_Co-Branding Agreement2",
+      "category": "Document Name",
+      "question": "Highlight the parts (if any) of this contract related to \"Document Name\" that should be reviewed by a lawyer. Details: The name of the contract",
+      "gold_answer": "AMENDMENT TO SECTION 2, PART B OF THE CO-BRANDING AGREEMENT"
+    }
+  ]
+}
