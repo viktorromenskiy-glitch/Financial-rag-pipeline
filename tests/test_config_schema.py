@@ -1,18 +1,21 @@
 """Tests for config/config_schema.py's GenerationConfig.prompt_variant
-(Фаза 5, docs/tehnicheskoe_zadanie.md section 28) and PersistenceConfig
-("Правила сохранения долгих платных прогонов", 2026-08-24) - and the
-config files under config/ that set them.
+(Фаза 5, docs/tehnicheskoe_zadanie.md section 28), PersistenceConfig
+("Правила сохранения долгих платных прогонов", 2026-08-24), and
+AgentConfig (agent/, itog_ekspertizy_agent_profil.md - 4-expert design
+review, consensus item 3: the bounded-loop limit must be a config value,
+not a constant in code) - and the config files under config/ that set
+them.
 
 Not a general PipelineConfig test suite - just the pieces added for
-Фаза 5 and the persistence rule, since no test_config_schema.py existed
-before this change.
+Фаза 5, the persistence rule, and agent/, since no test_config_schema.py
+existed before Фаза 5.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from config.config_schema import GenerationConfig, PersistenceConfig, load_config
+from config.config_schema import AgentConfig, GenerationConfig, PersistenceConfig, load_config
 
 
 def test_generation_config_prompt_variant_defaults_to_baseline():
@@ -60,3 +63,38 @@ def test_real_config_files_set_the_canonical_drive_results_dir(monkeypatch, path
     monkeypatch.setenv("MONGODB_URI", "mongodb://fake-for-test")
     config = load_config(path)
     assert config.persistence.google_drive_results_dir == "/content/drive/MyDrive/RAG-project/results"
+
+
+def test_agent_config_requires_max_additional_tool_calls():
+    with pytest.raises(Exception):
+        AgentConfig()
+
+
+def test_agent_config_rejects_negative_max_additional_tool_calls():
+    with pytest.raises(Exception):
+        AgentConfig(max_additional_tool_calls=-1)
+
+
+def test_agent_config_accepts_zero():
+    # 0 is a valid, deliberate value - disables re-querying entirely.
+    assert AgentConfig(max_additional_tool_calls=0).max_additional_tool_calls == 0
+
+
+def test_pipeline_config_agent_defaults_to_two_when_omitted():
+    # config_cite_and_check.yaml / config_formula_base.yaml predate
+    # agent/ and don't declare an `agent:` section at all - the schema
+    # default (the 4-expert consensus value, 2) must still apply, the
+    # same convention persistence's default already follows.
+    from config.config_schema import PipelineConfig
+
+    assert PipelineConfig.model_fields["agent"].default_factory().max_additional_tool_calls == 2
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["config/config.yaml", "config/config_cite_and_check.yaml", "config/config_formula_base.yaml"],
+)
+def test_real_config_files_set_max_additional_tool_calls_to_two(monkeypatch, path):
+    monkeypatch.setenv("MONGODB_URI", "mongodb://fake-for-test")
+    config = load_config(path)
+    assert config.agent.max_additional_tool_calls == 2
