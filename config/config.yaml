@@ -52,6 +52,20 @@ agent:
   # (4 независимых эксперта, консенсус п.3): лимит как параметр конфигурации,
   # не константа в коде.
   max_additional_tool_calls: 2
+  # День 2 — per-question wall-clock предохранитель (agent/loop.py's
+  # run_agent_query max_wall_clock_seconds). null = выключен. Значение
+  # ниже — консервативный запас на 1 обязательный + 2 дополнительных
+  # цикла assessment/retrieval + финальную генерацию одного вопроса.
+  max_wall_clock_seconds: 120
+
+agent_eval:
+  # День 2 — глобальные предохранители на ВЕСЬ прогон evaluation harness
+  # (scripts/run_agent_eval.py), не на один вопрос — см.
+  # config/config_schema.py's AgentEvalConfig для полного расчёта.
+  max_llm_calls: 400
+  max_wall_clock_seconds: 5400
+  max_estimated_cost_usd: 10.0
+  cost_per_llm_call_usd: 0.02
 
 persistence:
   # Канонический путь сохранения результатов платных прогонов на Google Drive —

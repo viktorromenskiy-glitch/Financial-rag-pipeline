@@ -130,9 +130,60 @@ class AgentConfig(BaseModel):
     0 is a valid value (disables re-querying entirely - the agent still
     runs its one mandatory search and evidence assessment, but never
     reformulates).
+
+    max_wall_clock_seconds (День 2, plan_rabot_posle_ekspertizy_agent_profil.md,
+    "Глобальные предохранители: максимум токенов / wall-clock / стоимость
+    на прогон"): an optional per-QUESTION safety limit passed straight
+    through to agent.loop.run_agent_query's max_wall_clock_seconds param -
+    see that function's docstring for exactly when it is checked. None
+    (the default) disables it entirely, so every config file written
+    before this field existed keeps loading and behaving unchanged. This
+    is distinct from AgentEvalConfig below, which caps a whole evaluation
+    RUN (many questions), not one question.
     """
 
     max_additional_tool_calls: int = Field(ge=0)
+    max_wall_clock_seconds: float | None = Field(default=None, ge=0)
+
+
+class AgentEvalConfig(BaseModel):
+    """Global safety limits for a whole Day 2 agent-evaluation harness run
+    (scripts/run_agent_eval.py) - plan_rabot_posle_ekspertizy_agent_profil.md,
+    День 2: "Глобальные предохранители: максимум токенов / wall-clock /
+    стоимость на прогон" plus "Зафиксировать заранее бюджет
+    evaluation-прогона (число LLM-вызовов × стоимость)".
+
+    Distinct from AgentConfig.max_wall_clock_seconds above, which caps a
+    single question's loop, not the whole run - see agent/safety.py's
+    RunBudgetTracker, which these fields configure.
+
+    Every field is optional/None-disables-it and defaults are set here
+    (not left unset) so `python scripts/run_agent_eval.py` has a sane,
+    pre-committed budget out of the box rather than requiring the person
+    running it to first go compute one - matching the "fix the budget in
+    advance" requirement rather than leaving it to be decided ad hoc
+    during a live paid run. Sizing rationale for the defaults below
+    (n=20-30 questions, config.agent.max_additional_tool_calls=2):
+    worst case per agent question is 1 mandatory + 2 additional
+    assessments (3) + 1 final-answer generation = 4 agent LLM calls, plus
+    1 baseline generation call, plus up to 2 judge calls (the normal
+    correctness judge, and - only on a forced/INSUFFICIENT_CONTEXT answer -
+    agent.success's insufficiency judge) = up to 7/question; at n=30 that
+    is ~210 calls, so max_llm_calls=400 leaves comfortable headroom
+    without being effectively unlimited. cost_per_llm_call_usd=0.02 is a
+    deliberately conservative flat estimate (this pipeline's real
+    per-question judged-eval cost has been documented elsewhere in this
+    project at roughly $0.015-0.016/question for a full retrieve+rerank+
+    generate+judge pass - $0.02/call is conservative per CALL, not per
+    question) - real per-call cost varies by prompt/response length and
+    is not tracked exactly here (see agent/safety.py's module docstring
+    on why this counts calls, not tokens).
+    """
+
+    max_llm_calls: int | None = Field(default=400, ge=1)
+    max_wall_clock_seconds: float | None = Field(default=5400, ge=0)
+    max_estimated_cost_usd: float | None = Field(default=10.0, ge=0)
+    cost_per_llm_call_usd: float = Field(default=0.02, ge=0)
 
 
 class PersistenceConfig(BaseModel):
@@ -161,6 +212,10 @@ class PipelineConfig(BaseModel):
     # and config_formula_base.yaml - written before agent/ existed - keep
     # loading unchanged, same convention as persistence's default above.
     agent: AgentConfig = Field(default_factory=lambda: AgentConfig(max_additional_tool_calls=2))
+    # День 2 - see AgentEvalConfig's docstring for the default values'
+    # rationale. Same "defaults so old config files keep loading
+    # unchanged" convention as `agent` above.
+    agent_eval: AgentEvalConfig = Field(default_factory=AgentEvalConfig)
 
 
 def _substitute_env_vars(value: Any) -> Any:
