@@ -14,12 +14,41 @@ only ever takes `question_text` as a value, never a filter expression),
 but the design review explicitly required this to be pinned down by a
 test rather than left as a fact of today's code that a future refactor
 could silently break - see test_agent_tools.py.
+
+Graceful degradation (День 2 of plan_rabot_posle_ekspertizy_agent_profil.md,
+"Безопасность, robustness, evaluation harness" - 2 of the 2 required
+scenarios, the empty-retrieval scenario being handled in agent/loop.py):
+a transient failure of an external service must not crash the whole
+bounded loop (and, in a real evaluation run, the whole batch of
+questions after it). Two independent degradation paths below, both gated
+on pipeline.common.retry.is_transient_error - the same classification the
+retry layer already uses - so a genuine bug (a 4xx/programming error) is
+never silently swallowed, only a real 429/5xx/connection/timeout failure
+that has already exhausted retrieve()'s/rerank()'s own retry budget:
+
+  1. MongoDB (retrieve()) fails: retrieve() has no retry wrapper of its
+     own (unlike rerank() below) - a transient pymongo failure reaches
+     here directly. Degrades to an empty SearchToolCall (candidates=())
+     rather than raising - agent/loop.py's existing STOP_EMPTY_EVIDENCE
+     path (Day 1) already handles zero evidence gracefully, so this
+     reuses that path instead of adding a second one.
+  2. Cohere (rerank()) fails after its own @retryable() budget is
+     exhausted: degrades to the unreranked top reranker_top_n candidates
+     (the same fallback path already used when reranker_enabled is False)
+     rather than losing MongoDB's retrieval results entirely - a rerank
+     outage should cost result quality, not the whole answer.
+
+Both paths are recorded on the returned SearchToolCall (`degraded`,
+`degradation_reason`) rather than raised or silently dropped, so a real
+run's JSONL trace (agent/loop.py's `_trace_retrieval`) shows exactly when
+and why a call degraded.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pipeline.common.retry import is_transient_error
 from pipeline.embedding import MODEL as DEFAULT_EMBEDDING_MODEL
 from pipeline.embedding import VoyageClientProtocol
 from pipeline.reranking import CohereClientProtocol, RerankedCandidate, rerank
@@ -60,10 +89,19 @@ SEARCH_DOCUMENTS_TOOL_SPEC: dict = {
 class SearchToolCall:
     """The result of one search_documents execution: the query that was
     actually run (echoed back so callers/traces don't need to track it
-    separately) and the ranked candidates it returned."""
+    separately) and the ranked candidates it returned.
+
+    `degraded`/`degradation_reason` (День 2): set when a transient
+    MongoDB or Cohere failure forced this call to return a lesser result
+    (empty or unreranked candidates - see module docstring) instead of
+    raising. Both default to the Day 1 values (False/None) so every Day 1
+    call site and test that constructs a SearchToolCall without these
+    kwargs keeps working unchanged."""
 
     query: str
     candidates: tuple[RerankedCandidate | Candidate, ...]
+    degraded: bool = False
+    degradation_reason: str | None = None
 
     @property
     def context_ids(self) -> frozenset[str]:
@@ -107,19 +145,51 @@ def search_documents(
     if not query or not query.strip():
         raise ValueError("search_documents requires a non-empty query")
 
-    candidates = retrieve(
-        voyage_client,
-        collection,
-        query,
-        pool_size=pool_size,
-        vector_weight=vector_weight,
-        text_weight=text_weight,
-        source_dataset=source_dataset,
-        exclude_source_datasets=exclude_source_datasets,
-        embedding_model=embedding_model,
-    )
+    try:
+        candidates = retrieve(
+            voyage_client,
+            collection,
+            query,
+            pool_size=pool_size,
+            vector_weight=vector_weight,
+            text_weight=text_weight,
+            source_dataset=source_dataset,
+            exclude_source_datasets=exclude_source_datasets,
+            embedding_model=embedding_model,
+        )
+    except Exception as exc:
+        if not is_transient_error(exc):
+            raise
+        # Graceful degradation, scenario 2 (module docstring): MongoDB/Voyage
+        # unavailable after retrieve()'s own retry budget (voyage embed calls
+        # only - retrieve()'s collection.aggregate() call has no retry of its
+        # own) is exhausted. No candidates at all is a legitimate, gracefully
+        # handled outcome - agent/loop.py's STOP_EMPTY_EVIDENCE path already
+        # exists for exactly this shape of result.
+        return SearchToolCall(
+            query=query,
+            candidates=(),
+            degraded=True,
+            degradation_reason=f"retrieval_unavailable: {type(exc).__name__}: {exc}",
+        )
+
     if reranker_enabled and candidates and cohere_client is not None:
-        ranked = rerank(cohere_client, query, candidates, top_n=reranker_top_n)
+        try:
+            ranked = rerank(cohere_client, query, candidates, top_n=reranker_top_n)
+        except Exception as exc:
+            if not is_transient_error(exc):
+                raise
+            # Graceful degradation, scenario 2: Cohere unavailable after
+            # rerank()'s own @retryable() budget is exhausted. Falls back to
+            # the unreranked top reranker_top_n candidates - the same
+            # fallback already used when reranker_enabled is False - rather
+            # than losing MongoDB's retrieval results entirely.
+            return SearchToolCall(
+                query=query,
+                candidates=tuple(candidates[:reranker_top_n]),
+                degraded=True,
+                degradation_reason=f"reranker_unavailable: {type(exc).__name__}: {exc}",
+            )
     else:
         ranked = candidates[:reranker_top_n]
     return SearchToolCall(query=query, candidates=tuple(ranked))
