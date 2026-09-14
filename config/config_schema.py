@@ -118,6 +118,23 @@ class RetryConfig(BaseModel):
         return self
 
 
+class AgentConfig(BaseModel):
+    """Bounded agentic tool-use loop for agent/ (see itog_ekspertizy_agent_profil.md,
+    the 4-expert design review of this extension - consensus item 3).
+
+    max_additional_tool_calls caps how many EXTRA search_documents calls
+    the agent may make after its mandatory first search, before it must
+    stop and answer (or give up - see agent/loop.py's forced-insufficient
+    policy). Deliberately a config value, not a constant in agent/loop.py -
+    all four independent experts explicitly rejected a hardcoded limit.
+    0 is a valid value (disables re-querying entirely - the agent still
+    runs its one mandatory search and evidence assessment, but never
+    reformulates).
+    """
+
+    max_additional_tool_calls: int = Field(ge=0)
+
+
 class PersistenceConfig(BaseModel):
     # "Правила сохранения долгих платных прогонов" (project doc,
     # 2026-08-24): THE canonical persistent-storage root, set once here,
@@ -140,6 +157,10 @@ class PipelineConfig(BaseModel):
     judge: JudgeConfig
     retry: RetryConfig
     persistence: PersistenceConfig = PersistenceConfig()
+    # Defaults to 2 (the 4-expert consensus value) so config_cite_and_check.yaml
+    # and config_formula_base.yaml - written before agent/ existed - keep
+    # loading unchanged, same convention as persistence's default above.
+    agent: AgentConfig = Field(default_factory=lambda: AgentConfig(max_additional_tool_calls=2))
 
 
 def _substitute_env_vars(value: Any) -> Any:
