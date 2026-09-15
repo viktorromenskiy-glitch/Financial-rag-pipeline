@@ -224,6 +224,10 @@ pip install -r requirements.txt
 
 Небольшой Gradio-интерфейс для просмотра 13 отобранных вручную пар вопрос/ответ из закоммиченного прогона n=250 (results/error_analysis_250/) — реальные вопросы, gold-ответы, ответы модели и вердикты судьи. Сознательно не живое демо пайплайна: не делает вызовов к MongoDB Atlas, Voyage, Cohere или Claude API, поэтому не требует ключей и ничего не стоит — воспроизводит уже посчитанный и уже проверенный результат, а не свежий вызов retrieval+generation+judge на каждый вопрос. 6 примеров — базовые случаи, где судья согласен (по два на каждый source_dataset); 7 — задокументированные случаи ошибок или несогласия судьи с детерминированной проверкой из docs/tehnicheskoe_zadanie.md, раздел 14, и tests/test_is_close_v2_error_analysis.py — отобраны намеренно, чтобы показать реальные, уже раскрытые типы ошибок пайплайна, а не только лучшие результаты.
 
+**Живое демо (без установки):** [huggingface.co/spaces/ViktorPetrov123/financial-rag-pipeline-demo](https://huggingface.co/spaces/ViktorPetrov123/financial-rag-pipeline-demo)
+
+Или запустить локально:
+
 pip install -r requirements-demo.txt (тянет только gradio; собственные зависимости пайплайна для этого демо не нужны)
 python -m demo.app — открывается на http://127.0.0.1:7860
 
