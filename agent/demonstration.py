@@ -75,18 +75,60 @@ class DemonstrationCase:
     note: str
 
 
+@dataclass(frozen=True)
+class MatchedQuestionClassification:
+    """The same four buckets `select_demonstration_cases` classifies
+    matched questions into, exposed on their own so a caller can inspect
+    ALL discordant questions (a_only + b_only), not only the one
+    pre-registered representative of each bucket that
+    `select_demonstration_cases` shows - see
+    scripts/render_demonstration_cases.py's --all-discordant flag."""
+
+    a_only: tuple[str, ...]
+    b_only: tuple[str, ...]
+    both_wrong: tuple[str, ...]
+    both_correct: tuple[str, ...]
+
+
 def _matched_question_ids(baseline_records: dict[str, dict], agent_records: dict[str, dict]) -> list[str]:
     return sorted(set(baseline_records) & set(agent_records))
 
 
-def select_demonstration_cases(
+def _as_bool(value: object, *, field: str, question_id: str) -> bool:
+    """Rejects anything that isn't already a real bool, instead of doing
+    Python's usual truthy coercion.
+
+    `bool("False")` is `True` - a string value of "False" (e.g. from a
+    result record that was round-tripped through something that stringifies
+    fields) would silently coerce to a correct-looking bool and could move
+    a question into the wrong bucket without any error. Since which bucket
+    a question lands in directly decides which demonstration case gets
+    shown, a silent miscoercion here is exactly the kind of thing the
+    anti-cherry-picking guarantee is supposed to rule out - so this fails
+    loudly instead.
+    """
+    if not isinstance(value, bool):
+        raise TypeError(
+            f"{field!r} for question_id={question_id!r} is {value!r} ({type(value).__name__}), not a bool - "
+            "refusing to silently coerce with bool(...) (e.g. bool('False') is True in Python), since that could "
+            "silently move this question into the wrong bucket"
+        )
+    return value
+
+
+def classify_matched_questions(
     baseline_records: dict[str, dict],
     agent_records: dict[str, dict],
     *,
     agent_success_field: str = "success",
     baseline_success_field: str = "judge_correct",
-) -> list[DemonstrationCase]:
-    """Applies the pre-registered rule above to two loaded results sets.
+) -> MatchedQuestionClassification:
+    """Applies the pre-registered bucket rule (see module docstring) to two
+    loaded results sets and returns all four buckets in full - the part of
+    `select_demonstration_cases` that picks ONE representative per bucket
+    is deliberately separate (below), so a caller that wants to see every
+    discordant question, not just the pre-registered representative, can
+    call this directly instead of re-deriving the buckets itself.
 
     `baseline_records`/`agent_records`: {question_id: record}, matching
     exactly the shape scripts/run_agent_eval.py's `_load_jsonl_checkpoint`
@@ -97,11 +139,10 @@ def select_demonstration_cases(
 
     Raises:
         ValueError: if there is no question_id present in both inputs at
-            all - there is nothing to select a demonstration case from,
-            and returning an empty list silently would look like "ran
-            fine, found nothing worth showing" rather than "the two
-            result sets don't overlap", which is almost certainly a bug
-            in whatever produced them.
+            all - there is nothing to classify, and returning empty
+            buckets silently would look like "ran fine, found nothing"
+            rather than "the two result sets don't overlap", which is
+            almost certainly a bug in whatever produced them.
     """
     matched = _matched_question_ids(baseline_records, agent_records)
     if not matched:
@@ -110,16 +151,53 @@ def select_demonstration_cases(
     a_only: list[str] = []
     b_only: list[str] = []
     both_wrong: list[str] = []
+    both_correct: list[str] = []
     for question_id in matched:
-        a_correct = bool(agent_records[question_id][agent_success_field])
-        b_correct = bool(baseline_records[question_id][baseline_success_field])
+        a_correct = _as_bool(
+            agent_records[question_id][agent_success_field], field=agent_success_field, question_id=question_id
+        )
+        b_correct = _as_bool(
+            baseline_records[question_id][baseline_success_field], field=baseline_success_field, question_id=question_id
+        )
         if a_correct and not b_correct:
             a_only.append(question_id)
         elif not a_correct and b_correct:
             b_only.append(question_id)
         elif not a_correct and not b_correct:
             both_wrong.append(question_id)
-        # both_correct: neither bucket - not a candidate for either case.
+        else:
+            both_correct.append(question_id)
+
+    return MatchedQuestionClassification(
+        a_only=tuple(a_only), b_only=tuple(b_only), both_wrong=tuple(both_wrong), both_correct=tuple(both_correct)
+    )
+
+
+def select_demonstration_cases(
+    baseline_records: dict[str, dict],
+    agent_records: dict[str, dict],
+    *,
+    agent_success_field: str = "success",
+    baseline_success_field: str = "judge_correct",
+) -> list[DemonstrationCase]:
+    """Applies the pre-registered rule above to two loaded results sets,
+    picking exactly one representative question_id per case slot (the
+    lowest-question_id entry of the relevant bucket - see
+    `classify_matched_questions` above for the full, unfiltered buckets).
+
+    Raises:
+        ValueError: see `classify_matched_questions` - propagated from
+            there when the two result sets don't overlap at all.
+    """
+    classification = classify_matched_questions(
+        baseline_records,
+        agent_records,
+        agent_success_field=agent_success_field,
+        baseline_success_field=baseline_success_field,
+    )
+    a_only = list(classification.a_only)
+    b_only = list(classification.b_only)
+    both_wrong = list(classification.both_wrong)
 
     cases: list[DemonstrationCase] = []
 
@@ -128,7 +206,11 @@ def select_demonstration_cases(
             DemonstrationCase(
                 question_id=a_only[0],
                 role=ROLE_AGENT_HELPED,
-                note="Baseline answered this incorrectly; the agent's extra retrieval/assessment round(s) got it right.",
+                note=(
+                    "Baseline answered this incorrectly; the agent's final answer was judged correct. The selector "
+                    "only compares these two final outcomes - it does not know, and does not claim, that the "
+                    "agent's extra retrieval/assessment round(s) specifically were the reason for the difference."
+                ),
             )
         )
     else:
