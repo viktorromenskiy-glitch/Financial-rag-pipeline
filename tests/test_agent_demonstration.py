@@ -15,6 +15,7 @@ from agent.demonstration import (
     ROLE_AGENT_DID_NOT_HELP,
     ROLE_AGENT_HELPED,
     ROLE_AGENT_HURT,
+    classify_matched_questions,
     select_demonstration_cases,
 )
 
@@ -122,3 +123,56 @@ def test_result_always_has_exactly_two_case_slots():
     cases = select_demonstration_cases(baseline, agent)
     assert len(cases) == 2
     assert {c.role for c in cases} == {ROLE_AGENT_HELPED, ROLE_AGENT_HURT}
+
+
+def test_non_bool_success_field_raises_instead_of_silently_coercing():
+    """Regression guard: bool("False") is True in Python. A record whose
+    success field was stringified (e.g. "False") must not silently coerce
+    to a correct-looking bool and move the question into the wrong
+    bucket - it must raise instead."""
+    baseline = {"q1": {"judge_correct": "False"}}
+    agent = {"q1": {"success": True}}
+    with pytest.raises(TypeError, match="not a bool"):
+        select_demonstration_cases(baseline, agent)
+
+
+def test_non_bool_agent_success_field_raises_too():
+    baseline = {"q1": {"judge_correct": False}}
+    agent = {"q1": {"success": "True"}}
+    with pytest.raises(TypeError, match="not a bool"):
+        select_demonstration_cases(baseline, agent)
+
+
+def test_classify_matched_questions_returns_all_four_buckets_in_full():
+    """classify_matched_questions must expose every discordant question,
+    not just the one representative select_demonstration_cases picks -
+    this is what scripts/render_demonstration_cases.py's --all-discordant
+    flag relies on."""
+    baseline = _baseline(q1=False, q2=False, q3=True, q4=True, q5=True)
+    agent = _agent(q1=True, q2=True, q3=False, q4=False, q5=True)
+    # a_only: q1, q2 (agent right, baseline wrong)
+    # b_only: q3, q4 (baseline right, agent wrong)
+    # both_correct: q5
+    result = classify_matched_questions(baseline, agent)
+    assert result.a_only == ("q1", "q2")
+    assert result.b_only == ("q3", "q4")
+    assert result.both_wrong == ()
+    assert result.both_correct == ("q5",)
+
+
+def test_classify_matched_questions_and_select_demonstration_cases_agree():
+    """Regression guard: select_demonstration_cases must always pick its
+    representative from the same buckets classify_matched_questions
+    reports - the two must never silently drift apart after the refactor
+    that introduced classify_matched_questions."""
+    baseline = _baseline(q3=False, q1=False, q2=True)
+    agent = _agent(q3=True, q1=True, q2=True)
+    classification = classify_matched_questions(baseline, agent)
+    cases = select_demonstration_cases(baseline, agent)
+    positive = next(c for c in cases if c.role == ROLE_AGENT_HELPED)
+    assert positive.question_id == classification.a_only[0]
+
+
+def test_classify_matched_questions_raises_on_no_overlap():
+    with pytest.raises(ValueError, match="No question_id"):
+        classify_matched_questions(_baseline(q1=True), _agent(q2=True))
