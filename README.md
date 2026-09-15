@@ -25,6 +25,10 @@ Headline numbers: 76.0% answer accuracy end-to-end (retrieval + reranking + gene
 
 What it is, plainly: a rigorously measured answer to "which RAG design choices actually help on hard financial documents, and by how much" — every claim below is backed by a statistical test against this project's own baseline, not a single demo run. What it isn't: a production system — no query-time classifier, serving API, or monitoring yet; and not a drop-in tool for arbitrary client documents — ingestion is currently limited to the T²-RAGBench benchmark format (see Known limitations). The 76.0% headline figure is this pipeline's measured performance on that fixed benchmark, not a guarantee of performance on any other dataset. The complete, honest list of what's confirmed versus still open is in Known limitations, in the technical section below.
 
+Stack: MongoDB Atlas (vector + text search), Voyage AI embeddings, Cohere Rerank, Anthropic Claude (generation + judging), Python.
+
+For a client with a similar problem — question-answering over financial or other numeric-heavy documents where a wrong answer is costly — this is the kind of system I build: a retrieval pipeline whose design choices are validated with statistical tests against measured baselines, not tuned to look good on a handful of hand-picked examples, extended with a query-time classifier, a serving API, and monitoring for production use.
+
 Everything from here down is the deep-tech appendix — architecture, every experiment with its statistics, comparisons to published work and to open RAG frameworks, cost derivation, and known limitations. Written for engineers and technical reviewers; the summary above is enough if that's not what you're looking for.
 
 ⸻ Deep Tech appendix ⸻
