@@ -63,6 +63,7 @@ from config.config_schema import load_config  # noqa: E402
 from pipeline.cli import ClaudeGenerator, ClaudeJudge, build_clients, load_eval_questions, _resolve_embedding_model  # noqa: E402
 from pipeline.common.paired_stats import compare_paired_binary_outcomes  # noqa: E402
 from pipeline.common.run_config import write_run_config  # noqa: E402
+from pipeline.common.run_manifest import write_run_manifest_if_absent  # noqa: E402
 from pipeline.common.sampling import stratified_sample  # noqa: E402
 from pipeline.evaluation import evaluate_answer  # noqa: E402
 from pipeline.generation import build_context_block, generate_answer  # noqa: E402
@@ -71,6 +72,22 @@ from pipeline.retrieval import Candidate  # noqa: E402
 
 
 def _load_jsonl_checkpoint(path: Path, key: str) -> dict[str, dict]:
+    """Loads a checkpoint JSONL into {key_value: record}.
+
+    Raises:
+        ValueError: if the same key value (question_id/canary_id) appears
+            twice in the file. The main loop below only ever appends a
+            record for a question_id after confirming it's NOT already in
+            this dict (see `if question_id not in baseline_done:`), so a
+            duplicate here means the file itself is corrupted - a crash
+            mid-write, a manual edit, or two processes appending
+            concurrently - not a normal resume. Silently keeping "last
+            write wins" would let a corrupted checkpoint silently move a
+            question into the wrong bucket downstream (see
+            agent/demonstration.py's anti-cherry-picking selection, which
+            trusts these dicts completely) - this fails loudly instead,
+            before any further (possibly paid) API calls are made.
+    """
     if not path.exists():
         return {}
     done: dict[str, dict] = {}
@@ -80,7 +97,14 @@ def _load_jsonl_checkpoint(path: Path, key: str) -> dict[str, dict]:
             if not line:
                 continue
             rec = json.loads(line)
-            done[rec[key]] = rec
+            record_key = rec[key]
+            if record_key in done:
+                raise ValueError(
+                    f"{path} is corrupted: {key}={record_key!r} appears more than once. Refusing to silently "
+                    "keep only the last occurrence - inspect and fix the file (e.g. deduplicate manually, keeping "
+                    "whichever line is the real result) before resuming."
+                )
+            done[record_key] = rec
     return done
 
 
@@ -131,6 +155,23 @@ def main() -> None:
     all_questions = load_eval_questions(str(QUESTIONS_PATH))
     sample = stratified_sample(all_questions, SAMPLE_SIZE, key="source_dataset", seed=RANDOM_SEED)
     print(f"Sampled {len(sample)} questions (stratified by source_dataset, seed={RANDOM_SEED}) from {QUESTIONS_PATH}")
+
+    # Pre-registration manifest (claude/itog_ekspertizy_den3_dizayn.md, item
+    # 10): written now, before any API call and before any result exists,
+    # so scripts/render_demonstration_cases.py can later confirm the
+    # committed result files cover exactly this pre-committed question set -
+    # not a favorable subset from a different run. write_run_manifest_if_absent
+    # is a no-op on a resumed run (see its docstring), so this is safe to
+    # call on every invocation.
+    manifest_path = write_run_manifest_if_absent(
+        run_id=RUN_ID,
+        config=config.model_dump(),
+        expected_question_ids=[item["question_id"] for item in sample],
+        expected_canary_ids=[canary.canary_id for canary in CANARY_CASES],
+        repo_root=REPO_ROOT,
+        results_dir=str(REPO_ROOT / "results"),
+    )
+    print(f"Pre-registration manifest: {manifest_path}")
 
     limits = RunSafetyLimits(
         max_llm_calls=config.agent_eval.max_llm_calls,
