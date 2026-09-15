@@ -223,6 +223,10 @@ Minimal demo
 
 A small Gradio UI for browsing 13 hand-picked question/answer pairs from the committed n=250 run (results/error_analysis_250/) — real questions, gold answers, model output, and judge verdicts. Deliberately not a live pipeline demo: it makes no MongoDB Atlas, Voyage, Cohere, or Claude API calls, so it needs no credentials and costs nothing to run — it replays already-computed, already-audited output, not a fresh retrieval+generation+judge call per question. 6 examples are judge-correct baseline cases (two per source_dataset); 7 are documented failure or judge/deterministic-disagreement cases from docs/tehnicheskoe_zadanie.md, section 14, and tests/test_is_close_v2_error_analysis.py — chosen deliberately to show the pipeline's actual, already-disclosed error modes, not just its best-looking outputs.
 
+**Live demo (no setup needed):** [huggingface.co/spaces/ViktorPetrov123/financial-rag-pipeline-demo](https://huggingface.co/spaces/ViktorPetrov123/financial-rag-pipeline-demo)
+
+Or run it locally:
+
 pip install -r requirements-demo.txt (only pulls gradio; the pipeline's own dependencies aren't needed for this demo)
 python -m demo.app — opens at http://127.0.0.1:7860
 
