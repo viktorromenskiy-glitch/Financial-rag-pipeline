@@ -207,16 +207,31 @@ def _parse_assessment(raw_response: str) -> EvidenceAssessment:
     a malformed response must never accidentally end the loop early and
     let the agent answer from evidence it never actually confirmed was
     enough.
+
+    Uses the LAST match of each marker in the response, not the first -
+    mirroring agent/success.py's _extract_insufficiency_verdict(), which
+    already does this for the same reason: a model that briefly reasons
+    out loud before committing to its final line (explicitly invited by
+    AGENT_ANSWER_PROMPT_TEMPLATE's "You may briefly work through the
+    calculation or reasoning") can echo or discuss the marker text before
+    stating its real verdict (e.g. quoting the format instructions back,
+    or reasoning "if SUFFICIENT: no, I would need X, but actually..."
+    before a final "SUFFICIENT: yes"). Taking the first match would then
+    parse the model's rough draft instead of its actual decision.
+    Confirmed as a real (if unmanifested - no real response in the 35
+    logged runs actually contained two SUFFICIENT/REFORMULATED QUERY
+    lines) parsing bug during external code review; see
+    claude/status_agent_rezultaty_4_nahodki_kod.md, находка 1.
     """
-    match = _SUFFICIENT_RE.search(raw_response)
-    if not match:
+    matches = list(_SUFFICIENT_RE.finditer(raw_response))
+    if not matches:
         return EvidenceAssessment(sufficient=False, reformulated_query=None)
-    sufficient = match.group(1).strip().lower() == "yes"
+    sufficient = matches[-1].group(1).strip().lower() == "yes"
 
     reformulated_query: str | None = None
-    reformulated_match = _REFORMULATED_RE.search(raw_response)
-    if reformulated_match:
-        value = reformulated_match.group(1).strip()
+    reformulated_matches = list(_REFORMULATED_RE.finditer(raw_response))
+    if reformulated_matches:
+        value = reformulated_matches[-1].group(1).strip()
         if value and value.upper() != "NONE":
             reformulated_query = value
     return EvidenceAssessment(sufficient=sufficient, reformulated_query=reformulated_query)
@@ -351,6 +366,13 @@ def run_agent_query(
     additional_calls_used = 0
     assessment: EvidenceAssessment | None = None
     stopped_reason: str
+    # Tracks whether `accumulated` has grown (via a reformulated-query
+    # search) since `assessment` was last computed. Set True right after
+    # accumulated.update() below; cleared right after each fresh
+    # assessor.assess() call. Exists to catch a real, confirmed edge case
+    # on the STOP_WALL_CLOCK_EXCEEDED path (see forced_insufficient below)
+    # - see claude/status_agent_rezultaty_4_nahodki_kod.md, находка 4.
+    assessment_is_stale = False
 
     if not accumulated:
         # Empty retrieval on the very first (mandatory) search: nothing to
@@ -391,6 +413,7 @@ def run_agent_query(
         calls_remaining = max_additional_tool_calls - additional_calls_used
         context_text = build_context_block(list(accumulated.values()))
         assessment = assessor.assess(question_text, context_text, calls_remaining)
+        assessment_is_stale = False
         _trace(
             "evidence_assessment",
             sufficient=assessment.sufficient,
@@ -420,14 +443,32 @@ def run_agent_query(
             stopped_reason = STOP_NO_NEW_DOCUMENTS
             break
         accumulated.update({c.context_id: c for c in call.candidates})
+        assessment_is_stale = True
         # loop back: re-assess against the newly enlarged context
 
     # `assessment` is None only via the STOP_WALL_CLOCK_EXCEEDED break on
     # the very first iteration (before any assessor.assess() call ever
-    # ran) - every other break/path above sets it first. Treat that case
-    # as insufficient too: there is no assessment verdict to trust, so the
-    # give-up policy applies exactly as if the assessor had said "no".
-    forced_insufficient = assessment is None or not assessment.sufficient
+    # ran) - every other break/path above sets it first.
+    #
+    # `assessment_is_stale` covers a related but distinct case, confirmed
+    # during external code review (see
+    # claude/status_agent_rezultaty_4_nahodki_kod.md, находка 4): a
+    # reformulated search can succeed in adding new documents to
+    # `accumulated`, and then STOP_WALL_CLOCK_EXCEEDED can fire at the top
+    # of the *next* iteration before assessor.assess() ever runs against
+    # that enlarged context. In that case `assessment` is not None, but it
+    # was computed on a smaller, now-outdated `accumulated` - it is not a
+    # verdict on the evidence this function is about to return. Treating a
+    # stale "insufficient" verdict as if it applied to the current,
+    # larger context would be lucky rather than correct: the enlarged
+    # context was never actually judged, favorable or not.
+    #
+    # Both cases mean the same thing: there is no assessment verdict that
+    # actually applies to the final `accumulated`, so the give-up policy
+    # applies exactly as if the assessor had just said "no" - the safe
+    # direction already used everywhere else in this module for a
+    # malformed or missing verdict (see _parse_assessment above).
+    forced_insufficient = assessment is None or assessment_is_stale or not assessment.sufficient
 
     if forced_insufficient:
         # Give-up policy (round-4 closing-expert addition): still
@@ -438,7 +479,12 @@ def run_agent_query(
         # agrees the question is unanswerable - see
         # plan_rabot_posle_ekspertizy_agent_profil.md, День 2.
         answer_text = INSUFFICIENT_CONTEXT_MARKER
-        _trace("answer", answer_text=answer_text, forced_insufficient=True)
+        _trace(
+            "answer",
+            answer_text=answer_text,
+            forced_insufficient=True,
+            stale_assessment=assessment_is_stale,
+        )
     else:
         generated = generate_answer(
             generator, question_id, question_text, list(accumulated.values()), template=prompt_template
