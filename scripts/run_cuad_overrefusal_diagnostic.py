@@ -220,7 +220,14 @@ def _categorize_gold(gold_answer: str) -> str:
 
 
 def _check_already_indexed(collection, records) -> None:
-    missing = sorted({r["context_id"] for r in records if not is_indexed(collection, r["context_id"])})
+    # records is list[pipeline.ingestion.DocumentRecord] straight from
+    # load_cuad_smoke_fixture() - a dataclass (attribute access via
+    # `.context_id`), NOT a dict. Unlike scripts/run_cuad_smoke.py, this
+    # function runs BEFORE dedupe_documents() (which is what converts
+    # DocumentRecord -> dict elsewhere in the codebase), so dict-style
+    # subscripting here was a bug: TypeError: 'DocumentRecord' object is
+    # not subscriptable.
+    missing = sorted({r.context_id for r in records if not is_indexed(collection, r.context_id)})
     if missing:
         raise RuntimeError(
             "CUAD smoke collection is missing document(s) this diagnostic needs to reuse "
@@ -253,7 +260,7 @@ def main() -> None:
     _check_already_indexed(collection, records)
     validate_startup_indexes(collection, check_source_dataset_filter=False)
     print(f"Reusing already-indexed cuad_smoke_v1 collection - {len(eval_items)} question(s), "
-          f"{len({r['context_id'] for r in records})} document(s), {len(VARIANTS)} prompt variant(s) each "
+          f"{len({r.context_id for r in records})} document(s), {len(VARIANTS)} prompt variant(s) each "
           f"= {len(eval_items) * len(VARIANTS)} assessor call(s) total.")
 
     drive_root = find_canonical_root(config.persistence.google_drive_results_dir)
