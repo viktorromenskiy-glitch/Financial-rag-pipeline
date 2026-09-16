@@ -141,6 +141,32 @@ def search_documents(
             the calling code (a malformed model tool-call should be
             rejected before it reaches here), not a case worth spending
             an API round-trip on.
+        ValueError: if `reranker_enabled` is True, `cohere_client` is
+            None, AND retrieve() actually returned candidates to rerank.
+            This combination is a caller/config bug, not a runtime
+            failure - pipeline.cli.build_clients() always supplies a real
+            Cohere client whenever reranker_enabled is True in an actual
+            run (COHERE_API_KEY is a hard requirement there), so this can
+            only happen if a caller constructs search_documents() by hand
+            with an inconsistent pair of arguments. Previously this fell
+            through to the same branch used for reranker_enabled=False
+            (see the `else` below) and returned a normal-looking,
+            degraded=False result - silently serving unreranked candidates
+            while claiming reranking was neither requested nor needed.
+            That masked a real misconfiguration as an ordinary result
+            instead of surfacing it. Found during external code review;
+            see claude/status_agent_rezultaty_4_nahodki_kod.md, находка 2.
+            Raising here (like the empty-query check above) matches this
+            module's existing split: a caller/config bug raises
+            immediately, while only genuine transient runtime failures
+            (MongoDB/Cohere unavailable - see the two `except` blocks
+            below) degrade gracefully instead of raising. Deliberately
+            NOT checked when `candidates` is empty (nothing would be
+            reranked either way in that case - see agent/loop.py's
+            STOP_EMPTY_EVIDENCE path, which already handles this
+            gracefully), so cohere_client=None stays a harmless default
+            for callers/tests that never actually reach the reranking
+            branch (e.g. an empty or transiently-failed retrieval).
     """
     if not query or not query.strip():
         raise ValueError("search_documents requires a non-empty query")
@@ -173,7 +199,12 @@ def search_documents(
             degradation_reason=f"retrieval_unavailable: {type(exc).__name__}: {exc}",
         )
 
-    if reranker_enabled and candidates and cohere_client is not None:
+    if reranker_enabled and candidates:
+        if cohere_client is None:
+            raise ValueError(
+                "search_documents was called with reranker_enabled=True and non-empty candidates, "
+                "but cohere_client=None - either pass a real Cohere client or set reranker_enabled=False"
+            )
         try:
             ranked = rerank(cohere_client, query, candidates, top_n=reranker_top_n)
         except Exception as exc:
