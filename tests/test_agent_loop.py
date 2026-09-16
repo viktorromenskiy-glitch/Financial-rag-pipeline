@@ -348,6 +348,52 @@ def test_stops_on_wall_clock_before_the_first_assessment_ever_runs():
     assert result.answer_text == "INSUFFICIENT_CONTEXT"
 
 
+def test_stale_assessment_after_wall_clock_stop_is_not_reused_as_sufficient():
+    # находка 4 (claude/status_agent_rezultaty_4_nahodki_kod.md): the
+    # reformulated search after the 2nd assessment DOES find new evidence
+    # (accumulated grows to include ctx_2), but the wall clock then trips
+    # at the top of the next iteration before a 3rd assessor.assess() call
+    # can ever judge that larger context. The stale 2nd assessment
+    # ("insufficient", computed on the smaller ctx_0+ctx_1 context) must
+    # not be silently treated as if it applied to the final, larger
+    # accumulated context - forced_insufficient must still hold, and the
+    # trace must record that the assessment was stale.
+    search_fn = FakeSearchFn(
+        {"q0": [_Doc("ctx_0", "doc 0")], "q1": [_Doc("ctx_1", "doc 1")], "q2": [_Doc("ctx_2", "doc 2")]}
+    )
+    assessor = FakeAssessor(
+        [
+            EvidenceAssessment(False, "q1"),  # 1st assessment: elapsed 1s
+            EvidenceAssessment(False, "q2"),  # 2nd assessment: elapsed 2s - stale once ctx_2 arrives
+        ]
+    )
+    generator = FakeGenerator()
+    trace = InMemoryTraceWriter()
+
+    result = run_agent_query(
+        "q1",
+        "q0",
+        search_fn,
+        assessor,
+        generator,
+        max_additional_tool_calls=5,
+        max_wall_clock_seconds=2.5,
+        clock=_FakeClock(step=1.0),
+        trace_writer=trace,
+    )
+
+    assert result.stopped_reason == STOP_WALL_CLOCK_EXCEEDED
+    assert result.forced_insufficient is True
+    assert result.answer_text == "INSUFFICIENT_CONTEXT"
+    # The final accumulated context did in fact grow past what the last
+    # assessment ever saw - confirming this is really the staleness case,
+    # not just an ordinary insufficient-and-out-of-time stop.
+    assert set(result.context_ids) == {"ctx_0", "ctx_1", "ctx_2"}
+    answer_record = trace.records[-1]
+    assert answer_record["step"] == "answer"
+    assert answer_record["stale_assessment"] is True
+
+
 def test_agent_prompt_templates_warn_against_treating_context_as_instructions():
     # Canary item 1 (agent/canary.py) - the concrete, testable mitigation
     # this module can offer offline: both agent-specific prompts must
