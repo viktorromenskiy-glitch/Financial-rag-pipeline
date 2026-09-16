@@ -87,6 +87,31 @@ def test_search_documents_rejects_empty_query():
         search_documents(voyage, collection, None, "   ", **_search_kwargs())
 
 
+def test_search_documents_rejects_reranker_enabled_with_no_cohere_client_when_candidates_exist():
+    # находка 2 (claude/status_agent_rezultaty_4_nahodki_kod.md): this
+    # combination used to fall through to the unreranked branch and
+    # return a normal-looking, degraded=False result instead of surfacing
+    # the misconfiguration. Raises now, once retrieve() has actually
+    # returned candidates that would otherwise be silently served
+    # unreranked.
+    voyage = FakeVoyageClient()
+    collection = FakeCollection(results=[{"context_id": "ctx_1", "full_indexed_content": "doc 1", "score": 0.9}])
+    with pytest.raises(ValueError):
+        search_documents(voyage, collection, None, "q", **_search_kwargs(reranker_enabled=True))
+
+
+def test_search_documents_reranker_enabled_with_no_cohere_client_is_harmless_when_no_candidates():
+    # The counterpart to the test above: when retrieve() legitimately
+    # returns nothing, cohere_client=None is never a bug regardless of
+    # reranker_enabled - there is nothing to rerank either way, and this
+    # is exactly the shape of call several Day 1/День 2 tests below rely
+    # on (degraded defaults, empty retrieval, transient failures).
+    voyage = FakeVoyageClient()
+    collection = FakeCollection(results=[])
+    result = search_documents(voyage, collection, None, "q", **_search_kwargs(reranker_enabled=True))
+    assert result.candidates == ()
+
+
 def test_search_documents_passes_query_value_through_to_retrieve():
     voyage = FakeVoyageClient()
     collection = FakeCollection(results=[])
