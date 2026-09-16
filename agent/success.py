@@ -97,11 +97,28 @@ def judge_context_insufficiency(judge: JudgeProtocol, question: str, context_tex
     same fail-safe direction as agent/loop.py's _parse_assessment: an
     ambiguous verdict must never accidentally count a refusal as
     successful.
+
+    Compares the extracted verdict by EXACT match against
+    "JUSTIFIED_REFUSAL", not by substring containment. A prior version
+    used `"JUSTIFIED_REFUSAL" in verdict and "SHOULD_HAVE_ANSWERED" not in
+    verdict`, which fails exactly the case it was meant to guard against:
+    a hedged or malformed verdict like "NOT JUSTIFIED_REFUSAL" contains
+    "JUSTIFIED_REFUSAL" as a literal substring and does not contain
+    "SHOULD_HAVE_ANSWERED", so the old check returned True - counting the
+    refusal as justified even though the judge's actual (if malformed)
+    answer was the opposite. That is the one place in this fail-safe chain
+    where the substring check pointed the wrong way: toward a false
+    success rather than toward "not justified" like every other malformed-
+    response case in this module. Found during external code review;
+    confirmed reproducible on this exact example (never manifested in any
+    of the 35 logged runs - all real verdicts were clean). See
+    claude/status_agent_rezultaty_4_nahodki_kod.md, находка 3, and
+    claude/verifikaciya_qwen_substring_bug.md for the full trace.
     """
     prompt = INSUFFICIENCY_JUDGE_PROMPT.format(question=question, context=context_text, gold_answer=gold_answer)
     raw = _judge_with_retry(judge, prompt)
-    verdict = _extract_insufficiency_verdict(raw).upper()
-    return "JUSTIFIED_REFUSAL" in verdict and "SHOULD_HAVE_ANSWERED" not in verdict
+    verdict = _extract_insufficiency_verdict(raw).strip().upper()
+    return verdict == "JUSTIFIED_REFUSAL"
 
 
 @dataclass(frozen=True)
