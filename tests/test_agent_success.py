@@ -75,6 +75,19 @@ def test_judge_context_insufficiency_fails_safe_to_not_justified_on_malformed_re
     assert judge_context_insufficiency(judge, "q?", "ctx", "42") is False
 
 
+def test_judge_context_insufficiency_hedged_verdict_is_not_justified():
+    # находка 3 (claude/status_agent_rezultaty_4_nahodki_kod.md,
+    # claude/verifikaciya_qwen_substring_bug.md): a hedged/malformed
+    # verdict like "NOT JUSTIFIED_REFUSAL" contains "JUSTIFIED_REFUSAL" as
+    # a literal substring and does not contain "SHOULD_HAVE_ANSWERED" - a
+    # substring-based check would wrongly return True here (the one place
+    # a substring check pointed toward a false success instead of the
+    # fail-safe "not justified" direction used everywhere else in this
+    # module). Exact-match comparison must return False.
+    judge = FakeJudge(["On reflection this is NOT JUSTIFIED_REFUSAL after all.\nVERDICT: NOT JUSTIFIED_REFUSAL"])
+    assert judge_context_insufficiency(judge, "q?", "ctx", "42") is False
+
+
 def test_judge_context_insufficiency_builds_prompt_with_question_context_and_gold():
     judge = FakeJudge(["VERDICT: JUSTIFIED_REFUSAL"])
     judge_context_insufficiency(judge, "What was net income?", "[Document 1]\nsome text", "500")
