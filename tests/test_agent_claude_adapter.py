@@ -60,6 +60,25 @@ def test_parse_assessment_empty_reformulated_query_value_is_none():
     assert result.reformulated_query is None
 
 
+def test_parse_assessment_uses_last_marker_not_first():
+    # находка 1 (claude/status_agent_rezultaty_4_nahodki_kod.md): a model
+    # that reasons out loud before committing can restate or reconsider
+    # the marker line more than once. The FIRST occurrence here is a
+    # draft the model explicitly reconsiders ("actually...") - only the
+    # LAST one is the real verdict, and _parse_assessment must return
+    # that one, mirroring agent/success.py's _extract_insufficiency_verdict
+    # (matches[-1]).
+    raw = (
+        "SUFFICIENT: no\n"
+        "REFORMULATED QUERY: total operating expenses 2020\n"
+        "actually, re-reading the passages, that number is already there.\n"
+        "SUFFICIENT: yes\n"
+        "REFORMULATED QUERY: NONE\n"
+    )
+    result = _parse_assessment(raw)
+    assert result == EvidenceAssessment(sufficient=True, reformulated_query=None)
+
+
 def test_claude_evidence_assessor_parses_the_underlying_client_response():
     client = FakeGenerator("SUFFICIENT: no\nREFORMULATED QUERY: total liabilities 2019\n")
     assessor = ClaudeEvidenceAssessor(client)
