@@ -70,6 +70,7 @@ retry:
 agent:
   max_additional_tool_calls: 2           # same bounded-loop config as production - this is what's being robustness-checked
   max_wall_clock_seconds: 120
+  enable_deictic_entity_guard: true      # validated specifically against this dataset's 5 real questions - see agent/loop.py's _deictic_entity_guard_should_block docstring and claude/itog_ekspertizy_cuad_overrefusal_fix.md, item 1. Left at the config default (false) in config/config.yaml for now - one variable at a time.
 
 agent_eval:
   # Меньше вопросов (5, не 20-30), поэтому меньше и предохранители на
