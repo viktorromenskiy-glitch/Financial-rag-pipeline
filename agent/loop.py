@@ -98,6 +98,7 @@ STOP_NO_NEW_DOCUMENTS = "no_new_documents"
 STOP_BUDGET_EXHAUSTED = "budget_exhausted"
 STOP_EMPTY_EVIDENCE = "empty_evidence"
 STOP_WALL_CLOCK_EXCEEDED = "wall_clock_exceeded"
+STOP_DEICTIC_ENTITY_GUARD = "deictic_entity_guard"
 
 # Shared by both agent-specific prompts below (not pipeline.generation's
 # templates - see module docstring's "День 2 additions" note). Placed
@@ -285,6 +286,193 @@ class AgentAnswer:
     context_documents: tuple[object, ...] = ()
 
 
+# Deictic/entity guard (claude/itog_ekspertizy_cuad_overrefusal_fix.md, "Что
+# осталось сделать", item 1). Rule-based, no LLM call and no dependency on
+# MongoDB/corpus metadata ("simple syntactic check" option, chosen over a
+# corpus-lookup version - the corpus-lookup alternative was considered and
+# deferred: see the project's own design discussion for this trade-off).
+# Runs BEFORE the mandatory first search_documents call in run_agent_query,
+# not just before the assessment call - the guard's verdict depends only on
+# question_text, so a real retrieval call could not change it, and skipping
+# retrieval too saves its cost/latency on every question the guard catches.
+#
+# What it checks: a deictic marker ("this"/"that"/"the" + contract/
+# agreement/document/filing) together with the ABSENCE of anything that
+# looks like a named entity elsewhere in the question. Both conditions must
+# hold - a deictic marker alone is common and harmless in a well-formed
+# question that also names the entity it refers to.
+#
+# Deliberately narrower than the illustrative marker list in the design
+# discussion ("this", "the company", "the contract" and similar) - "the
+# company"/generic "company" wording is NOT a trigger here. Two reasons,
+# both checked directly against real project data before this was written,
+# not assumed:
+#   1. scripts/run_financial_entity_ambiguity_diagnostic.py's narrow
+#      financial-domain check (28 real questions, paired original/
+#      anonymized comparison, see that script's docstring and
+#      claude/itog_ekspertizy_cuad_overrefusal_fix.md's "Результат узкой
+#      финансовой проверки") already found that removing just the company
+#      name from a real financial question, while the document-level
+#      metadata_prefix stays in the context, does not measurably change
+#      the assessor's sufficient=yes rate (22/28 identical in both
+#      conditions) - there is no over-refusal problem on this axis to
+#      guard against in the financial domain.
+#   2. Including "the company" as a trigger phrase has a real, checked
+#      false-positive cost: of 250 real financial questions
+#      (data/t2-ragbench/eval_subset_250.parquet), 14 contain the literal
+#      phrase "the company" - 13 of those also name the company elsewhere
+#      in the same question (so the entity-absence check below would still
+#      correctly let them through), but one genuinely does not name a
+#      company anywhere in its text. Guarding on "company" wording would
+#      force that real, currently-answerable-or-not-on-its-own-merits
+#      question into an artificial INSUFFICIENT_CONTEXT for no benefit
+#      (per point 1 above). "contract"/"agreement"/"document"/"filing"
+#      wording, by contrast, produced zero matches among all 250 real
+#      financial questions when checked the same way - these are
+#      legal-document terms that do not occur in this project's financial
+#      question phrasing at all, so there is no equivalent trade-off for
+#      excluding them.
+_DEICTIC_MARKER_RE = re.compile(r"\b(?:this|that|the)\s+(?:contract|agreement|document|filing)\b", re.IGNORECASE)
+# Matches both straight ASCII quotes and curly/typographic quotes
+# (U+2018/2019 single, U+201C/201D double) - a quoted span using curly
+# quotes (common when a question is copy-pasted from a word processor)
+# would otherwise not be stripped, letting an entity quoted that way leak
+# through as if it were unquoted prose. No real question in this
+# project's current data actually needs this (checked directly: only 1 of
+# the 250 real financial questions contains a curly character at all, and
+# it is a possessive apostrophe, not a quote pair - see
+# tests/test_agent_entity_guard.py), but the fix is cheap and removes a
+# real gap rather than leaving it as a documented limitation for no
+# reason. Found during external code review (round 1).
+_QUOTED_SPAN_RE = re.compile(r'"[^"]*"|‘[^’]*’|“[^”]*”')
+# Splits on a colon as well as sentence-ending punctuation - a deliberate,
+# corpus-specific simplification, not a general sentence-boundary rule: it
+# exists specifically so CUAD's "...reviewed by a lawyer. Details: The name
+# of the contract" treats "The" as sentence-initial (excluded below) rather
+# than as a random capitalized word mid-sentence. In general prose a colon
+# more often introduces a clause than starts a new sentence, so this can
+# also exclude a genuine entity that happens to appear as the single word
+# right after a colon (see _deictic_entity_guard_has_named_entity's
+# docstring, "known false-negative gaps") - accepted for now because it
+# does not affect this project's actual validated data (round-1 external
+# code review, confirmed by direct testing).
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?:])\s+")
+
+# Capitalized tokens that legitimately appear mid-sentence in real question
+# text (financial or CUAD) without signaling a named entity - checked
+# directly against this project's actual question text, not guessed.
+# Deliberately includes "the"/"this"/"that"/"a"/"an": these are capitalized
+# whenever they open a clause after a period or colon (grammatical
+# capitalization, e.g. CUAD's "...that should be reviewed by a lawyer.
+# Details: The name of the contract"), never evidence of a proper noun on
+# their own.
+_ENTITY_GUARD_STOPWORDS = frozenset(
+    {
+        "january", "february", "march", "april", "may", "june", "july", "august",
+        "september", "october", "november", "december",
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "form", "gaap", "sec", "note", "section", "part", "exhibit", "item",
+        "highlight", "details", "what", "which", "who", "when", "where", "how", "why",
+        "is", "are", "does", "did", "was", "were", "in", "on", "as", "of", "for", "and",
+        "or", "if", "any", "the", "a", "an", "that", "this",
+    }
+)
+
+
+def _deictic_entity_guard_has_named_entity(question_text: str) -> bool:
+    """Heuristic proper-noun detector used only by the guard above - not a
+    real NER model, deliberately, to keep the guard a cheap, offline,
+    corpus-independent check (see the guard's own comment for why this
+    option was chosen over a corpus-metadata lookup).
+
+    A capitalized token counts as a named entity UNLESS it is: the first
+    word of a sentence (grammatical capitalization, not a proper-noun
+    signal - checked per sentence, not just once for the whole question,
+    since a multi-sentence question has more than one grammatically
+    capitalized word); inside a quoted span (CUAD's own clause-type labels,
+    e.g. "Document Name", "Governing Law", are always quoted - a real
+    company/party name referenced in prose would not typically be); in
+    _ENTITY_GUARD_STOPWORDS; or purely numeric.
+
+    False positives here (wrongly deciding an entity IS present) are the
+    SAFE direction - they only make the guard fail to fire on a question it
+    might have otherwise blocked, never wrongly block a normal one. A false
+    negative (missing a real entity) is the dangerous direction, which is
+    why this leans permissive about what counts as an entity rather than
+    trying to be precise.
+
+    Known false-negative gaps (confirmed by direct testing, round-1 external
+    code review), all in the dangerous direction - each would make the
+    guard wrongly block a question that DOES name an identifiable entity,
+    if that entity happens to be the only one in the question and is
+    written one of these ways:
+      - A name starting with a digit ("3M", "7-Eleven", "21st Century
+        Fox") - `cleaned[0].isupper()` is False for a digit, so these are
+        never recognized as entities on their own.
+      - A name starting with a lowercase letter ("eBay", "iShares") - same
+        `isupper()` check fails.
+      - A name that happens to be the first word of a sentence (e.g. a
+        question opening with "Aon's revenue...") - deliberately excluded
+        as grammatical capitalization (see above), which also excludes a
+        genuine entity in that position with nothing else to fall back on.
+      - A name that appears only inside a quoted span - stripped along
+        with the quotes before this check ever sees it.
+      - A single-word name immediately after a colon (e.g. "Details: Aon
+        is a party...") - the colon is treated as a sentence boundary (see
+        _SENTENCE_SPLIT_RE below), so the word right after it is treated
+        as sentence-initial and excluded, same as the previous case.
+      - A name that happens to collide with an _ENTITY_GUARD_STOPWORDS
+        entry when used alone (e.g. a company literally named "May" or
+        "Form") - excluded as a calendar/document-jargon word regardless
+        of context.
+    None of these patterns occur in this project's actual validated data
+    (data/cuad_smoke/cuad_smoke_questions.json's 5 questions never name a
+    company at all; the 28-question financial fixture and the 250-question
+    real financial sample were checked directly and contain zero
+    deictic-marker matches combined with any of the patterns above - see
+    tests/test_agent_entity_guard.py), so this is a documented limitation
+    of the heuristic rather than a fix applied now: none of it is exercised
+    by the one config this guard is currently enabled for
+    (config_cuad_smoke.yaml). It would need to be revisited before enabling
+    this guard on a corpus where company names in any of these forms are
+    common enough to matter.
+    """
+    text_without_quotes = _QUOTED_SPAN_RE.sub(" ", question_text)
+    for sentence in _SENTENCE_SPLIT_RE.split(text_without_quotes):
+        for i, word in enumerate(sentence.split()):
+            if i == 0:
+                continue
+            cleaned = word.strip(".,;:!?()[]{}'\"")
+            if not cleaned or not cleaned[0].isupper():
+                continue
+            if cleaned.lower() in _ENTITY_GUARD_STOPWORDS or cleaned.isdigit():
+                continue
+            return True
+    return False
+
+
+def _deictic_entity_guard_should_block(question_text: str) -> bool:
+    """True if `question_text` matches the CUAD-style failure pattern this
+    guard exists to catch: a deictic reference to "the document" with
+    nothing else in the question that could identify which document, out
+    of a pool of several, is meant.
+
+    Validated offline (no paid API calls - pure text matching) before this
+    guard was wired into run_agent_query, against this project's actual
+    data: blocks all 5 real CUAD smoke-test questions
+    (data/cuad_smoke/cuad_smoke_questions.json); produces zero false
+    positives against the 28 real financial questions in
+    data/financial_entity_ambiguity/fixture.json (`question_original`) and
+    zero against the full 250-question real financial sample
+    (data/t2-ragbench/eval_subset_250.parquet) - see
+    tests/test_agent_entity_guard.py for the same checks kept as an
+    executable regression test.
+    """
+    return bool(_DEICTIC_MARKER_RE.search(question_text)) and not _deictic_entity_guard_has_named_entity(
+        question_text
+    )
+
+
 def run_agent_query(
     question_id: str,
     question_text: str,
@@ -297,6 +485,7 @@ def run_agent_query(
     trace_writer: TraceWriterProtocol | None = None,
     max_wall_clock_seconds: float | None = None,
     clock: Callable[[], float] = time.monotonic,
+    enable_deictic_entity_guard: bool = False,
 ) -> AgentAnswer:
     """Runs the full bounded loop for one question.
 
@@ -330,6 +519,17 @@ def run_agent_query(
     `clock`: injectable time source (default time.monotonic) purely for
     deterministic tests of max_wall_clock_seconds - see test_agent_loop.py.
 
+    `enable_deictic_entity_guard`: config.agent.enable_deictic_entity_guard
+    (see config.config_schema.AgentConfig's docstring). When True, this
+    function checks _deictic_entity_guard_should_block(question_text)
+    BEFORE the mandatory first search_fn call - if it returns True,
+    search_fn is never called at all and the function returns immediately
+    with stopped_reason=STOP_DEICTIC_ENTITY_GUARD, forced_insufficient=True,
+    answer_text=INSUFFICIENT_CONTEXT_MARKER. Default False, so every
+    existing caller/test that does not pass this argument keeps the exact
+    prior behavior (the guard function is defined above but inert unless
+    explicitly enabled here).
+
     Raises:
         ValueError: if max_additional_tool_calls is negative - config
             validation (AgentConfig's Field(ge=0)) already prevents this
@@ -357,6 +557,20 @@ def run_agent_query(
             degraded=call.degraded,
             degradation_reason=call.degradation_reason,
             **fields,
+        )
+
+    if enable_deictic_entity_guard and _deictic_entity_guard_should_block(question_text):
+        _trace("deictic_entity_guard_blocked", question_text=question_text)
+        answer_text = INSUFFICIENT_CONTEXT_MARKER
+        _trace("answer", answer_text=answer_text, forced_insufficient=True)
+        return AgentAnswer(
+            question_id=question_id,
+            answer_text=answer_text,
+            context_ids=(),
+            additional_calls_used=0,
+            stopped_reason=STOP_DEICTIC_ENTITY_GUARD,
+            forced_insufficient=True,
+            context_documents=(),
         )
 
     call = search_fn(question_text)
