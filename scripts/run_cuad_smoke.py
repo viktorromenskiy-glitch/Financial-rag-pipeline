@@ -226,6 +226,7 @@ def main() -> None:
                 success_result = evaluate_agent_success(
                     judge, question_id, question, context_text, agent_answer.answer_text, gold_answer,
                     deterministic_check_enabled=False,
+                    stopped_reason=agent_answer.stopped_reason,
                 )
                 agent_record = {
                     "question_id": question_id,
@@ -245,8 +246,24 @@ def main() -> None:
         return
 
     baseline_correct = sum(1 for r in baseline_done.values() if r["judge_correct"])
-    agent_correct = sum(1 for r in agent_done.values() if r["success"])
-    print(f"\nDone. n={len(eval_items)} - baseline {baseline_correct}/{len(baseline_done)}, agent {agent_correct}/{len(agent_done)}")
+    # success=None (agent/success.py's REASON_GUARD_BLOCKED_PRE_RETRIEVAL)
+    # means "excluded from the primary metric", not "failure" - must be
+    # dropped from both the numerator and the denominator here, not just
+    # truthy-coerced (None is falsy, which would silently count it as a
+    # failure and deflate this percentage) - see item 4 of
+    # claude/itog_ekspertizy_cuad_overrefusal_fix.md.
+    agent_excluded_guard_blocked = sum(1 for r in agent_done.values() if r["success"] is None)
+    agent_scored = {qid: r for qid, r in agent_done.items() if r["success"] is not None}
+    agent_correct = sum(1 for r in agent_scored.values() if r["success"])
+    excluded_note = (
+        f" ({agent_excluded_guard_blocked} excluded: guard-blocked pre-retrieval)"
+        if agent_excluded_guard_blocked
+        else ""
+    )
+    print(
+        f"\nDone. n={len(eval_items)} - baseline {baseline_correct}/{len(baseline_done)}, "
+        f"agent {agent_correct}/{len(agent_scored)}{excluded_note}"
+    )
     print(f"Budget used: {tracker.llm_calls} LLM calls, ~${tracker.estimated_cost_usd:.2f}, {tracker.elapsed_seconds:.0f}s")
     print(
         "\nReminder: n=5 has no statistical power and this is an out-of-domain robustness check, "
