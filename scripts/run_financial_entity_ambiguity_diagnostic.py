@@ -65,24 +65,45 @@ assessor'а, а потому что все 5 CUAD-вопросов исполь�
   - final-answer текст и его корректность (is_close_v2 против gold_answer) -
     генерируется ВСЕГДА, независимо от sufficient (см. ниже, "Почему
     генерация ответа не гейтится sufficient")
-  - production_answer / production_correct - что РЕАЛЬНО вернул бы
-    production-агент с учётом политики "forced_insufficient, если
-    sufficient=no" (agent/loop.py's forced_insufficient) - производное поле,
-    не отдельный вызов
+  - single_shot_production_answer / single_shot_production_correct - что
+    вернул бы production-агент С УЧЁТОМ политики "forced_insufficient, если
+    sufficient=no" (agent/loop.py's forced_insufficient) ПОСЛЕ ОДНОГО
+    assessment-вызова на этом фиксированном контексте - производное поле, не
+    отдельный вызов. Названо "single_shot" (не просто "production"), потому
+    что это НЕ полный агентный цикл run_agent_query - тот при sufficient=no
+    мог бы переформулировать запрос и сделать дополнительный retrieval/re-
+    assessment, чего здесь нет (и не может быть - весь смысл эксперимента в
+    ОДНОМ фиксированном контексте, а не в повторном поиске). Переименовано
+    из production_answer/production_correct по итогам второй экспертной
+    проверки скрипта (см. "Что проверено вторым независимым экспертом" ниже)
+    - старое имя могло читаться как "то, что реально вернул бы весь агентный
+    цикл", что неверно.
+  - assessor_context_source ("manual_fixture") / retrieval_used_for_assessor_context
+    (всегда False) - явные, поле-уровневые (не только докстринг) маркеры
+    того, что assessor/generator видели ТОЛЬКО context_text, собранный
+    вручную из fixture.json, никогда результат live-retrieval вызова ниже.
+    Добавлено по итогам второй экспертной проверки (п.5.4).
   - correct_document_position - позиция gold-документа в том же порядке
     [Document i], который строит build_context_block() для РУЧНОГО контекста
     (детерминированный порядок - см. main() ниже), одинаковая для обоих
     условий одного вопроса (контекст не меняется между условиями)
-  - gold_rank - ОТДЕЛЬНЫЙ, диагностический (не участвует в сборке контекста
-    для assessor'а) обычный retrieval-вызов (search_documents с той же
-    routing-логикой, что и продакшен - см. _is_routed/_resolve_embedding_model
-    в pipeline/cli.py и scripts/run_agent_eval.py) с ОРИГИНАЛЬНЫМ текстом
-    вопроса - позиция gold-документа среди РЕАЛЬНО возвращённых кандидатов
-    (после reranker'а, то есть именно то, что увидел бы assessor в обычном
-    (не ручном) прогоне), или null, если retrieval вообще не нашёл
-    gold-документ в топе. Один вызов на вопрос (не на condition - retrieval
-    здесь не участвует в построении контекста для assessor'а, это отдельное
-    измерение "а нашёл бы обычный retrieval этот документ вообще").
+  - live_retrieval_gold_rank / live_retrieval_pool_size / live_retrieval_error
+    (переименовано из gold_rank/retrieval_pool_size по итогам второй
+    экспертной проверки, п.3 - старое имя рисковало быть прочитанным как
+    "документ, который реально видел assessor") - ОТДЕЛЬНЫЙ, диагностический
+    (не участвует в сборке контекста для assessor'а - см.
+    retrieval_used_for_assessor_context выше) обычный retrieval-вызов
+    (search_documents с той же routing-логикой, что и продакшен - см.
+    _is_routed/_resolve_embedding_model в pipeline/cli.py и
+    scripts/run_agent_eval.py) с ОРИГИНАЛЬНЫМ текстом вопроса - позиция
+    gold-документа среди РЕАЛЬНО возвращённых кандидатов (после reranker'а,
+    то есть именно то, что увидел бы assessor в обычном (не ручном) прогоне),
+    или null, если retrieval вообще не нашёл gold-документ в топе, или если
+    сам вызов упал (тогда live_retrieval_error содержит текст ошибки - см.
+    "Что проверено вторым независимым экспертом", п.5.2). Один вызов на
+    вопрос (не на condition - retrieval здесь не участвует в построении
+    контекста для assessor'а, это отдельное измерение "а нашёл бы обычный
+    retrieval этот документ вообще").
 
 ## Почему генерация ответа не гейтится sufficient (осознанное отклонение
 ## от production-политики, только для диагностики)
@@ -94,8 +115,9 @@ sufficient=yes/no), потому что вопрос этого эксперим
 anonymized-условие sufficient чаще" - интересно также, ухудшается ли САМО
 извлечение ответа (не только готовность assessor'а его подтвердить), когда
 имя компании убрано, а gold-документ физически всё ещё в контексте. Оба
-аспекта логируются раздельно (см. выше) - production_correct воспроизводит
-то, что реально вернул бы прод (с форсированным INSUFFICIENT_CONTEXT), а
+аспекта логируются раздельно (см. выше) - single_shot_production_correct
+воспроизводит то, что вернула бы политика forced_insufficient после ОДНОГО
+assessment-вызова (с форсированным INSUFFICIENT_CONTEXT при sufficient=no), а
 answer_correct показывает "чистую" способность модели достать правильное
 число из контекста, если её всё-таки попросить попробовать.
 
@@ -122,11 +144,58 @@ CUAD-специфичной деиктичности") получает подд
 
 28 вопросов x 2 условия x 2 вызова (assessment + генерация ответа) = 112
 вызовов LLM + 28 дешёвых retrieval-вызовов (без LLM, только embedding +
-MongoDB + опционально Cohere rerank, на gold_rank). Порядок величины - тот
-же, что у одного вопроса продакшен-eval (evaluate + assess + retrieve),
-умноженный на 56 "вопросо-условий"; заведомо дешевле полноценного 2x2
-эксперимента, который отвергнут экспертами 4 как избыточный первый шаг (см.
-итог экспертизы, п.6 сводной таблицы).
+MongoDB + опционально Cohere rerank, на live_retrieval_gold_rank). Порядок
+величины - тот же, что у одного вопроса продакшен-eval (evaluate + assess +
+retrieve), умноженный на 56 "вопросо-условий"; заведомо дешевле полноценного
+2x2 эксперимента, который отвергнут экспертами 4 как избыточный первый шаг
+(см. итог экспертизы, п.6 сводной таблицы).
+
+## Что проверено первым независимым экспертом (пре-ран гейт, до первого
+## платного запуска) и что было исправлено по итогам
+
+Первый из двух обязательных независимых экспертов проверил код построчно и
+подтвердил: контекст между `original`/`anonymized` действительно идентичен
+(собирается один раз до цикла по условиям); выбор `company_sector` (а не
+`company_industry`) для дистракторов методологически корректен (именно
+`Sector` реально попадает в `metadata_prefix`, который видит модель). Также
+нашёл и аргументировал 3 пункта, все приняты и исправлены в этой версии
+скрипта:
+
+1. **Реальная проблема с resume** (исправлено): до этой правки resume
+   пропускал только сами LLM-вызовы (assessment/generate_answer) внутри
+   цикла по условиям, но сборка контекста (MongoDB read) и ПЛАТНЫЙ
+   live-retrieval вызов (Voyage embedding + опционально Cohere rerank)
+   выполнялись заново на КАЖДОМ перезапуске для уже полностью завершённых
+   вопросов - вопреки заявленной идемпотентности. Исправлено: весь блок
+   вопроса (включая live-retrieval) теперь пропускается, если оба условия
+   уже в checkpoint (см. `if all(...done...): continue` в начале цикла по
+   items в main()).
+2. **Именование полей могло вводить в заблуждение при чтении JSONL без
+   докстринга** (исправлено переименованием + новыми явными полями):
+   `gold_rank`/`retrieval_pool_size` -> `live_retrieval_gold_rank`/
+   `live_retrieval_pool_size` (не выглядит как "документ, который видел
+   assessor"); `production_answer`/`production_correct` ->
+   `single_shot_production_answer`/`single_shot_production_correct` (не
+   выглядит как "то, что вернул бы полный агентный цикл с
+   переформулированием запроса" - здесь только один assessment-вызов на
+   фиксированном контексте); добавлены явные поля `assessor_context_source`
+   и `retrieval_used_for_assessor_context` в каждую запись.
+3. **live-retrieval вызов не должен ронять основной эксперимент**
+   (исправлено): обёрнут в try/except - ошибка (даже непредвиденная, не
+   только транзиентная - search_documents сама уже деградирует изящно при
+   транзиентных ошибках) логируется в `live_retrieval_error`, не прерывая
+   assessment/generation для этого и последующих вопросов.
+
+Отдельно эксперт отметил (не блокер, принято как известное ограничение):
+build_fixture.py's проверка анонимизации ловит только точное `humanized`
+имя, не другие возможные алиасы той же компании (например "American
+Airlines" вместо "American Airlines Group") - для текущих 28 вопросов это
+покрыто ручной построчной проверкой (см. build_fixture.py's вывод при
+запуске - все 28 анонимизированных вопроса читались вручную, артефактов не
+найдено), но не гарантировано программно для гипотетического будущего
+расширения фикстуры. Осознанно не добавлена generic alias-detection логика
+(риск ложных срабатываний на n=28 выше пользы) - при расширении фикстуры
+в будущем этот пункт нужно будет пересмотреть.
 
 ## Перед запуском на реальные деньги
 
@@ -134,13 +203,17 @@ MongoDB + опционально Cohere rerank, на gold_rank). Порядок 
 скрипта...") - показать ДВУМ независимым внешним экспертам с вопросом
 "способен ли этот скрипт, как он написан, реально доставить то, что заявлено
 как его цель - есть ли противоречие между целью и механизмом" ДО первого
-платного запуска. Не запускать, пока это не сделано.
+платного запуска. Пройден пока только ПЕРВЫЙ раунд (см. выше) - ВТОРОЙ
+независимый эксперт ещё не проверял ЭТУ (исправленную по итогам первого)
+версию скрипта. Не запускать до второго раунда.
 
 Использование (после `!git pull`, после того как scripts/run_eval.py index уже
 проиндексировал t2_ragbench_full хотя бы один раз - этот скрипт НЕ индексирует
 ничего нового, только читает уже проиндексированные документы):
     !python scripts/run_financial_entity_ambiguity_diagnostic.py
-Прогон идемпотентен (resume by question_id+condition), как раунды 1-3.
+Прогон идемпотентен (resume by question_id+condition), включая live-retrieval
+(см. "Что проверено первым независимым экспертом", п.1, исправлено в этой
+версии) - как раунды 1-3.
 """
 from __future__ import annotations
 
@@ -288,6 +361,19 @@ def main() -> None:
         for item in items:
             question_id = item["question_id"]
 
+            # Пропустить ВЕСЬ вопрос (включая ручную сборку контекста и
+            # платный retrieval-вызов ниже), если оба условия уже готовы -
+            # реальная находка второго эксперта (см. review-документ): без
+            # этой проверки resume пропускал только сами LLM-вызовы
+            # (сборка контекста через MongoDB read внутри цикла ниже +
+            # search_fn - платный вызов Voyage/опционально Cohere -
+            # выполнялись заново на КАЖДОМ перезапуске для уже завершённых
+            # вопросов, вопреки докстрингу "Прогон идемпотентен". Теперь
+            # идемпотентность распространяется на retrieval, а не только на
+            # ассессмент/генерацию.
+            if all(f"{question_id}::{c}" in done for c in CONDITIONS):
+                continue
+
             # Ручная сборка контекста - ОДИНАКОВОГО для обоих условий этого
             # вопроса (см. докстринг модуля, "Дизайн"). Порядок -
             # алфавитная сортировка context_id (детерминированная, без
@@ -303,10 +389,22 @@ def main() -> None:
             correct_document_position = all_context_ids.index(item["gold_context_id"]) + 1
 
             # Диагностический, ОТДЕЛЬНЫЙ от сборки контекста live-retrieval
-            # вызов - см. докстринг модуля, "Что логируется", gold_rank. Один
-            # раз на вопрос (не на condition), всегда с оригинальным текстом
-            # вопроса - это измерение "нашёл бы обычный retrieval этот
-            # документ", а не часть теста assessor'а.
+            # вызов - см. докстринг модуля, "Что логируется",
+            # live_retrieval_gold_rank. Один раз на вопрос (не на condition),
+            # всегда с оригинальным текстом вопроса - это измерение "нашёл бы
+            # обычный retrieval этот документ", а не часть теста assessor'а
+            # (retrieval_used_for_assessor_context=False в каждой записи ниже
+            # - assessor всегда видит только ручной context_text, никогда
+            # результат этого вызова).
+            #
+            # Обёрнуто в try/except (второй эксперт, п.5.2): это ПОБОЧНОЕ,
+            # необязательное для основного эксперимента измерение -
+            # search_documents (agent/tools.py) уже сам деградирует
+            # изящно при транзиентных ошибках MongoDB/Cohere, но нет причин
+            # позволять ЛЮБОЙ (в т.ч. непредвиденной) ошибке здесь ронять уже
+            # оплаченный прогресс по assessment/generation для этого и
+            # последующих вопросов - assessment ниже не зависит от этого
+            # блока вообще.
             source_dataset = item["source_dataset"]
             routed = _is_routed(config, source_dataset)
             embedding_model = _resolve_embedding_model(config, source_dataset)
@@ -324,9 +422,18 @@ def main() -> None:
                 source_dataset=source_dataset if routed else None,
                 exclude_source_datasets=list(config.embedding.routing.routed_sources) if not routed else None,
             )
-            retrieval_call = search_fn(item["question_original"])
-            retrieved_ids = [c.context_id for c in retrieval_call.candidates]
-            gold_rank = retrieved_ids.index(item["gold_context_id"]) + 1 if item["gold_context_id"] in retrieved_ids else None
+            live_retrieval_gold_rank: int | None = None
+            live_retrieval_pool_size: int | None = None
+            live_retrieval_error: str | None = None
+            try:
+                retrieval_call = search_fn(item["question_original"])
+                retrieved_ids = [c.context_id for c in retrieval_call.candidates]
+                live_retrieval_pool_size = len(retrieved_ids)
+                if item["gold_context_id"] in retrieved_ids:
+                    live_retrieval_gold_rank = retrieved_ids.index(item["gold_context_id"]) + 1
+            except Exception as exc:  # noqa: BLE001 - see docstring above: this is a non-critical side measurement
+                live_retrieval_error = f"{type(exc).__name__}: {exc}"
+                print(f"      WARNING: live_retrieval (gold_rank) failed for {question_id!r}: {live_retrieval_error}")
 
             for condition in CONDITIONS:
                 key = f"{question_id}::{condition}"
@@ -352,12 +459,20 @@ def main() -> None:
                 n_llm_calls += 1
                 answer_correct = is_close_v2(generated.answer_text, item["gold_answer"])
 
-                # production_answer/production_correct - производные поля,
-                # воспроизводящие agent/loop.py's forced_insufficient
-                # политику (не отдельный вызов) - что РЕАЛЬНО вернул бы
-                # продакшен-агент с этим вердиктом assessor'а.
-                production_answer = generated.answer_text if parsed.sufficient else "INSUFFICIENT_CONTEXT"
-                production_correct = bool(parsed.sufficient and answer_correct)
+                # single_shot_production_answer/single_shot_production_correct
+                # (renamed from production_answer/production_correct per the
+                # second expert's review, п.4) - производные поля,
+                # воспроизводящие ТОЛЬКО agent/loop.py's forced_insufficient
+                # политику ПОСЛЕ ОДНОГО assessment-вызова на этом фиксированном
+                # контексте (не отдельный вызов) - НЕ полный production-цикл
+                # run_agent_query (который при sufficient=no мог бы
+                # переформулировать запрос и сделать дополнительные
+                # tool calls/re-assessment - здесь этого нет, потому что весь
+                # смысл эксперимента в ФИКСИРОВАННОМ контексте). Названо явно
+                # "single_shot", чтобы не читалось как "то, что реально вернул
+                # бы полный агентный цикл".
+                single_shot_production_answer = generated.answer_text if parsed.sufficient else "INSUFFICIENT_CONTEXT"
+                single_shot_production_correct = bool(parsed.sufficient and answer_correct)
 
                 result = {
                     "question_id": question_id,
@@ -370,8 +485,23 @@ def main() -> None:
                     "distractor_context_ids": item["distractor_context_ids"],
                     "context_ids": all_context_ids,
                     "correct_document_position": correct_document_position,
-                    "gold_rank": gold_rank,
-                    "retrieval_pool_size": len(retrieved_ids),
+                    # assessor_context_source/retrieval_used_for_assessor_context
+                    # (added per the second expert's review, п.5.4) - explicit,
+                    # data-level (not just docstring-level) statement that the
+                    # assessor/generator above saw ONLY the manually-assembled
+                    # context_text, never the live_retrieval_* fields below.
+                    "assessor_context_source": "manual_fixture",
+                    "retrieval_used_for_assessor_context": False,
+                    # live_retrieval_* (renamed from gold_rank/retrieval_pool_size
+                    # per the second expert's review, п.3) - a SEPARATE,
+                    # diagnostic-only live search_documents() call, not part of
+                    # the assessor's input. None/live_retrieval_error set if the
+                    # call itself failed (see the try/except above) - does not
+                    # affect sufficient/answer_correct/single_shot_production_*
+                    # below, which never depend on this call.
+                    "live_retrieval_gold_rank": live_retrieval_gold_rank,
+                    "live_retrieval_pool_size": live_retrieval_pool_size,
+                    "live_retrieval_error": live_retrieval_error,
                     "question_text": question_text,
                     "sufficient": parsed.sufficient,
                     "reformulated_query": parsed.reformulated_query,
@@ -380,8 +510,8 @@ def main() -> None:
                     "answer_text": generated.answer_text,
                     "answer_raw_response": generated.raw_response,
                     "answer_correct": answer_correct,
-                    "production_answer": production_answer,
-                    "production_correct": production_correct,
+                    "single_shot_production_answer": single_shot_production_answer,
+                    "single_shot_production_correct": single_shot_production_correct,
                 }
                 if parse_warning:
                     print(f"      WARNING: {parse_warning}")
@@ -390,7 +520,7 @@ def main() -> None:
                 done[key] = result
                 print(
                     f"  [{n_llm_calls}] {question_id} / {condition} -> sufficient={parsed.sufficient} "
-                    f"answer_correct={answer_correct} gold_rank={gold_rank}"
+                    f"answer_correct={answer_correct} live_retrieval_gold_rank={live_retrieval_gold_rank}"
                 )
 
     elapsed = time.perf_counter() - t_start
@@ -401,11 +531,12 @@ def main() -> None:
         rows = [r for r in done.values() if r["condition"] == condition]
         n_sufficient = sum(1 for r in rows if r["sufficient"])
         n_answer_correct = sum(1 for r in rows if r["answer_correct"])
-        n_production_correct = sum(1 for r in rows if r["production_correct"])
+        n_single_shot_production_correct = sum(1 for r in rows if r["single_shot_production_correct"])
         print(
             f"  {condition:12s}: sufficient=yes {n_sufficient}/{len(rows)}, "
             f"answer_correct (генерация всегда) {n_answer_correct}/{len(rows)}, "
-            f"production_correct (с учётом forced_insufficient) {n_production_correct}/{len(rows)}"
+            f"single_shot_production_correct (с учётом forced_insufficient, БЕЗ полного агентного цикла) "
+            f"{n_single_shot_production_correct}/{len(rows)}"
         )
 
     verify_run_files(run_dir, {"diagnostic_results.jsonl": len(items) * len(CONDITIONS)})
