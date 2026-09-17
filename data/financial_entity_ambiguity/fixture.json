@@ -1,0 +1,758 @@
+[
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_298",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the revenue difference between 2010 and 2009 for Aon?",
+    "question_anonymized": "What was the revenue difference between 2010 and 2009 for the company?",
+    "gold_answer": "118.0",
+    "gold_context_id": "convfinqa_ctx_379",
+    "gold_company_name": "Aon",
+    "gold_company_name_humanized": "Aon",
+    "gold_sector": "Financials",
+    "gold_report_year": "2010",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1185",
+      "convfinqa_ctx_1033",
+      "convfinqa_ctx_1194"
+    ],
+    "distractor_company_names": [
+      "Everest Re Group, Ltd.",
+      "State Street Corporation",
+      "T. Rowe Price"
+    ],
+    "distractor_report_years": [
+      "2010",
+      "2009",
+      "2009"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_1807",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the net change in value of BlackRock's multi-asset AUM during 2016?",
+    "question_anonymized": "What was the net change in value of the company's multi-asset AUM during 2016?",
+    "gold_answer": "18671.0",
+    "gold_context_id": "convfinqa_ctx_893",
+    "gold_company_name": "BlackRock",
+    "gold_company_name_humanized": "BlackRock",
+    "gold_sector": "Financials",
+    "gold_report_year": "2016",
+    "distractor_context_ids": [
+      "convfinqa_ctx_10",
+      "convfinqa_ctx_101",
+      "convfinqa_ctx_1108"
+    ],
+    "distractor_company_names": [
+      "Aon",
+      "Jack Henry & Associates",
+      "Goldman Sachs"
+    ],
+    "distractor_report_years": [
+      "2015",
+      "2014",
+      "2014"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_finqa_train_932",
+    "source_dataset": "FinQA",
+    "question_original": "As of December 31, 2012, what was the percentage difference between the carrying value and the fair value of 3M's long-term debt, excluding the current portion, as disclosed in the company's financial report for that year?",
+    "question_anonymized": "As of December 31, 2012, what was the percentage difference between the carrying value and the fair value of the company's long-term debt, excluding the current portion, as disclosed in the company's financial report for that year?",
+    "gold_answer": "0.09634255129348795",
+    "gold_context_id": "finqa_train_ctx_715",
+    "gold_company_name": "3M",
+    "gold_company_name_humanized": "3M",
+    "gold_sector": "Industrials",
+    "gold_report_year": "2012",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1",
+      "convfinqa_ctx_1021",
+      "convfinqa_ctx_1391"
+    ],
+    "distractor_company_names": [
+      "Huntington Ingalls Industries",
+      "Snap-on",
+      "United Parcel Service"
+    ],
+    "distractor_report_years": [
+      "2013",
+      "2013",
+      "2013"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_2138",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the cumulative total stockholder return of American Airlines Group Inc. as of December 31, 2015, assuming a $100 investment on December 9, 2013, and reinvestment of dividends?",
+    "question_anonymized": "What was the cumulative total stockholder return of the company as of December 31, 2015, assuming a $100 investment on December 9, 2013, and reinvestment of dividends?",
+    "gold_answer": "175.0",
+    "gold_context_id": "convfinqa_ctx_1480",
+    "gold_company_name": "American Airlines Group",
+    "gold_company_name_humanized": "American Airlines Group",
+    "gold_sector": "Industrials",
+    "gold_report_year": "2015",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1003",
+      "convfinqa_ctx_1140",
+      "convfinqa_ctx_1"
+    ],
+    "distractor_company_names": [
+      "Lockheed Martin",
+      "Union Pacific Corporation",
+      "Huntington Ingalls Industries"
+    ],
+    "distractor_report_years": [
+      "2014",
+      "2014",
+      "2013"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_2260",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the percentage change in the total expense related to the defined contribution plan for U.S. employees at Analog Devices from fiscal 2009 to 2010?",
+    "question_anonymized": "What was the percentage change in the total expense related to the defined contribution plan for U.S. employees at the company from fiscal 2009 to 2010?",
+    "gold_answer": "-1.0",
+    "gold_context_id": "convfinqa_ctx_1603",
+    "gold_company_name": "Analog Devices",
+    "gold_company_name_humanized": "Analog Devices",
+    "gold_sector": "Information Technology",
+    "gold_report_year": "2010",
+    "distractor_context_ids": [
+      "convfinqa_ctx_108",
+      "convfinqa_ctx_1044",
+      "convfinqa_ctx_1031"
+    ],
+    "distractor_company_names": [
+      "Skyworks Solutions",
+      "Adobe Inc.",
+      "Apple Inc."
+    ],
+    "distractor_report_years": [
+      "2010",
+      "2011",
+      "2007"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_1546",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the goodwill balance for Cadence Design Systems as of December 30, 2017, following the business combinations and foreign currency translations during fiscal 2017?",
+    "question_anonymized": "What was the goodwill balance for the company as of December 30, 2017, following the business combinations and foreign currency translations during fiscal 2017?",
+    "gold_answer": "666009.0",
+    "gold_context_id": "convfinqa_ctx_1056",
+    "gold_company_name": "Cadence Design Systems",
+    "gold_company_name_humanized": "Cadence Design Systems",
+    "gold_sector": "Information Technology",
+    "gold_report_year": "2018",
+    "distractor_context_ids": [
+      "finqa_test_ctx_90",
+      "convfinqa_ctx_293",
+      "convfinqa_ctx_1064"
+    ],
+    "distractor_company_names": [
+      "DXC Technology Co.",
+      "Texas Instruments",
+      "Arista Networks"
+    ],
+    "distractor_report_years": [
+      "2018",
+      "2017",
+      "2015"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_1261",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the increase in interest expense, net for Norwegian Cruise Line Holdings from 2015 to 2016?",
+    "question_anonymized": "What was the increase in interest expense, net for the company from 2015 to 2016?",
+    "gold_answer": "55.0",
+    "gold_context_id": "convfinqa_ctx_1027",
+    "gold_company_name": "Norwegian Cruise Line Holdings",
+    "gold_company_name_humanized": "Norwegian Cruise Line Holdings",
+    "gold_sector": "Consumer Discretionary",
+    "gold_report_year": "2016",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1436",
+      "convfinqa_ctx_1051",
+      "convfinqa_ctx_1172"
+    ],
+    "distractor_company_names": [
+      "Advance Auto Parts, Inc.",
+      "Tractor Supply",
+      "Under Armour, Inc."
+    ],
+    "distractor_report_years": [
+      "2016",
+      "2017",
+      "2017"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_2756",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the net change in the value of unrealized losses related to interest rate swap agreements from 2007 to 2008 for American Tower Corporation?",
+    "question_anonymized": "What was the net change in the value of unrealized losses related to interest rate swap agreements from 2007 to 2008 for the company?",
+    "gold_answer": "5.6",
+    "gold_context_id": "convfinqa_ctx_224",
+    "gold_company_name": "American Tower",
+    "gold_company_name_humanized": "American Tower",
+    "gold_sector": "Real Estate",
+    "gold_report_year": "2008",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1255",
+      "convfinqa_ctx_1256",
+      "convfinqa_ctx_102"
+    ],
+    "distractor_company_names": [
+      "Vornado Realty Trust",
+      "Extra Space Storage",
+      "Duke Realty Corporation"
+    ],
+    "distractor_report_years": [
+      "2011",
+      "2005",
+      "2012"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_2411",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What is the total amount of long-term debt for Duke Realty Corporation as of December 31, 2010, including both principal and interest?",
+    "question_anonymized": "What is the total amount of long-term debt for the company as of December 31, 2010, including both principal and interest?",
+    "gold_answer": "5413606.0",
+    "gold_context_id": "convfinqa_ctx_117",
+    "gold_company_name": "Duke Realty Corporation",
+    "gold_company_name_humanized": "Duke Realty Corporation",
+    "gold_sector": "Real Estate",
+    "gold_report_year": "2010",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1255",
+      "convfinqa_ctx_12",
+      "convfinqa_ctx_672"
+    ],
+    "distractor_company_names": [
+      "Vornado Realty Trust",
+      "American Tower",
+      "Kimco Realty"
+    ],
+    "distractor_report_years": [
+      "2011",
+      "2008",
+      "2014"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_678",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What is the sum of the total fair value of time-vested restricted stock units that vested in 2008 and 2009 for Becton Dickinson?",
+    "question_anonymized": "What is the sum of the total fair value of time-vested restricted stock units that vested in 2008 and 2009 for the company?",
+    "gold_answer": "56209.0",
+    "gold_context_id": "convfinqa_ctx_1692",
+    "gold_company_name": "Becton Dickinson",
+    "gold_company_name_humanized": "Becton Dickinson",
+    "gold_sector": "Health Care",
+    "gold_report_year": "2009",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1263",
+      "convfinqa_ctx_1322",
+      "convfinqa_ctx_1200"
+    ],
+    "distractor_company_names": [
+      "Hologic",
+      "Regeneron",
+      "Zimmer Biomet"
+    ],
+    "distractor_report_years": [
+      "2008",
+      "2010",
+      "2007"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_927",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What were the matching contributions for Edwards Lifesciences' defined contribution plans in 2016, in millions?",
+    "question_anonymized": "What were the matching contributions for the company's defined contribution plans in 2016, in millions?",
+    "gold_answer": "17.3",
+    "gold_context_id": "convfinqa_ctx_503",
+    "gold_company_name": "Edwards Lifesciences",
+    "gold_company_name_humanized": "Edwards Lifesciences",
+    "gold_sector": "Health Care",
+    "gold_report_year": "2016",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1410",
+      "convfinqa_ctx_1439",
+      "convfinqa_ctx_1055"
+    ],
+    "distractor_company_names": [
+      "IQVIA",
+      "Humana",
+      "Lilly (Eli)"
+    ],
+    "distractor_report_years": [
+      "2016",
+      "2017",
+      "2018"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_finqa_train_4334",
+    "source_dataset": "FinQA",
+    "question_original": "What would the total smokeless products shipment volume be in 2017, assuming the same growth rate as in 2016, when Altria's smokeless products segment, which includes premium brands like Copenhagen and Skoal, saw a shipment volume of 853.5 million units?",
+    "question_anonymized": "What would the total smokeless products shipment volume be in 2017, assuming the same growth rate as in 2016, when the company's smokeless products segment, which includes premium brands like Copenhagen and Skoal, saw a shipment volume of 853.5 million units?",
+    "gold_answer": "853.549",
+    "gold_context_id": "finqa_train_ctx_1945",
+    "gold_company_name": "Altria",
+    "gold_company_name_humanized": "Altria",
+    "gold_sector": "Consumer Staples",
+    "gold_report_year": "2016",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1400",
+      "convfinqa_ctx_1009",
+      "convfinqa_ctx_1326"
+    ],
+    "distractor_company_names": [
+      "Kraft Heinz",
+      "Philip Morris International",
+      "General Mills"
+    ],
+    "distractor_report_years": [
+      "2016",
+      "2015",
+      "2018"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_3078",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What is the total estimated amortization expense for the years 2015 to 2018 for Devon Energy's intangible assets, given that the amortization amount is $45 million for each of these years?",
+    "question_anonymized": "What is the total estimated amortization expense for the years 2015 to 2018 for the company's intangible assets, given that the amortization amount is $45 million for each of these years?",
+    "gold_answer": "180.0",
+    "gold_context_id": "convfinqa_ctx_450",
+    "gold_company_name": "Devon Energy",
+    "gold_company_name_humanized": "Devon Energy",
+    "gold_sector": "Energy",
+    "gold_report_year": "2014",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1585",
+      "convfinqa_ctx_313",
+      "convfinqa_ctx_1467"
+    ],
+    "distractor_company_names": [
+      "EOG Resources",
+      "Baker Hughes",
+      "HollyFrontier Corporation"
+    ],
+    "distractor_report_years": [
+      "2016",
+      "2017",
+      "2018"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_finqa_dev_451",
+    "source_dataset": "FinQA",
+    "question_original": "By what percentage did the weighted average exercise price per share of Marathon Oil's stock options increase from 2005 to 2007?",
+    "question_anonymized": "By what percentage did the weighted average exercise price per share of the company's stock options increase from 2005 to 2007?",
+    "gold_answer": "1.424025457438345",
+    "gold_context_id": "finqa_dev_ctx_236",
+    "gold_company_name": "Marathon Oil",
+    "gold_company_name_humanized": "Marathon Oil",
+    "gold_sector": "Energy",
+    "gold_report_year": "2007",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1167",
+      "convfinqa_ctx_1233",
+      "convfinqa_ctx_121"
+    ],
+    "distractor_company_names": [
+      "ONEOK",
+      "Schlumberger",
+      "Devon Energy"
+    ],
+    "distractor_report_years": [
+      "2008",
+      "2009",
+      "2004"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_8693",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What was the impact of the New Revenue Standard adoption on Microchip Technology Inc.'s net accounts receivable as of April 1, 2018?",
+    "question_anonymized": "What was the impact of the New Revenue Standard adoption on the company's net accounts receivable as of April 1, 2018?",
+    "gold_answer": "324.5",
+    "gold_context_id": "cc27b3da593fc5540f3dd8b30ac82796",
+    "gold_company_name": "microchip-technology-inc",
+    "gold_company_name_humanized": "Microchip Technology Inc",
+    "gold_sector": "Semiconductors",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "0069c940cfca223b2789cbbcc846b038",
+      "03a98443a7286862ffe1b6bcc2193e54",
+      "0ad31a3d0f7aff9ffd4d3a6ebbcb40f1"
+    ],
+    "distractor_company_names": [
+      "stmicroelectronics",
+      "united-micro-electronics-corp",
+      "micron-technology-inc"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_dev_10385",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What was the revenue amount from sales into China, including Hong Kong, in 2019, according to ship-to locations for Micron Technology Inc.?",
+    "question_anonymized": "What was the revenue amount from sales into China, including Hong Kong, in 2019, according to ship-to locations for the company?",
+    "gold_answer": "12405.18",
+    "gold_context_id": "249a345bb86b13642427834d02363ff8",
+    "gold_company_name": "micron-technology-inc",
+    "gold_company_name_humanized": "Micron Technology Inc",
+    "gold_sector": "Semiconductors",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "0069c940cfca223b2789cbbcc846b038",
+      "03a98443a7286862ffe1b6bcc2193e54",
+      "0431c0120abe739c6a106cce515f3108"
+    ],
+    "distractor_company_names": [
+      "stmicroelectronics",
+      "united-micro-electronics-corp",
+      "microchip-technology-inc"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_finqa_train_1662",
+    "source_dataset": "FinQA",
+    "question_original": "What is the average value of additions for tax positions of the current year for Air Products from 2014 to 2016, as reflected in the reconciliation of unrecognized tax benefits table?",
+    "question_anonymized": "What is the average value of additions for tax positions of the current year for the company from 2014 to 2016, as reflected in the reconciliation of unrecognized tax benefits table?",
+    "gold_answer": "10.0",
+    "gold_context_id": "finqa_train_ctx_1959",
+    "gold_company_name": "Air Products",
+    "gold_company_name_humanized": "Air Products",
+    "gold_sector": "Materials",
+    "gold_report_year": "2016",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1131",
+      "convfinqa_ctx_1563",
+      "convfinqa_ctx_106"
+    ],
+    "distractor_company_names": [
+      "Eastman Chemical Company",
+      "Ecolab",
+      "PPG Industries"
+    ],
+    "distractor_report_years": [
+      "2016",
+      "2017",
+      "2018"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_5282",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What is the percentage change in Altium Limited's total product revenue from 2018 to 2019, as reflected in the Key Financial Results section of the 2019 annual report?",
+    "question_anonymized": "What is the percentage change in the company's total product revenue from 2018 to 2019, as reflected in the Key Financial Results section of the 2019 annual report?",
+    "gold_answer": "23.0",
+    "gold_context_id": "0075ff4f22a8946c2aa35d3813de5c86",
+    "gold_company_name": "altium-limited",
+    "gold_company_name_humanized": "Altium Limited",
+    "gold_sector": "Software",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "051683cfc44d2270ac0ebb1aa2be351d",
+      "089e8cb37a1d18ba999ad5c20d0d0d22",
+      "08d181cb5431f91d9495afa4989d0906"
+    ],
+    "distractor_company_names": [
+      "vmware-inc",
+      "pegasystems-inc",
+      "autodesk-inc"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_finqa_train_1731",
+    "source_dataset": "FinQA",
+    "question_original": "What percentage of Comcast's total cable segment capital expenditures in 2004 was allocated to upgrading cable systems, as outlined in the capital expenditures table for that year?",
+    "question_anonymized": "What percentage of the company's total cable segment capital expenditures in 2004 was allocated to upgrading cable systems, as outlined in the capital expenditures table for that year?",
+    "gold_answer": "0.24903368304803974",
+    "gold_context_id": "finqa_train_ctx_1112",
+    "gold_company_name": "Comcast",
+    "gold_company_name_humanized": "Comcast",
+    "gold_sector": "Communication Services",
+    "gold_report_year": "2004",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1075",
+      "convfinqa_ctx_1189",
+      "convfinqa_ctx_1245"
+    ],
+    "distractor_company_names": [
+      "Interpublic Group of Companies (The)",
+      "Discovery, Inc.",
+      "DISH Network Corporation"
+    ],
+    "distractor_report_years": [
+      "2003",
+      "2011",
+      "2014"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_5011",
+    "source_dataset": "TAT-DQA",
+    "question_original": "In the 2019 report of Navios Maritime Holdings Inc., for how many periods did the revenue from discontinued operations exceed $50,000 thousand?",
+    "question_anonymized": "In the 2019 report of the company, for how many periods did the revenue from discontinued operations exceed $50,000 thousand?",
+    "gold_answer": "1.0",
+    "gold_context_id": "61965dde672ac3c01293e4e66e6bdb95",
+    "gold_company_name": "navios-maritime-holdings-inc",
+    "gold_company_name_humanized": "Navios Maritime Holdings Inc",
+    "gold_sector": "Shipping",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "01fa2a0c9793933e2eb6ac2b78bd6e58",
+      "06292304b212a6ebff76dbb8a33e5a4a",
+      "0634bb25811b18a526bbdc607c535283"
+    ],
+    "distractor_company_names": [
+      "torm",
+      "gaslog-ltd",
+      "teekay-corporation"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_969",
+    "source_dataset": "ConvFinQA",
+    "question_original": "what was the change in operating profits of american water works from 2013 to 2014",
+    "question_anonymized": "what was the change in operating profits of the company from 2013 to 2014",
+    "gold_answer": "-10.0",
+    "gold_context_id": "convfinqa_ctx_484",
+    "gold_company_name": "American Water Works",
+    "gold_company_name_humanized": "American Water Works",
+    "gold_sector": "Utilities",
+    "gold_report_year": "2015",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1022",
+      "finqa_dev_ctx_241",
+      "convfinqa_ctx_1184"
+    ],
+    "distractor_company_names": [
+      "Entergy",
+      "CenterPoint Energy",
+      "Dominion Energy"
+    ],
+    "distractor_report_years": [
+      "2013",
+      "2010",
+      "2002"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_5980",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What was the amount of outstanding letters of credit related to certain operating leases for Mimecast Limited as of March 31, 2018?",
+    "question_anonymized": "What was the amount of outstanding letters of credit related to certain operating leases for the company as of March 31, 2018?",
+    "gold_answer": "3800000.0",
+    "gold_context_id": "13f24145ffd39eb820e2c7eba93092aa",
+    "gold_company_name": "mimecast-limited",
+    "gold_company_name_humanized": "Mimecast Limited",
+    "gold_sector": "Cybersecurity",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "0460e7ea49622c1702dc26530eda21b8",
+      "08daf325ff638453d411ad7ea1bbdc7b",
+      "0ddbd00b130f280a471e26379b148efb"
+    ],
+    "distractor_company_names": [
+      "nortonlifelock-inc",
+      "sophos-group",
+      "virnetx-holding-corp"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_1491",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What would be the operating lease cost for the year 2020 if $507 million of leases could be terminated within 1 year, considering Microsoft Corporation's lease portfolio as of the 2019 report?",
+    "question_anonymized": "What would be the operating lease cost for the year 2020 if $507 million of leases could be terminated within 1 year, considering the company's lease portfolio as of the 2019 report?",
+    "gold_answer": "1200.0",
+    "gold_context_id": "fe9f2f028e1ac48619d22d8ecaf45edf",
+    "gold_company_name": "microsoft-corporation",
+    "gold_company_name_humanized": "Microsoft Corporation",
+    "gold_sector": "Technology",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "098e523b9bab5c7a0abeacbf89e74499",
+      "09a2dcb1ce56af5175a94db9f57617b3",
+      "0ef0e1044523ed94cf174bcc6495cdc1"
+    ],
+    "distractor_company_names": [
+      "tencent",
+      "international-business-machines-corp",
+      "xperi-corporation"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_2802",
+    "source_dataset": "TAT-DQA",
+    "question_original": "How many of Black Knight Financial Services Inc.'s contractual obligations for the period 2021-2022 exceeded $100 million as of December 31, 2019?",
+    "question_anonymized": "How many of the company's contractual obligations for the period 2021-2022 exceeded $100 million as of December 31, 2019?",
+    "gold_answer": "2.0",
+    "gold_context_id": "8ff6ca6ee109976b42543aad81a0326e",
+    "gold_company_name": "black-knight-financial-services-inc",
+    "gold_company_name_humanized": "Black Knight Financial Services Inc",
+    "gold_sector": "Financial Technology",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "01a249b9af1e9f2b9e88da5d3dfcdbea",
+      "0551beccb943904e051f6f2a1519bd3a",
+      "0b7ad8c16847499ffde8865c29ff8e87"
+    ],
+    "distractor_company_names": [
+      "greensky-inc",
+      "aci-worldwide-inc",
+      "square-inc"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_6875",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What was the accrued compensation and employee benefits for Jabil Circuit Inc. as of August 31, 2018?",
+    "question_anonymized": "What was the accrued compensation and employee benefits for the company as of August 31, 2018?",
+    "gold_answer": "570400.0",
+    "gold_context_id": "2c329676bed992ced5b827d9f051a0ec",
+    "gold_company_name": "jabil-circuit-inc",
+    "gold_company_name_humanized": "Jabil Circuit Inc",
+    "gold_sector": "Electronics Manufacturing",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "054153aec5a8b7066b1083f3ec3515ed",
+      "05d9b3fb8be78e9d75ee75dc42dc1081",
+      "1380a11c3e0c1ebff7c19af6d1c014ac"
+    ],
+    "distractor_company_names": [
+      "cts-corporation",
+      "plexus-corp",
+      "methode-electronics-inc"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_dev_10283",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What is the average of the low prices per share for Lifeway Foods Inc.'s common stock in the quarters of 2018 as listed on the Nasdaq Global Market?",
+    "question_anonymized": "What is the average of the low prices per share for the company's common stock in the quarters of 2018 as listed on the Nasdaq Global Market?",
+    "gold_answer": "3.83",
+    "gold_context_id": "0cf6769516cf2a245aaed5fcf2bd9c21",
+    "gold_company_name": "lifeway-foods-inc",
+    "gold_company_name_humanized": "Lifeway Foods Inc",
+    "gold_sector": "Food Production",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "005c5953d1ca744fb7f49a5eb28b819f",
+      "213086a5b44668de5c5e516397fa5681",
+      "22f643903f61aa43ac1bf8dc695c7fe9"
+    ],
+    "distractor_company_names": [
+      "conagra-brands-inc",
+      "cal-maine-foods-inc",
+      "sanderson-farms"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_tatqa_train_3931",
+    "source_dataset": "TAT-DQA",
+    "question_original": "What was the average operating expenses for Cogeco Inc. between fiscal 2018 and 2019 in the American Broadband Services segment?",
+    "question_anonymized": "What was the average operating expenses for the company between fiscal 2018 and 2019 in the American Broadband Services segment?",
+    "gold_answer": "524690.0",
+    "gold_context_id": "42dfd9e9db0d11bd550deaa12735fd72",
+    "gold_company_name": "cogeco-inc",
+    "gold_company_name_humanized": "Cogeco Inc",
+    "gold_sector": "Telecommunications",
+    "gold_report_year": "2019",
+    "distractor_context_ids": [
+      "003755794bbbbcffd0667b9600aeb0be",
+      "01646e0efdea0441581d5232b7521202",
+      "01d06e0aa31f6dc3a8d206a15399450c"
+    ],
+    "distractor_company_names": [
+      "spirent-communications-plc",
+      "consolidated-communications-holdings-inc",
+      "bce-inc"
+    ],
+    "distractor_report_years": [
+      "2019",
+      "2019",
+      "2019"
+    ]
+  },
+  {
+    "question_id": "fin_entity_ambiguity_convfinqa_358",
+    "source_dataset": "ConvFinQA",
+    "question_original": "What was the total amount of 6.625% senior notes issued by Ball Corporation in 2006 to refinance existing debt and fund acquisitions?",
+    "question_anonymized": "What was the total amount of 6.625% senior notes issued by the company in 2006 to refinance existing debt and fund acquisitions?",
+    "gold_answer": "450.0",
+    "gold_context_id": "convfinqa_ctx_1215",
+    "gold_company_name": "Ball Corporation",
+    "gold_company_name_humanized": "Ball Corporation",
+    "gold_sector": "Materials",
+    "gold_report_year": "2007",
+    "distractor_context_ids": [
+      "convfinqa_ctx_1001",
+      "convfinqa_ctx_1178",
+      "convfinqa_ctx_1294"
+    ],
+    "distractor_company_names": [
+      "International Paper",
+      "Packaging Corporation of America",
+      "Celanese"
+    ],
+    "distractor_report_years": [
+      "2009",
+      "2004",
+      "2012"
+    ]
+  }
+]
