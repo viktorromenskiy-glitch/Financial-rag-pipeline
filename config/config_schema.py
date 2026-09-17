@@ -140,10 +140,22 @@ class AgentConfig(BaseModel):
     before this field existed keeps loading and behaving unchanged. This
     is distinct from AgentEvalConfig below, which caps a whole evaluation
     RUN (many questions), not one question.
+
+    enable_deictic_entity_guard: gates agent.loop.run_agent_query's
+    deictic/entity guard (see claude/itog_ekspertizy_cuad_overrefusal_fix.md,
+    "Что осталось сделать", item 1, and agent/loop.py's
+    _deictic_entity_guard_should_block docstring for the full rationale
+    and the empirical false-positive check behind it). Default False -
+    same backward-compatible pattern as max_wall_clock_seconds above:
+    every config file written before this field existed keeps loading and
+    behaving exactly as before. Set to True explicitly in a config file to
+    turn the guard on for that pipeline (e.g. config_cuad_smoke.yaml, where
+    it was validated).
     """
 
     max_additional_tool_calls: int = Field(ge=0)
     max_wall_clock_seconds: float | None = Field(default=None, ge=0)
+    enable_deictic_entity_guard: bool = Field(default=False)
 
 
 class AgentEvalConfig(BaseModel):
