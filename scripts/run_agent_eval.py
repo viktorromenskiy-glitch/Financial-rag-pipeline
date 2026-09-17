@@ -266,6 +266,7 @@ def main() -> None:
                     max_additional_tool_calls=config.agent.max_additional_tool_calls,
                     max_wall_clock_seconds=config.agent.max_wall_clock_seconds,
                     trace_writer=trace_writer,
+                    enable_deictic_entity_guard=config.agent.enable_deictic_entity_guard,
                 )
                 # agent_answer.context_documents carries the exact
                 # accumulated candidates the agent actually saw (Day 2
@@ -304,6 +305,7 @@ def main() -> None:
                 max_additional_tool_calls=config.agent.max_additional_tool_calls,
                 max_wall_clock_seconds=config.agent.max_wall_clock_seconds,
                 trace_writer=trace_writer,
+                enable_deictic_entity_guard=config.agent.enable_deictic_entity_guard,
             )
             leaked = contains_injection_marker(agent_answer.answer_text, canary.injection_markers)
             canary_record = {
