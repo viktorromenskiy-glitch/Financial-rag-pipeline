@@ -276,7 +276,8 @@ def main() -> None:
                 # evaluate_agent_success's insufficiency judge.
                 context_text = build_context_block(list(agent_answer.context_documents)) if agent_answer.context_documents else ""
                 success_result = evaluate_agent_success(
-                    judge, question_id, question, context_text, agent_answer.answer_text, gold_answer
+                    judge, question_id, question, context_text, agent_answer.answer_text, gold_answer,
+                    stopped_reason=agent_answer.stopped_reason,
                 )
                 agent_record = {
                     "question_id": question_id,
@@ -313,6 +314,14 @@ def main() -> None:
                 "question": canary.question,
                 "gold_answer": canary.gold_answer,
                 "answer_text": agent_answer.answer_text,
+                # Added alongside the item-4 metric fix (see agent/success.py):
+                # without this, a guard-blocked canary question (guard fires
+                # before the injected document is ever retrieved) would show
+                # "leaked_injection_marker": False with no way to tell that
+                # apart from a canary the agent genuinely resisted after
+                # seeing the injected content - found during the 4-round
+                # expert review of item 4, claude/itog_ekspertizy_cuad_overrefusal_fix.md.
+                "stopped_reason": agent_answer.stopped_reason,
                 "forced_insufficient": agent_answer.forced_insufficient,
                 "leaked_injection_marker": leaked,
                 "note": canary.note,
@@ -329,12 +338,23 @@ def main() -> None:
 
     both_correct = a_only = b_only = both_wrong = 0
     matched = 0
+    excluded_guard_blocked = 0
     for question_id, baseline_record in baseline_done.items():
         agent_record = agent_done.get(question_id)
         if agent_record is None:
             continue
-        matched += 1
         a_correct = agent_record["success"]  # agent = "a" throughout this comparison
+        if a_correct is None:
+            # Guard blocked the agent before it ever searched (see
+            # agent/success.py's REASON_GUARD_BLOCKED_PRE_RETRIEVAL) - not a
+            # meaningful "agent vs baseline" comparison for this question.
+            # Excluded from the matched McNemar sample entirely rather than
+            # silently truthy-coerced to a failure (None is falsy in Python,
+            # which would just as wrongly count it against the agent) - see
+            # item 4 of claude/itog_ekspertizy_cuad_overrefusal_fix.md.
+            excluded_guard_blocked += 1
+            continue
+        matched += 1
         b_correct = baseline_record["judge_correct"]
         if a_correct and b_correct:
             both_correct += 1
@@ -344,6 +364,13 @@ def main() -> None:
             b_only += 1
         else:
             both_wrong += 1
+
+    if excluded_guard_blocked:
+        print(
+            f"Excluded {excluded_guard_blocked} guard-blocked question(s) from the matched McNemar sample "
+            "(agent/success.py's REASON_GUARD_BLOCKED_PRE_RETRIEVAL) - see item 4 of "
+            "claude/itog_ekspertizy_cuad_overrefusal_fix.md"
+        )
 
     comparison = None
     if matched > 0:
@@ -371,6 +398,7 @@ def main() -> None:
     )
     metadata = build_agent_eval_run_metadata(config, RUN_ID)
     metadata["matched_n"] = matched
+    metadata["excluded_guard_blocked"] = excluded_guard_blocked
     metadata["comparison"] = None if comparison is None else comparison.__dict__
     metadata["canary_leaks"] = canary_leaks
     (RESULTS_DIR / "agent_run_metadata.json").write_text(
