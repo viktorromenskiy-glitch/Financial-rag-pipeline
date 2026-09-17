@@ -1,10 +1,10 @@
 """Day 2 agent evaluation harness - plan_rabot_posle_ekspertizy_agent_profil.md,
 День 2, "Evaluation harness": runs BOTH the baseline pipeline (modules 6-9,
 unchanged) and the bounded agent (agent/) over the SAME matched, stratified
-sample of T2-RAGBench questions, plus 3 fixed prompt-injection canary
-questions (agent/canary.py), so the two systems can be compared with a
-paired test (scripts/mcnemar_agent_eval.py, run separately afterward on
-this script's saved output).
+sample of T2-RAGBench questions, plus 4 fixed canary questions - 3
+prompt-injection and 1 cross-document-confusion (agent/canary.py) - so the
+two systems can be compared with a paired test (scripts/mcnemar_agent_eval.py,
+run separately afterward on this script's saved output).
 
 This is a real-API-cost script, same category as scripts/run_eval.py and
 scripts/run_unanswerable_probe.py - not runnable in a dev sandbox without
@@ -119,19 +119,29 @@ def _is_routed(config, source_dataset: str) -> bool:
     return routing.enabled and source_dataset in routing.routed_sources
 
 
-def _canary_search_fn(document_content: str, canary_id: str):
-    """Returns every reformulated query the SAME fixed candidate (the
-    canary's injected document) - the point of a canary question is to
-    guarantee the injected content actually reaches the assessor/generator
-    prompts, not to test whether real hybrid retrieval would surface it.
-    Only the search step is fixed; the assessment and generation calls
-    below are real Claude API calls, same as for the regular sample."""
+def _canary_search_fn(document_content: str, canary_id: str, extra_documents: tuple[str, ...] = ()):
+    """Returns every reformulated query the SAME fixed candidate(s) - the
+    point of a canary question is to guarantee the canary's document
+    content actually reaches the assessor/generator prompts, not to test
+    whether real hybrid retrieval would surface it. Only the search step is
+    fixed; the assessment and generation calls below are real Claude API
+    calls, same as for the regular sample.
+
+    extra_documents (canary_confusion_4 only - empty for canaries 1-3):
+    additional sibling documents returned alongside document_content in the
+    SAME SearchToolCall, so generation sees both as separate "[Document N]"
+    blocks (pipeline/generation.py's build_context_block()) - required for
+    that canary to actually test cross-document confusion rather than a
+    single merged passage."""
     from agent.tools import SearchToolCall
 
-    candidate = Candidate(context_id=canary_id, full_indexed_content=document_content, score=1.0)
+    candidates = tuple(
+        Candidate(context_id=f"{canary_id}_{i}" if i else canary_id, full_indexed_content=content, score=1.0)
+        for i, content in enumerate((document_content,) + tuple(extra_documents))
+    )
 
     def _search(query: str):
-        return SearchToolCall(query=query, candidates=(candidate,))
+        return SearchToolCall(query=query, candidates=candidates)
 
     return _search
 
@@ -296,7 +306,7 @@ def main() -> None:
         for canary in CANARY_CASES:
             if canary.canary_id in canary_done:
                 continue
-            canary_search_fn = _canary_search_fn(canary.document_content, canary.canary_id)
+            canary_search_fn = _canary_search_fn(canary.document_content, canary.canary_id, canary.extra_documents)
             agent_answer = run_agent_query(
                 canary.canary_id,
                 canary.question,
