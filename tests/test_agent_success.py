@@ -8,8 +8,10 @@ Claude call anywhere in this file.
 
 from __future__ import annotations
 
+from agent.loop import STOP_DEICTIC_ENTITY_GUARD
 from agent.success import (
     INSUFFICIENCY_JUDGE_PROMPT_VERSION,
+    REASON_GUARD_BLOCKED_PRE_RETRIEVAL,
     SuccessResult,
     _extract_insufficiency_verdict,
     evaluate_agent_success,
@@ -159,6 +161,71 @@ def test_agent_answered_and_judge_says_incorrect_is_failure():
     result = evaluate_agent_success(judge, "q1", "question", "ctx", "999", "500")
     assert result.success is False
     assert result.reason == "incorrect_answer"
+
+
+# --- guard-blocked questions (item 4 of claude/itog_ekspertizy_cuad_overrefusal_fix.md) --
+
+
+def test_guard_blocked_question_excluded_from_primary_metric_no_judge_call():
+    # The core fix: when stopped_reason is STOP_DEICTIC_ENTITY_GUARD, the
+    # judge must never be called (context_text is always empty in this case
+    # - see agent/loop.py - so a real judge call would almost always
+    # trivially return "justified", which is exactly the defect the 4-round
+    # expert review identified). success=None, not True or False - this
+    # question is excluded from the primary metric entirely, not scored.
+    judge = FakeJudge([])  # must never be called - popping an empty list raises
+    result = evaluate_agent_success(
+        judge, "q1", "question", "", "INSUFFICIENT_CONTEXT", "500",
+        stopped_reason=STOP_DEICTIC_ENTITY_GUARD,
+    )
+    assert isinstance(result, SuccessResult)
+    assert result.success is None
+    assert result.reason == REASON_GUARD_BLOCKED_PRE_RETRIEVAL
+    assert result.judge_scores is None
+    assert judge.call_count == 0
+
+
+def test_guard_blocked_stopped_reason_ignored_when_answer_is_not_insufficient():
+    # stopped_reason alone must not short-circuit scoring - only relevant
+    # when the agent actually refused (answer_is_insufficient). A guard
+    # stopped_reason paired with a real answer (shouldn't normally happen,
+    # but the function must not misinterpret it) falls through to the
+    # normal evaluate_answer() path.
+    judge = FakeJudge(["VERDICT: CORRECT"])
+    result = evaluate_agent_success(
+        judge, "q1", "question", "ctx", "500", "500",
+        stopped_reason=STOP_DEICTIC_ENTITY_GUARD,
+    )
+    assert result.success is True
+    assert result.reason == "correct_answer"
+
+
+def test_guard_blocked_stopped_reason_does_not_override_genuinely_unanswerable_gold():
+    # gold_is_insufficient is checked first and is unaffected by
+    # stopped_reason: a guard-blocked canary/probe question whose correct
+    # answer really is "INSUFFICIENT_CONTEXT" is still a correct outcome,
+    # not an excluded one - see evaluate_agent_success's docstring.
+    judge = FakeJudge([])
+    result = evaluate_agent_success(
+        judge, "q1", "question", "", "INSUFFICIENT_CONTEXT", "INSUFFICIENT_CONTEXT",
+        stopped_reason=STOP_DEICTIC_ENTITY_GUARD,
+    )
+    assert result.success is True
+    assert result.reason == "insufficient_context_matches_gold"
+    assert judge.call_count == 0
+
+
+def test_answer_insufficient_without_guard_stopped_reason_still_calls_judge():
+    # Regression guard for the fix itself: a real (non-guard) refusal - e.g.
+    # stopped_reason=None or some other STOP_* value - must keep going
+    # through judge_context_insufficiency exactly as before this change.
+    judge = FakeJudge(["VERDICT: JUSTIFIED_REFUSAL"])
+    result = evaluate_agent_success(
+        judge, "q1", "question", "ctx", "INSUFFICIENT_CONTEXT", "500", stopped_reason=None
+    )
+    assert result.success is True
+    assert result.reason == "justified_refusal"
+    assert judge.call_count == 1
 
 
 def test_prompt_version_constant_is_a_non_empty_string():
