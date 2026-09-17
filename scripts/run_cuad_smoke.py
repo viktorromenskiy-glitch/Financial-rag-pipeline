@@ -218,6 +218,7 @@ def main() -> None:
                     max_additional_tool_calls=config.agent.max_additional_tool_calls,
                     max_wall_clock_seconds=config.agent.max_wall_clock_seconds,
                     trace_writer=trace_writer,
+                    enable_deictic_entity_guard=config.agent.enable_deictic_entity_guard,
                 )
                 context_text = (
                     build_context_block(list(agent_answer.context_documents)) if agent_answer.context_documents else ""
