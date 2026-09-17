@@ -182,6 +182,19 @@ def main() -> None:
     manifest = _load_manifest(ROOT / "run_manifest.json")
     verify_manifest_coverage(manifest, baseline_question_ids=baseline.keys(), agent_question_ids=agent.keys())
 
+    # Guard-blocked questions (agent/success.py's success=None, reason=
+    # REASON_GUARD_BLOCKED_PRE_RETRIEVAL) must never reach classify_matched_
+    # questions/select_demonstration_cases below: agent/demonstration.py's
+    # _as_bool() deliberately raises TypeError on anything that isn't a real
+    # bool (by design - a silent miscoercion could move a question into the
+    # wrong bucket), so an unfiltered success=None record would crash this
+    # whole script rather than being gracefully skipped. The unfiltered
+    # `agent` dict above is still used for the manifest coverage check,
+    # which is about which question_ids were pre-registered and run, not
+    # about their success values - see item 4 of
+    # claude/itog_ekspertizy_cuad_overrefusal_fix.md.
+    agent_scored = {qid: rec for qid, rec in agent.items() if rec.get("success") is not None}
+
     trace_path = ROOT / "agent_trace.jsonl"
     trace_records: list[dict] = []
     if trace_path.exists():
@@ -191,7 +204,7 @@ def main() -> None:
 
     trace_by_question = group_by_question(trace_records)
 
-    cases = select_demonstration_cases(baseline, agent)
+    cases = select_demonstration_cases(baseline, agent_scored)
     role_titles = {
         "agent_helped": "Positive case (agent succeeded, baseline failed)",
         "agent_hurt": "Required negative case (agent failed, baseline succeeded)",
@@ -206,11 +219,11 @@ def main() -> None:
         "",
     ]
     for case in cases:
-        sections.append(_render_case_section(role_titles[case.role], case, baseline, agent, trace_by_question))
+        sections.append(_render_case_section(role_titles[case.role], case, baseline, agent_scored, trace_by_question))
 
     if args.all_discordant:
         shown = {case.question_id for case in cases if case.question_id}
-        sections.append(_all_discordant_section(baseline, agent, shown))
+        sections.append(_all_discordant_section(baseline, agent_scored, shown))
 
     OUTPUT_PATH.write_text("\n".join(sections), encoding="utf-8")
     print(f"Wrote {OUTPUT_PATH}")
