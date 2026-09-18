@@ -51,7 +51,7 @@ class EnrichmentCheckpoint:
     """External progress state for enrichment (JSON Lines, one line = one
     context_id) - processing 7318 documents should not restart from scratch
     after a mid-run failure (see specifikatsiya_moduley.md, module 4,
-    "Устойчивость")."""
+    "Resilience")."""
  
     def __init__(self, path: str | Path):
         self.path = Path(path)
