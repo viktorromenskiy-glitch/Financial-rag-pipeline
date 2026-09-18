@@ -219,6 +219,10 @@ def build_clients(config: PipelineConfig) -> dict:
     default env-var name - some SDKs default to a different name (e.g.
     cohere.ClientV2() defaults to CO_API_KEY, not COHERE_API_KEY, which is
     what .env.example declares).
+
+    Returns:
+        {"collection": the MongoDB collection, "voyage": voyageai.Client,
+        "anthropic": anthropic.Anthropic, "cohere": cohere.ClientV2}.
     """
     import anthropic
     import cohere
@@ -436,6 +440,10 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     embedding model for each query - a wrong/'unknown' source_dataset would
     silently route the query to the wrong model and filter, not just
     mislabel a report column.
+
+    Returns:
+        One dict per row, with keys: question_id, question, gold_answer,
+        source_dataset (all str).
     """
     df = pd.read_parquet(path)
     if "question" not in df.columns:
