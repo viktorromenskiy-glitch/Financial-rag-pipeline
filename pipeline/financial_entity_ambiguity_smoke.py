@@ -3,7 +3,7 @@
 See data/financial_entity_ambiguity/build_fixture.py for how
 data/financial_entity_ambiguity/fixture.json was built (selection criteria,
 distractor logic, anonymization) and
-claude/itog_ekspertizy_cuad_overrefusal_fix.md ("Что осталось сделать", п.2)
+claude/itog_ekspertizy_cuad_overrefusal_fix.md ("what's left to do", item 2)
 for why this fixture exists at all - the converged 4-expert design for
 checking whether removing the company name from a real financial question
 (while document-level metadata_prefix stays in place) meaningfully reduces
