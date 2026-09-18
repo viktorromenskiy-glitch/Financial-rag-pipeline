@@ -1,9 +1,9 @@
 """CUAD smoke-test fixture loader - Day 3 of
 plan_rabot_posle_ekspertizy_agent_profil.md:
 
-  "Смок-тест на CUAD (Contract Understanding Atticus Dataset, CC BY 4.0):
-  3-5 вопросов, без изменения кода агента - только конфигурация
-  retrieval-индекса и индексация новых документов."
+  "Smoke test on CUAD (Contract Understanding Atticus Dataset, CC BY 4.0):
+  3-5 questions, without changing the agent's code - only retrieval-index
+  configuration and indexing new documents."
 
 data/cuad_smoke/cuad_smoke_questions.json holds 4 real CUAD contracts and
 5 real clause-extraction questions with their real gold answers (see that
