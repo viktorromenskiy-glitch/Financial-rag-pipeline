@@ -1,8 +1,8 @@
 """Paired binary-outcome statistics for comparing two systems (agent vs.
-baseline) on the same matched questions - День 2 of
-plan_rabot_posle_ekspertizy_agent_profil.md: "при малой мощности (n=20-30)
-вывод - на effect size (разность долей + exact 95% CI) и разборе
-discordant pairs, не на p-value."
+baseline) on the same matched questions - Day 2 of
+plan_rabot_posle_ekspertizy_agent_profil.md: "with low power (n=20-30),
+base the conclusion on effect size (difference in proportions + exact 95%
+CI) and a review of discordant pairs, not on the p-value."
 
 McNemar's exact test: same statsmodels call already used for the flagship
 pipeline's own A/B comparisons (scripts/mcnemar_phase6.py) - not
@@ -48,7 +48,7 @@ formula). This module's choice, made here rather than by the panel:
   multi-term algebra from a training-data memory of the paper, which is
   exactly the kind of unverified-arithmetic risk this project's process
   exists to catch (see kimi_followup_mcnemar_arithmetic_response.md's own
-  "три раунда правок подряд" episode on a much simpler calculation).
+  "three rounds of corrections in a row" episode on a much simpler calculation).
   Both choices are defensible; this one is documented here specifically
   so a future reviewer can see it was a deliberate choice made in the
   absence of panel guidance, not an oversight.
