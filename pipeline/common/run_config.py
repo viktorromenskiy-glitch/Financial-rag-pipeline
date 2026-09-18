@@ -30,6 +30,12 @@ def build_run_config(config: dict, run_id: str) -> dict:
     this run (e.g. a timestamp or short description), used as the
     results/<run_id>/ directory name.
 
+    Returns:
+        A flat dict with run_id, created_at, and the specific
+        embedding/enrichment/retrieval/reranker/generation/judge fields spec
+        section 11 requires (see module docstring) - the exact shape written
+        to run_config.json by write_run_config below.
+
     Raises:
         KeyError: if a required config section/field is missing - fail
             loudly at snapshot time rather than silently writing a
