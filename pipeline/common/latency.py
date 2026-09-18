@@ -1,6 +1,6 @@
 """Per-stage wall-clock latency measurement for `pipeline.cli eval` runs.
 
-Added per docs/tehnicheskoe_zadanie.md, "План доработки-2, пункт 2": the
+Added per docs/tehnicheskoe_zadanie.md, "Follow-up plan 2, item 2": the
 project measures cost (section 15, unit economics) from published API
 pricing and its own measured token/char counts, but latency was never
 measured anywhere - `cmd_eval()`'s retrieval -> rerank -> generation loop
