@@ -1,6 +1,6 @@
 """Save and verify paid/long-running Colab run output on persistent storage.
 
-See "Правила сохранения долгих платных прогонов" (project doc, uploaded
+See "rules for persisting results of long paid runs" (project doc, uploaded
 2026-08-24) for the full rule this module implements. Two real incidents
 on this project motivated it:
 
