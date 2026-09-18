@@ -57,6 +57,9 @@ class EnrichmentCheckpoint:
         self.path = Path(path)
  
     def load_done(self) -> dict[str, str]:
+        """Returns {context_id: contextual_summary} for every document
+        already appended to the checkpoint file, or {} if the file does not
+        exist yet."""
         if not self.path.exists():
             return {}
         done: dict[str, str] = {}
