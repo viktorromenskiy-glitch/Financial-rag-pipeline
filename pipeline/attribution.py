@@ -99,6 +99,13 @@ def attribute_run(retrieval_trace_path: str | Path, eval_results_path: str | Pat
     inferred or fuzzy-matched, since retrieval is only valid to reuse
     against a previous run's judge verdicts if it was computed for the
     exact same questions against the exact same indexed corpus.
+
+    Returns:
+        One dict per question, each with keys: question_id,
+        source_dataset, gold_context_id, gold_in_top50 (bool),
+        gold_in_top5 (bool), judge_correct (bool | None), and
+        failure_stage (one of the module-level *_FAILURE / SUCCESS /
+        UNKNOWN_OUTCOME constants above).
     """
     gold = load_gold_context_ids(questions_path)
 
@@ -136,6 +143,10 @@ def summarize_attribution(records: list[dict]) -> dict:
     """Overall + per-source_dataset counts of each failure_stage - the same
     mandatory stratification convention used everywhere else in this
     project (docs/tehnicheskoe_zadanie.md, section 10).
+
+    Returns:
+        {"n": total record count, "overall": {failure_stage: count},
+        "by_source_dataset": {source_dataset: {failure_stage: count}}}.
     """
     summary = {"n": len(records), "overall": dict(Counter(r["failure_stage"] for r in records))}
     by_source: dict[str, Counter] = {}
