@@ -100,9 +100,10 @@ class ClaudeSummarizer:
     One intentional deviation from the literal Colab call: temperature is
     taken from config (0.0), not left at the API default the original test
     used. tehnicheskoe_zadanie.md, section 7, flags this as a fix to make
-    at implementation time ("параметр нигде явно не был зафиксирован, при
-    реализации исправить") - it does not change the prompt or the
-    truncation, only removes sampling noise from a production run.
+    at implementation time ("the parameter was never explicitly pinned
+    down anywhere - fix this at implementation time") - it does not change
+    the prompt or the truncation, only removes sampling noise from a
+    production run.
     """
 
     CONTEXT_PROMPT = """Ты помогаешь улучшить поиск по фрагментам финансовых отчётов.
@@ -259,7 +260,7 @@ def _resolve_embedding_model(config: PipelineConfig, source_dataset: str) -> str
 
 
 def _resolve_prompt_template(prompt_variant: str) -> str:
-    """Фаза 5 (docs/tehnicheskoe_zadanie.md, section 28): looks up
+    """Phase 5 (docs/tehnicheskoe_zadanie.md, section 28): looks up
     generation.prompt_variant in pipeline.generation.PROMPT_TEMPLATE_VARIANTS.
     Kept as a standalone function (not inlined in cmd_eval) so the error
     message on a typo'd variant name is unit-testable without spinning up
@@ -329,7 +330,7 @@ def cmd_index(args: argparse.Namespace) -> None:
     if to_process:
         docs_by_id = {d["context_id"]: d for d in to_process}
 
-        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, п.3a):
+        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, item 3a):
         # group documents by the model their source_dataset resolves to
         # BEFORE embedding, not after - Voyage's API takes one model per
         # call, so a batch cannot mix documents routed to different models
@@ -349,7 +350,7 @@ def cmd_index(args: argparse.Namespace) -> None:
         # Embed and write *each batch* to MongoDB before moving to the next
         # one, rather than accumulating every vector in memory and writing
         # once at the end - checkpointing requirement, spec section 11
-        # ("Checkpointing состояния при индексации"). Accumulate-then-write
+        # ("checkpointing indexing state"). Accumulate-then-write
         # would mean a mid-run interruption loses every already-computed
         # embedding, since none of it would have reached Atlas yet; this way
         # an interruption loses at most one in-flight batch (BATCH_SIZE
@@ -431,7 +432,7 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     absent or unrecognized) so the mandatory per-source stratification in
     eval_report.md is populated instead of defaulting everything to
     'unknown'. Getting source_dataset right here matters beyond reporting
-    now (tehnicheskoe_zadanie.md, п.3a): cmd_eval also uses it to pick the
+    now (tehnicheskoe_zadanie.md, item 3a): cmd_eval also uses it to pick the
     embedding model for each query - a wrong/'unknown' source_dataset would
     silently route the query to the wrong model and filter, not just
     mislabel a report column.
@@ -480,14 +481,14 @@ def _retrieved_docs_for_prediction(ranked) -> list[dict]:
     "content_sha256"} - for each of the (already top-N, post-rerank)
     candidates in `ranked`, for persisting alongside a prediction.
 
-    Added per docs/tehnicheskoe_zadanie.md, section 14, "Ограничение,
-    обязательное к указанию": that section's error analysis (n=250, closed
+    Added per docs/tehnicheskoe_zadanie.md, section 14, "limitation that
+    must be stated": that section's error analysis (n=250, closed
     2026-08-19) explicitly documents that predictions.jsonl only stored
     question/gold/answer_text, not the retrieved documents themselves - so
-    39 of 60 errors ("Немотивированное сильное расхождение") could not be
+    39 of 60 errors ("unexplained large discrepancy") could not be
     attributed to retrieval vs. generation, only guessed at. This does not
-    backfill that already-committed run (section 14: "не восполняется
-    задним числом") - it closes the gap for every run from here on.
+    backfill that already-committed run (section 14: "cannot be backfilled
+    retroactively") - it closes the gap for every run from here on.
 
     Compact by design (revised 2026-08-20, per an internal design note not
     in this repository):
@@ -825,7 +826,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
     generator = ClaudeGenerator(clients["anthropic"], config.generation.model, config.generation.temperature)
     judge = ClaudeJudge(clients["anthropic"], config.judge.model, config.judge.temperature)
 
-    # Фаза 5 (docs/tehnicheskoe_zadanie.md, section 28): config.generation.prompt_variant
+    # Phase 5 (docs/tehnicheskoe_zadanie.md, section 28): config.generation.prompt_variant
     # selects a pipeline.generation.PROMPT_TEMPLATE_VARIANTS key ("baseline"
     # by default - the unmodified production PROMPT_TEMPLATE). Validated
     # here, not in the pydantic schema (config_schema.py's GenerationConfig
@@ -840,7 +841,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
     print(f"  {len(generated)} already generated (resumed from checkpoint), {len(items) - len(generated)} remaining")
 
     # Wall-clock latency per stage - added for docs/tehnicheskoe_zadanie.md
-    # "План доработки-2, пункт 2": cost is calculable from published API
+    # "Follow-up plan 2, item 2": cost is calculable from published API
     # pricing (section 15), but latency isn't - this loop is fully
     # sequential (no ThreadPoolExecutor), so real numbers only come from
     # an actual timed run. Only real API calls are timed, never a
@@ -883,7 +884,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
             )
             continue
 
-        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, п.3a): the
+        # Per-dataset embedding routing (tehnicheskoe_zadanie.md, item 3a): the
         # query must be embedded with the SAME model as the documents it's
         # being compared against. Which filter mode retrieve() gets depends
         # on whether THIS question's source is itself routed:
