@@ -51,6 +51,10 @@ def dedupe_documents(records) -> list[dict]:
     silently keeping the first version seen. metadata_prefix is derived
     from document-level fields (company_name/report_year/company_sector),
     so it must be identical for every row sharing a context_id.
+
+    Returns:
+        A list of dicts, one per unique context_id, each with
+        context_id, source_dataset, raw_content, and metadata_prefix.
     """
     by_id: dict[str, dict] = {}
     for r in records:
