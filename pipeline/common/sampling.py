@@ -1,6 +1,6 @@
-"""Stratified random sampling over a labeled key - День 2 of
+"""Stratified random sampling over a labeled key - Day 2 of
 plan_rabot_posle_ekspertizy_agent_profil.md: "Evaluation harness: 20-30
-вопросов из T2-RAGBench (стратифицированная выборка)".
+questions from T2-RAGBench (stratified sample)".
 
 Allocates the requested sample size across strata (e.g. source_dataset:
 FinQA/ConvFinQA/TAT-DQA) proportionally to each stratum's share of the
@@ -10,8 +10,8 @@ rounding - the same class of rounding problem apportionment methods exist
 to solve for seats in a legislature, applied here to sample counts
 instead. Sampling within each stratum uses a fixed seed
 (random.Random(seed), not the global random module) for reproducibility -
-matching this project's "Зафиксировать версии... для воспроизводимости"
-convention (plan, День 2) applied to sample selection, not just model
+matching this project's "record versions... for reproducibility"
+convention (plan, Day 2) applied to sample selection, not just model
 config.
 """
 
