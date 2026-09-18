@@ -144,6 +144,9 @@ class JudgeCache:
         self.path = Path(path)
 
     def load(self) -> dict[str, dict]:
+        """Returns {cache_key: cached record (question_id, judge_scores,
+        deterministic_match, judge_agrees)} for every result already
+        appended to the cache file, or {} if the file does not exist yet."""
         if not self.path.exists():
             return {}
         cache: dict[str, dict] = {}
@@ -288,6 +291,11 @@ def regression_report(previous: list[EvalResult], current: list[EvalResult]) -> 
 
     Questions present in `current` but not in `previous` are skipped (no
     prior result to compare against, not a regression signal).
+
+    Returns:
+        {"improved": [...], "regressed": [...], "unchanged_correct": [...],
+        "unchanged_incorrect": [...]} - four lists of question_id, one per
+        classification.
     """
     prev_correct = {r.question_id: r.judge_scores["judge_correct"] for r in previous}
     report: dict[str, list[str]] = {
