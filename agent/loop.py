@@ -3,7 +3,7 @@
 Design basis: itog_ekspertizy_agent_profil.md (4 independent experts,
 consensus reached and verified across all 4 rounds) and
 plan_rabot_posle_ekspertizy_agent_profil.md (the resulting V1 work plan -
-this module is День 1, "Ядро").
+this module is Day 1, "Core").
 
 Flow per question (matches the trace shape used throughout the expert
 review - "retrieval_1 -> evidence_assessment -> reformulated_query ->
@@ -26,10 +26,10 @@ retrieval_2 -> ... -> answer"):
      new documents), generate the final answer - unless the last
      assessment still says insufficient, in which case the answer is
      forced to INSUFFICIENT_CONTEXT (round-4 closing-expert addition,
-     see itog_ekspertizy_agent_profil.md, "Новые находки закрывающего
-     раунда", item 2: "явная политика «когда агент должен сдаться»" - a
-     model given thin evidence and no other constraint will tend to
-     "додумывать" rather than admit it doesn't know).
+     see itog_ekspertizy_agent_profil.md, "New findings from the closing
+     round", item 2: "an explicit policy for 'when the agent must give
+     up'" - a model given thin evidence and no other constraint will tend
+     to make things up rather than admit it doesn't know).
 
 This module never talks to MongoDB/Voyage/Cohere/Anthropic directly - it
 depends only on Protocols (search_fn, EvidenceAssessorProtocol,
@@ -39,7 +39,7 @@ network access (see test_agent_loop.py and test_agent_smoke.py) - the
 offline/mocked-smoke-test requirement from the design review's Day 1
 scope.
 
-День 2 additions (plan_rabot_posle_ekspertizy_agent_profil.md, "Безопасность,
+Day 2 additions (plan_rabot_posle_ekspertizy_agent_profil.md, "Safety,
 robustness, evaluation harness"):
 
 - Prompt injection (canary item 1): both prompt templates below are
@@ -101,7 +101,7 @@ STOP_WALL_CLOCK_EXCEEDED = "wall_clock_exceeded"
 STOP_DEICTIC_ENTITY_GUARD = "deictic_entity_guard"
 
 # Shared by both agent-specific prompts below (not pipeline.generation's
-# templates - see module docstring's "День 2 additions" note). Placed
+# templates - see module docstring's "Day 2 additions" note). Placed
 # ahead of the {context} block in each template, closest to where the
 # untrusted content actually appears, rather than only at the top of the
 # prompt - repeating the warning right next to the data it describes is a
@@ -118,14 +118,14 @@ _UNTRUSTED_CONTEXT_WARNING = (
 )
 
 # Versioned separately from pipeline.generation's PROMPT_TEMPLATE/prompt_variant
-# (round-4 closing-expert note, itog_ekspertizy_agent_profil.md: "Версионирование
-# agent-промпта отдельно от pipeline-промпта - иначе baseline и agent становятся
-# несравнимыми при любом изменении system prompt"). Bump this whenever
-# _ASSESSMENT_PROMPT_TEMPLATE changes, independently of pipeline.generation's
-# own versioning.
+# (round-4 closing-expert note, itog_ekspertizy_agent_profil.md: "Version
+# the agent prompt separately from the pipeline prompt - otherwise baseline
+# and agent become incomparable on any system-prompt change"). Bump this
+# whenever _ASSESSMENT_PROMPT_TEMPLATE changes, independently of
+# pipeline.generation's own versioning.
 #
-# v1 -> v2 (День 2): added _UNTRUSTED_CONTEXT_WARNING - see module
-# docstring's "День 2 additions" note (canary item 1).
+# v1 -> v2 (Day 2): added _UNTRUSTED_CONTEXT_WARNING - see module
+# docstring's "Day 2 additions" note (canary item 1).
 AGENT_ASSESSMENT_PROMPT_VERSION = "v2"
 
 _ASSESSMENT_PROMPT_TEMPLATE = """You are deciding whether enough evidence has been retrieved to answer a question about a company's financial report.
@@ -154,7 +154,7 @@ REFORMULATED QUERY: <a new search query, or NONE>
 # docstring for why agent-only prompts get their own version at all)
 # and independently of pipeline.generation's PROMPT_TEMPLATE (which this
 # is a variant of, kept out of PROMPT_TEMPLATE_VARIANTS since that dict is
-# the flagship pipeline's own Фаза 5 registry - see module docstring).
+# the flagship pipeline's own Phase 5 registry - see module docstring).
 AGENT_ANSWER_PROMPT_VERSION = "v1"
 
 # Same {context}/{question} slots and FINAL ANSWER contract as
@@ -222,7 +222,7 @@ def _parse_assessment(raw_response: str) -> EvidenceAssessment:
     Confirmed as a real (if unmanifested - no real response in the 35
     logged runs actually contained two SUFFICIENT/REFORMULATED QUERY
     lines) parsing bug during external code review; see
-    claude/status_agent_rezultaty_4_nahodki_kod.md, находка 1.
+    claude/status_agent_rezultaty_4_nahodki_kod.md, finding 1.
     """
     matches = list(_SUFFICIENT_RE.finditer(raw_response))
     if not matches:
@@ -273,7 +273,7 @@ class AgentAnswer:
     additional_calls_used: int
     stopped_reason: str
     forced_insufficient: bool
-    # День 2: the actual accumulated candidate objects (same order as
+    # Day 2: the actual accumulated candidate objects (same order as
     # context_ids), not just their ids - added so a caller (e.g.
     # scripts/run_agent_eval.py, for agent/success.py's insufficiency
     # judge) can reconstruct the exact context the agent actually saw via
@@ -286,8 +286,8 @@ class AgentAnswer:
     context_documents: tuple[object, ...] = ()
 
 
-# Deictic/entity guard (claude/itog_ekspertizy_cuad_overrefusal_fix.md, "Что
-# осталось сделать", item 1). Rule-based, no LLM call and no dependency on
+# Deictic/entity guard (claude/itog_ekspertizy_cuad_overrefusal_fix.md,
+# "what's left to do", item 1). Rule-based, no LLM call and no dependency on
 # MongoDB/corpus metadata ("simple syntactic check" option, chosen over a
 # corpus-lookup version - the corpus-lookup alternative was considered and
 # deferred: see the project's own design discussion for this trade-off).
@@ -310,8 +310,8 @@ class AgentAnswer:
 #   1. scripts/run_financial_entity_ambiguity_diagnostic.py's narrow
 #      financial-domain check (28 real questions, paired original/
 #      anonymized comparison, see that script's docstring and
-#      claude/itog_ekspertizy_cuad_overrefusal_fix.md's "Результат узкой
-#      финансовой проверки") already found that removing just the company
+#      claude/itog_ekspertizy_cuad_overrefusal_fix.md's "result of the
+#      narrow financial-domain check") already found that removing just the company
 #      name from a real financial question, while the document-level
 #      metadata_prefix stays in the context, does not measurably change
 #      the assessor's sufficient=yes rate (22/28 identical in both
@@ -501,12 +501,12 @@ def run_agent_query(
     config.config_schema.AgentConfig).
 
     `prompt_template` defaults to this module's own AGENT_ANSWER_PROMPT_TEMPLATE
-    (not pipeline.generation.PROMPT_TEMPLATE - see module docstring's "День 2
+    (not pipeline.generation.PROMPT_TEMPLATE - see module docstring's "Day 2
     additions" note) - pass a different template explicitly to override.
 
     `max_wall_clock_seconds`: optional per-question safety limit
-    (config.agent.max_wall_clock_seconds - День 2, "Глобальные
-    предохранители"). None (the default) disables the check entirely, so
+    (config.agent.max_wall_clock_seconds - Day 2, "Global safety
+    limits"). None (the default) disables the check entirely, so
     existing callers/tests that never set it are unaffected. Checked once
     per loop iteration, before starting another additional search+assessment
     round - not mid-call, since a blocking search_fn/assessor call can't be
@@ -585,7 +585,7 @@ def run_agent_query(
     # accumulated.update() below; cleared right after each fresh
     # assessor.assess() call. Exists to catch a real, confirmed edge case
     # on the STOP_WALL_CLOCK_EXCEEDED path (see forced_insufficient below)
-    # - see claude/status_agent_rezultaty_4_nahodki_kod.md, находка 4.
+    # - see claude/status_agent_rezultaty_4_nahodki_kod.md, finding 4.
     assessment_is_stale = False
 
     if not accumulated:
@@ -666,7 +666,7 @@ def run_agent_query(
     #
     # `assessment_is_stale` covers a related but distinct case, confirmed
     # during external code review (see
-    # claude/status_agent_rezultaty_4_nahodki_kod.md, находка 4): a
+    # claude/status_agent_rezultaty_4_nahodki_kod.md, finding 4): a
     # reformulated search can succeed in adding new documents to
     # `accumulated`, and then STOP_WALL_CLOCK_EXCEEDED can fire at the top
     # of the *next* iteration before assessor.assess() ever runs against
@@ -691,7 +691,7 @@ def run_agent_query(
         # from evidence it (via the assessor) already judged inadequate.
         # Counted as success downstream only if the judge independently
         # agrees the question is unanswerable - see
-        # plan_rabot_posle_ekspertizy_agent_profil.md, День 2.
+        # plan_rabot_posle_ekspertizy_agent_profil.md, Day 2.
         answer_text = INSUFFICIENT_CONTEXT_MARKER
         _trace(
             "answer",
