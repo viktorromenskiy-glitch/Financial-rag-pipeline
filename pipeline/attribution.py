@@ -74,7 +74,7 @@ def load_gold_context_ids(questions_path: str | Path) -> dict[str, str]:
 
 
 def classify(gold_context_id: str, candidate_top50: list[dict], reranked_top5: list[dict], judge_correct: bool | None) -> str:
-    """The deterministic decision tree from the audit doc (section "Логика"),
+    """The deterministic decision tree from the audit doc (section "Logic"),
     unchanged except for the terminology correction noted in the module
     docstring. Never uses an LLM - purely set membership on context_id.
     """
