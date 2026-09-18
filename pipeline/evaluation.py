@@ -136,7 +136,7 @@ class JudgeCache:
     """External cache of judge results, keyed by cache_key() (JSON Lines,
     one line per cached result) - a repeated run must not re-judge
     questions whose (question, context, answer, prompt_version) hash is
-    unchanged (spec section 9, "Кэширование"; tehnicheskoe_zadanie.md,
+    unchanged (spec section 9, "Caching"; tehnicheskoe_zadanie.md,
     section 8), and a mid-run failure should not lose already-judged
     results. Mirrors module 4's EnrichmentCheckpoint."""
 
@@ -240,7 +240,7 @@ def evaluate_answers(
     evaluate_answer() call (a real judge API call) is appended to it -
     never for a cache hit, which takes microseconds and would silently
     deflate the reported latency (see pipeline/common/latency.py, added
-    for docs/tehnicheskoe_zadanie.md "План доработки-2, пункт 2").
+    for docs/tehnicheskoe_zadanie.md "Follow-up plan 2, item 2").
     """
     cached = cache.load() if cache is not None else {}
     results: list[EvalResult] = []
@@ -280,8 +280,8 @@ def evaluate_answers(
 def regression_report(previous: list[EvalResult], current: list[EvalResult]) -> dict[str, list[str]]:
     """Per-question improved/regressed/unchanged classification between
     two evaluation runs, keyed by question_id - the mandatory reporting
-    output required by spec section 9 ("не только агрегированные
-    метрики"). This is the same comparison that has repeatedly caught
+    output required by spec section 9 ("not just aggregate metrics").
+    This is the same comparison that has repeatedly caught
     real bugs hidden behind a stable or improved aggregate metric in this
     project (tehnicheskoe_zadanie.md, section 10 - e.g. the bge-reranker
     case: 13 fixed but 44 broken, aggregate looked neutral).
