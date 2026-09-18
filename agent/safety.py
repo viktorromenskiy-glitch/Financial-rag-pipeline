@@ -1,6 +1,6 @@
-"""Run-level safety budget for a whole agent evaluation harness run - День 2
-of plan_rabot_posle_ekspertizy_agent_profil.md: "Глобальные предохранители:
-максимум токенов / wall-clock / стоимость на прогон".
+"""Run-level safety budget for a whole agent evaluation harness run - Day 2
+of plan_rabot_posle_ekspertizy_agent_profil.md: "Global safety limits:
+max tokens / wall-clock / cost per run".
 
 Scope: this tracks the WHOLE evaluation run (e.g. scripts/run_agent_eval.py's
 ~20-30 questions, both baseline and agent, plus judge calls), not a single
@@ -18,8 +18,8 @@ _extract_text there). Rather than plumb real token counts through every
 adapter for this one safety feature, this module counts LLM *calls* and
 converts to an estimated dollar cost via a configurable per-call price
 (config.agent_eval.cost_per_llm_call_usd) - coarser than a real token
-count, but exactly the quantity "Зафиксировать заранее бюджет
-evaluation-прогона (число LLM-вызовов × стоимость)" (План, День 2) asks
+count, but exactly the quantity "fix the evaluation-run budget in advance
+(number of LLM calls x cost)" (Plan, Day 2) asks
 to fix in advance, and a call-count ceiling is itself a meaningful,
 directly-enforceable safety limit independent of the cost estimate's
 accuracy.
