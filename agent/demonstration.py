@@ -1,11 +1,11 @@
 """Formal, pre-registered selection of demonstration cases - Day 3 of
 plan_rabot_posle_ekspertizy_agent_profil.md:
 
-  "1-2 demonstration cases с полным трейсом; отбор по формальному
-  критерию, зафиксированному заранее (например, «вопросы, на которых
-  baseline failed»), не по красоте трейса агента."
-  "Обязательно включить минимум один случай, где агент не помог или
-  помог хуже - против chery-picking."
+  "1-2 demonstration cases with a full trace; selection by a formal
+  criterion fixed in advance (e.g. "questions where baseline failed"),
+  not by how good the agent's trace looks."
+  "Must include at least one case where the agent didn't help or did
+  worse - against cherry-picking."
 
 The criterion below is written and committed BEFORE this module has ever
 been run against real results/agent_eval_day2/ data (that harness run
