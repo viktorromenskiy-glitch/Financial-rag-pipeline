@@ -15,8 +15,8 @@ but the design review explicitly required this to be pinned down by a
 test rather than left as a fact of today's code that a future refactor
 could silently break - see test_agent_tools.py.
 
-Graceful degradation (День 2 of plan_rabot_posle_ekspertizy_agent_profil.md,
-"Безопасность, robustness, evaluation harness" - 2 of the 2 required
+Graceful degradation (Day 2 of plan_rabot_posle_ekspertizy_agent_profil.md,
+"Safety, robustness, evaluation harness" - 2 of the 2 required
 scenarios, the empty-retrieval scenario being handled in agent/loop.py):
 a transient failure of an external service must not crash the whole
 bounded loop (and, in a real evaluation run, the whole batch of
@@ -91,7 +91,7 @@ class SearchToolCall:
     actually run (echoed back so callers/traces don't need to track it
     separately) and the ranked candidates it returned.
 
-    `degraded`/`degradation_reason` (День 2): set when a transient
+    `degraded`/`degradation_reason` (Day 2): set when a transient
     MongoDB or Cohere failure forced this call to return a lesser result
     (empty or unreranked candidates - see module docstring) instead of
     raising. Both default to the Day 1 values (False/None) so every Day 1
@@ -155,7 +155,7 @@ def search_documents(
             while claiming reranking was neither requested nor needed.
             That masked a real misconfiguration as an ordinary result
             instead of surfacing it. Found during external code review;
-            see claude/status_agent_rezultaty_4_nahodki_kod.md, находка 2.
+            see claude/status_agent_rezultaty_4_nahodki_kod.md, finding 2.
             Raising here (like the empty-query check above) matches this
             module's existing split: a caller/config bug raises
             immediately, while only genuine transient runtime failures
