@@ -1,8 +1,8 @@
 """Reproducibility metadata for a Day 2 agent-evaluation harness run -
-plan_rabot_posle_ekspertizy_agent_profil.md, День 2: "Зафиксировать версии
-моделей/temperature/системных промптов и версию судьи + is_close_v2
-(commit-tag) для воспроизводимости - достаточно commit-hash + комментарий
-в коде, отдельный lock-файл не обязателен."
+plan_rabot_posle_ekspertizy_agent_profil.md, Day 2: "Record model/
+temperature/system-prompt versions and the judge version + is_close_v2
+(commit-tag) for reproducibility - a commit hash plus a code comment is
+enough, a separate lock file isn't required."
 
 Kept separate from pipeline.common.run_config.build_run_config rather than
 extended: that function's return shape is a fixed contract required by
@@ -13,7 +13,7 @@ insufficiency-judge prompt version) that have no place in that contract
 and no baseline-pipeline equivalent to stay consistent with.
 
 git commit hash: same `git rev-parse --short HEAD` approach already used
-by scripts/check_colab_runtime.py - "достаточно commit-hash", no separate
+by scripts/check_colab_runtime.py - "a commit hash is enough", no separate
 lock-file.
 """
 
