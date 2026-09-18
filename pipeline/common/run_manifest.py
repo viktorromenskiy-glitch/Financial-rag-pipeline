@@ -67,7 +67,13 @@ def build_run_manifest(
 ) -> dict:
     """Pure builder - no file I/O, so it stays independently testable.
     See write_run_manifest_if_absent below for the file-writing wrapper
-    scripts/run_agent_eval.py actually calls."""
+    scripts/run_agent_eval.py actually calls.
+
+    Returns:
+        A dict with run_id, created_at, git_sha, config_hash,
+        expected_question_ids, and expected_canary_ids - the exact shape
+        written to run_manifest.json.
+    """
     return {
         "run_id": run_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
