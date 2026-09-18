@@ -1,7 +1,7 @@
 """Human-readable "thought -> tool -> observation" trace dump - Day 3 of
-plan_rabot_posle_ekspertizy_agent_profil.md, "Человекочитаемый debug-режим
-(«thought -> tool -> observation» дамп), отдельно от машиночитаемого
-JSONL - облегчает собственный разбор discordant pairs перед публикацией."
+plan_rabot_posle_ekspertizy_agent_profil.md, "Human-readable debug mode
+("thought -> tool -> observation" dump), separate from the machine-readable
+JSONL - makes it easier to review discordant pairs before publication."
 
 agent/tracing.py's TraceWriter already writes the machine-readable form
 (one JSON object per line, results/<run_id>/agent_trace.jsonl - see that
