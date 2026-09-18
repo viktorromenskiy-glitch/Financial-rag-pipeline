@@ -10,7 +10,7 @@ cannot assemble full_indexed_content itself. This way, an incorrect call
 order (embedding before enrichment) cannot accidentally slip through this
 module.
 
-Per-dataset embedding routing (docs/tehnicheskoe_zadanie.md, п.3a,
+Per-dataset embedding routing (docs/tehnicheskoe_zadanie.md, item 3a,
 2026-08-15): a direct A/B test on the full 7318-document corpus (three
 runs of increasing scale, final n=2500/source_dataset, McNemar's exact
 test) found voyage-finance-2 measurably helps TAT-DQA retrieval
