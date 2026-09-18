@@ -1,4 +1,4 @@
-"""Harness-level "successful completion rate" definition for agent/ - День 2
+"""Harness-level "successful completion rate" definition for agent/ - Day 2
 of plan_rabot_posle_ekspertizy_agent_profil.md.
 
 Kimi's followup response (kimi_followup_mcnemar_arithmetic_response.md,
@@ -125,7 +125,7 @@ def judge_context_insufficiency(judge: JudgeProtocol, question: str, context_tex
     response case in this module. Found during external code review;
     confirmed reproducible on this exact example (never manifested in any
     of the 35 logged runs - all real verdicts were clean). See
-    claude/status_agent_rezultaty_4_nahodki_kod.md, находка 3, and
+    claude/status_agent_rezultaty_4_nahodki_kod.md, finding 3, and
     claude/verifikaciya_qwen_substring_bug.md for the full trace.
     """
     prompt = INSUFFICIENCY_JUDGE_PROMPT.format(question=question, context=context_text, gold_answer=gold_answer)
