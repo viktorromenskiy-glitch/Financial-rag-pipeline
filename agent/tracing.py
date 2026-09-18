@@ -4,14 +4,14 @@ Writes one line per step per question - retrieval_1, evidence_assessment,
 reformulated_query, retrieval_2, ..., answer - matching the trace shape
 referenced throughout this project's agent-design expert review
 (itog_ekspertizy_agent_profil.md, consensus item 12: "structured
-JSONL-трейсинг каждого прогона"). Intended output path from a real run is
+JSONL tracing of every run"). Intended output path from a real run is
 results/<run_id>/agent_trace.jsonl, mirroring pipeline.cli's existing
 results/<run_id>/retrieval_trace.jsonl (module 6) - the caller (cli.py's
 future `agent` subcommand, Day 2/3) decides the actual path.
 
 Append-per-record, not accumulate-then-write-once, mirroring
 pipeline.cli._append_retrieval_trace_record and every other checkpoint in
-this project ("Правила сохранения долгих платных прогонов" - an
+this project ("rules for persisting results of long paid runs" - an
 interrupted run should lose at most the one in-flight step, not the whole
 trace).
 """
