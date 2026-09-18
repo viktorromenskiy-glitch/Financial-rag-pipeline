@@ -11,7 +11,7 @@ regression. Two separate truncation points must both be avoided:
   1. Do not truncate full_indexed_content yourself before calling this
      module - candidates must carry the untruncated text from module 6.
      Enforced below as a checkable invariant (assert), not just a comment
-     (spec section 7, "Явный запрет обрезки").
+     (spec section 7, "explicit ban on truncation").
   2. The Cohere API itself truncates each document to max_tokens_per_doc
      (API default: 4096) before scoring. MAX_TOKENS_PER_DOC below
      overrides that default to stay just under the model's real
@@ -87,8 +87,8 @@ def rerank(
     if any(not d for d in documents):
         raise ValueError("Empty full_indexed_content in reranking input")
 
-    # Checkable invariant, not just a comment (spec section 7, "Явный запрет
-    # обрезки"): the text sent to the API must be full_indexed_content in
+    # Checkable invariant, not just a comment (spec section 7, "explicit ban
+    # on truncation"): the text sent to the API must be full_indexed_content in
     # full, never a slice. This is the exact bug that caused a measured
     # Recall@5 regression twice during weeks 1-2 testing - guards against a
     # future edit accidentally reintroducing truncation here.
