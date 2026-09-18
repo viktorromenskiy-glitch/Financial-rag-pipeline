@@ -10,9 +10,9 @@ $rankFusion syntax reference: https://www.mongodb.com/docs/manual/reference/oper
 De-duplication across input pipelines is handled natively by $rankFusion
 (confirmed in the official documentation) - the assertion below is a cheap
 safety net, not a required deduplication step (see spec, module 6,
-"Проверка").
+"Verification").
 
-Per-dataset embedding routing (docs/tehnicheskoe_zadanie.md, п.3a,
+Per-dataset embedding routing (docs/tehnicheskoe_zadanie.md, item 3a,
 2026-08-15): documents route to voyage-finance-2 or voyage-4 depending on
 their own source_dataset (see pipeline.embedding.resolve_embedding_model).
 Because vectors from different embedding models are not comparable, a
@@ -103,7 +103,7 @@ def build_rank_fusion_pipeline(
 
     Requires source_dataset to be declared as a "filter"-type field in
     both the vector_index_full and text_index_full Atlas index
-    definitions (docs/tehnicheskoe_zadanie.md, п.3a) -
+    definitions (docs/tehnicheskoe_zadanie.md, item 3a) -
     pipeline.indexing.validate_startup_indexes() checks this at startup
     and fails loudly if it's missing, rather than silently returning
     zero/wrong candidates.
