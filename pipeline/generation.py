@@ -49,15 +49,15 @@ is the same "let it think, but delimit the final output" pattern as
 to cause the occasional non-compliant leak, rather than just re-stating
 the same prohibition more forcefully.
 
-2026-08-23 (Фаза 5, two new named variants - PROMPT_TEMPLATE itself
+2026-08-23 (Phase 5, two new named variants - PROMPT_TEMPLATE itself
 unchanged): docs/tehnicheskoe_zadanie.md section 27 taxonomized all 25
 confirmed generation_failure_candidate cases by root cause. Two clusters
 dominated and are targeted here by separate prompt variants, kept
 separate on purpose so a Phase 6 A/B run (see this project's internal
-error-analysis plan, not in this repository, "Фаза 6") can attribute any
+error-analysis plan, not in this repository, "Phase 6") can attribute any
 effect to a specific
-intervention rather than a bundled change ("один вариант вмешательства -
-один скрипт - одна проверка"):
+intervention rather than a bundled change ("one intervention - one script
+- one check"):
 
 - PROMPT_TEMPLATE_CITE_AND_CHECK targets categories A (wrong table
   row/column/entity, 10/25), D (incomplete computation, 5/25), B
@@ -119,7 +119,7 @@ Formatting rules for <value>:
 - If the context does not contain enough information to answer, use: FINAL ANSWER: INSUFFICIENT_CONTEXT
 """
 
-# Фаза 5 variant targeting taxonomy categories A/D/B/H/J (see module
+# Phase 5 variant targeting taxonomy categories A/D/B/H/J (see module
 # docstring above) - same context/question slots and same FINAL ANSWER
 # contract as PROMPT_TEMPLATE, with an explicit citation-then-verify
 # requirement inserted before the formatting rules.
@@ -148,7 +148,7 @@ Formatting rules for <value>:
 - If the context does not contain enough information to answer, use: FINAL ANSWER: INSUFFICIENT_CONTEXT
 """
 
-# Фаза 5 variant targeting taxonomy category C (sign/formula-base error).
+# Phase 5 variant targeting taxonomy category C (sign/formula-base error).
 PROMPT_TEMPLATE_FORMULA_BASE = """You are answering a question about a company's financial report using the context documents below.
 
 Context:
@@ -230,7 +230,7 @@ def build_context_block(candidates: list) -> str:
 def build_prompt(question: str, candidates: list, template: str = PROMPT_TEMPLATE) -> str:
     """template defaults to the production baseline PROMPT_TEMPLATE - pass
     one of the PROMPT_TEMPLATE_VARIANTS values (or PROMPT_TEMPLATE_CITE_AND_CHECK
-    / PROMPT_TEMPLATE_FORMULA_BASE directly) to run a Фаза 5 intervention
+    / PROMPT_TEMPLATE_FORMULA_BASE directly) to run a Phase 5 intervention
     instead. Any template must accept the same {context}/{question} slots."""
     return template.format(context=build_context_block(candidates), question=question)
 
@@ -250,11 +250,11 @@ def generate_answer(
     """candidates: top-N context documents, already ranked (module 7's
     RerankedCandidate list, or module 6's Candidate list if
     reranker.enabled is false - see specifikatsiya_moduley.md, module 8,
-    "Зависимости"). Not re-sliced or re-sorted here - the caller decides
+    "Dependencies"). Not re-sliced or re-sorted here - the caller decides
     how many documents to include.
 
     template defaults to the production baseline PROMPT_TEMPLATE - see
-    build_prompt() for how to select a Фаза 5 variant instead."""
+    build_prompt() for how to select a Phase 5 variant instead."""
     prompt = build_prompt(question, candidates, template=template)
     raw_response = _generate_with_retry(generator, prompt)
     answer_text = _extract_final_answer(raw_response)
