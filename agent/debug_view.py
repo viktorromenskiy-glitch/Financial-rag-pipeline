@@ -44,6 +44,11 @@ def group_by_question(records: Iterable[dict]) -> "OrderedDict[str, list[dict]]"
     A record with no "question_id" key is skipped rather than raising -
     every real record agent/loop.py emits always has one, so this only
     guards against a hand-built/corrupted fixture in a test.
+
+    Returns:
+        An OrderedDict mapping each question_id to the list of its trace
+        records, in original step order, with keys ordered by each
+        question_id's first appearance in `records`.
     """
     grouped: "OrderedDict[str, list[dict]]" = OrderedDict()
     for record in records:
