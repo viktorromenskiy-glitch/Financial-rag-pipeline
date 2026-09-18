@@ -105,7 +105,7 @@ def upsert_document(
     source_dataset: str,
 ) -> None:
     """source_dataset is stored on the document (added 2026-08-15,
-    docs/tehnicheskoe_zadanie.md п.3a) so pipeline.retrieval can pre-filter
+    docs/tehnicheskoe_zadanie.md item 3a) so pipeline.retrieval can pre-filter
     $rankFusion candidates by it. This is required, not optional, once
     per-dataset embedding routing is in use: embedding_voyage on a given
     document holds vectors from whichever model that document's
@@ -155,7 +155,7 @@ def index_corpus(
     checkpoint). Resilient to a mid-run failure while indexing the full
     corpus - documents already marked is_indexed=True are skipped instead of
     restarting from scratch (specifikatsiya_moduley.md, module 5,
-    "Устойчивость").
+    "Resilience").
     """
     count = 0
     for doc in documents:
@@ -184,7 +184,7 @@ def validate_startup_indexes(collection: CollectionProtocol, check_source_datase
     mismatched index names.
 
     check_source_dataset_filter (added 2026-08-15, tehnicheskoe_zadanie.md
-    п.3a): per-dataset embedding routing requires $vectorSearch's `filter`
+    item 3a): per-dataset embedding routing requires $vectorSearch's `filter`
     clause on source_dataset to actually work, which requires
     source_dataset to be declared as a "filter"-type field in the
     vector_index_full Atlas Search index definition - this is an Atlas
@@ -264,7 +264,7 @@ def validate_startup_indexes(collection: CollectionProtocol, check_source_datase
                 f"source_dataset/embedding_finance2 backfill migration if the corpus was "
                 f"indexed before 2026-08-15) and (b) declared as a 'filter'-type field in "
                 f"the {VECTOR_INDEX_NAME!r} Atlas index definition (see "
-                f"docs/tehnicheskoe_zadanie.md, п.3a, for the exact index JSON). Without "
+                f"docs/tehnicheskoe_zadanie.md, item 3a, for the exact index JSON). Without "
                 f"this, per-dataset embedding routing cannot pre-filter candidates by "
                 f"source_dataset, and queries risk being compared against documents "
                 f"embedded with a different, incompatible model."
