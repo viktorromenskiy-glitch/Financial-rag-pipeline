@@ -78,10 +78,27 @@ def load_demo_sample(
     eval_results_path: Path = EVAL_RESULTS_PATH,
     question_ids: list[str] = CURATED_QUESTION_IDS,
 ) -> list[dict]:
-    """Join predictions.jsonl + eval_results.jsonl on question_id, filtered to
-    `question_ids`, in that order. Raises KeyError if a requested id is missing
-    from either file (fail loudly rather than silently dropping a curated
-    example)."""
+    """Joins predictions.jsonl and eval_results.jsonl on question_id, filtered
+    to `question_ids`, in that order.
+
+    Args:
+        predictions_path: Path to the predictions JSONL file (one JSON
+            object per line, keyed by question_id).
+        eval_results_path: Path to the eval_results JSONL file (one JSON
+            object per line, keyed by question_id).
+        question_ids: The question_ids to include, and the order of the
+            returned rows.
+
+    Returns:
+        One dict per requested question_id, merging the matching
+        prediction and eval_result fields (source_dataset, question,
+        gold_answer, answer_text, judge_verdict, judge_correct,
+        deterministic_match), in the order of `question_ids`.
+
+    Raises:
+        KeyError: If a requested question_id is missing from either file -
+            fails loudly rather than silently dropping a curated example.
+    """
     predictions = _load_jsonl(predictions_path)
     eval_results = _load_jsonl(eval_results_path)
 

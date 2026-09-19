@@ -26,6 +26,18 @@ BY_CHOICE = dict(zip(CHOICES, SAMPLE))
 
 
 def render(choice: str) -> tuple[str, str, str, str, str, str]:
+    """Looks up `choice` in BY_CHOICE and formats it for the Gradio panels.
+
+    Args:
+        choice: The dropdown value selected in the UI, one of CHOICES
+            ("{question_id}  ({source_dataset})").
+
+    Returns:
+        A 6-tuple of (source_dataset, question, gold_answer, answer_text,
+        judge verdict summary, deterministic-vs-judge agreement summary),
+        in the same order as the `outputs` list passed to
+        picker.change()/demo.load().
+    """
     row = BY_CHOICE[choice]
     verdict = "✅ correct" if row["judge_correct"] else "❌ incorrect"
     det = "match" if row["deterministic_match"] else "no match"
