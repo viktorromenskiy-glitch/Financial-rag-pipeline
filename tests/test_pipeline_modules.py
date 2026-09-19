@@ -40,7 +40,12 @@ pytestmark = pytest.mark.skipif(
 def real_slice() -> pd.DataFrame:
     """A small slice (first 20 rows) of one real raw parquet file, with
     the source_dataset column added the same way load_raw() does - not the
-    full corpus, so this runs in under a second."""
+    full corpus, so this runs in under a second.
+
+    Returns:
+        The first 20 rows of one real T2-RAGBench raw parquet file, with a
+        source_dataset column of "FinQA" added.
+    """
     df = pd.read_parquet(_PROBE_FILE).head(20).copy()
     df["source_dataset"] = "FinQA"
     return df

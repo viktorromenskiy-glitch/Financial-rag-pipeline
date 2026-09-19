@@ -110,6 +110,12 @@ def test_dedupe_documents_on_real_corpus_checkpoint():
  
 @pytest.fixture
 def collection():
+    """Provides a fresh in-memory MongoDB collection for CRUD tests.
+
+    Returns:
+        A mongomock collection, isolated per test, standing in for the
+        real rag_project.t2_ragbench_full collection.
+    """
     client = mongomock.MongoClient()
     return client["rag_project"]["t2_ragbench_full"]
  
