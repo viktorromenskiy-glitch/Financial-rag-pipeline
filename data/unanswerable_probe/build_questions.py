@@ -89,11 +89,15 @@ ABSENT_COMPANY_QUESTIONS = [
 
 
 def verify_absence() -> None:
-    """Loads the real, committed corpus parquet files and checks every
-    claim above against actual data - not asserted, checked. Raises
-    AssertionError (loudly, naming the offending question) if any
-    "wrong_year" company/year pair is actually present, or any
-    "absent_company" name actually matches something in the corpus.
+    """Loads the real, committed corpus parquet files and checks every claim
+    above against actual data - not asserted, checked.
+
+    Raises:
+        AssertionError: If any "wrong_year" company/year pair is actually
+            present in the corpus, or any "absent_company" name actually
+            matches something in the corpus (company_name or full text) -
+            names the offending question so a failure is directly
+            actionable.
     """
     fin = pd.concat([pd.read_parquet(CORPUS_DIR / f"FinQA_{s}.parquet") for s in ("train", "dev", "test")])
     conv = pd.read_parquet(CORPUS_DIR / "ConvFinQA_turn_0.parquet")
@@ -168,6 +172,14 @@ def verify_absence() -> None:
 
 
 def build() -> None:
+    """Runs verify_absence() and writes every question (WRONG_YEAR_QUESTIONS
+    then ABSENT_COMPANY_QUESTIONS) as one JSON record per line to OUT_PATH.
+
+    Raises:
+        AssertionError: Propagates from verify_absence() if any question's
+            wrong-year or absent-company claim does not actually hold
+            against the real, committed corpus.
+    """
     verify_absence()
     records = []
     qid = 1

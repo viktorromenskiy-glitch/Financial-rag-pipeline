@@ -153,7 +153,18 @@ def anonymize_question(name: str, question: str) -> str:
     (re.sub без count=1) - см. модульный докстринг про то, что каждая замена
     проверяется программно после применения (исходное имя не должно остаться
     в анонимизированном тексте), а не просто предполагается по построению
-    паттерна."""
+    паттерна.
+
+    Args:
+        name: Humanized имя компании (см. humanize_company_name()),
+            которое нужно найти и заменить в тексте вопроса.
+        question: Исходный текст вопроса, в котором выполняется замена.
+
+    Returns:
+        Текст вопроса с каждым вхождением `name` (вместе с необязательным
+        юридическим суффиксом и притяжательной формой) заменённым на
+        "the company"/"the company's".
+    """
     pattern = re.compile(
         r"\b" + re.escape(name) + _CORP_SUFFIX + r"\.?(’s|'s|[’'])?",
         re.IGNORECASE,
@@ -169,6 +180,22 @@ def anonymize_question(name: str, question: str) -> str:
 
 
 def build() -> None:
+    """Строит фикстуру (по одной паре условий на каждый элемент
+    TARGET_CONTEXT_IDS: вопрос/gold-документ/3 дистрактора/анонимизированный
+    текст) и записывает её в OUT_PATH - см. модульный докстринг для полного
+    дизайна отбора и происхождения TARGET_CONTEXT_IDS.
+
+    Raises:
+        ValueError: Если элемент TARGET_CONTEXT_IDS не найден в
+            eval_subset_250.parquet или среди построенных DocumentRecord,
+            не имеет company_name/company_sector, его сектор содержит
+            меньше MIN_DISTINCT_COMPANIES_PER_SECTOR различных компаний
+            в корпусе, или анонимизация не удалила все вхождения имени
+            компании / не изменила текст вопроса.
+        AssertionError: Если в построенной фикстуре есть повторяющиеся
+            question_id или повторно использованные (в разных элементах)
+            gold_context_id.
+    """
     raw = load_raw(CORPUS_DIR)
     records = to_document_records(raw)
 

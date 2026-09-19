@@ -45,6 +45,17 @@ def _confusion(records, gt_key, pred_key):
 
 
 def main():
+    """Reads the completed FILLED_CSV labeling workbook plus
+    labeling_sample.json/answer_key.json, joins them, and writes
+    calibration_results.json and calibration_summary.json (agreement/TPR/TNR
+    with exact 95% confidence intervals for both the judge and is_close_v2
+    against the human labels).
+
+    Raises:
+        ValueError: If FILLED_CSV does not have exactly 30 labeled rows, or
+            if a row's verdict column is not "CORRECT"/"INCORRECT"
+            (case-insensitive).
+    """
     labeling_sample = json.load(open(LABELING_SAMPLE, encoding="utf-8"))
     answer_key = json.load(open(ANSWER_KEY, encoding="utf-8"))
     label_id_to_qid = {row["label_id"]: row["question_id"] for row in labeling_sample}
