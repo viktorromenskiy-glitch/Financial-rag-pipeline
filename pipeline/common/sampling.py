@@ -22,10 +22,18 @@ from collections import defaultdict
 
 
 def stratified_sample(items: list[dict], n: int, key: str, seed: int) -> list[dict]:
-    """items: dicts each containing `key` (e.g. "source_dataset"). Returns
-    a new list of exactly `n` items, drawn from `items` without
+    """Stratified sample of exactly `n` items from `items`, drawn without
     replacement, with per-stratum counts as close to proportional to each
     stratum's population share as an integer allocation allows.
+
+    Args:
+        items: Records to sample from, each containing `key` (e.g. "source_dataset").
+        n: Number of items to draw; must be positive and no greater than len(items).
+        key: The field name items are stratified on.
+        seed: Seed for the per-stratum random sampling, for reproducibility.
+
+    Returns:
+        A new list of exactly `n` items sampled from `items`.
 
     Raises:
         ValueError: if n is not positive, or exceeds len(items).

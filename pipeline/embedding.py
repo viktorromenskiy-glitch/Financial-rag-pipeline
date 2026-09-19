@@ -79,6 +79,16 @@ def resolve_embedding_model(
     default_model - the routing feature is a config-level on/off switch,
     matching the project's "everything switchable via config, not
     hardcoded" convention (docs/struktura_repozitoriya.md).
+
+    Args:
+        source_dataset: The source_dataset value to look up (e.g. "FinQA").
+        routing_enabled: Whether per-dataset routing is turned on at all.
+        finance_model: Model name to route to for sources in routed_sources.
+        routed_sources: source_dataset values that should route to finance_model.
+        default_model: Model name to use when routing does not apply.
+
+    Returns:
+        The resolved model name.
     """
     if routing_enabled and source_dataset in routed_sources:
         return finance_model
@@ -97,6 +107,26 @@ def embed_texts(
     input_type: InputType,
     model: str = MODEL,
 ) -> list[EmbeddingVector]:
+    """Embeds a list of texts in batches of BATCH_SIZE via the Voyage client.
+
+    Args:
+        client: Voyage API client (or a fake implementing VoyageClientProtocol).
+        ids: Identifier for each text, same order and length as texts.
+        texts: Texts to embed; must all be non-empty.
+        input_type: Whether these are "document" or "query" texts (Voyage
+            embeds these two differently).
+        model: Voyage embedding model name to use for the whole call.
+
+    Returns:
+        One EmbeddingVector per input text, in the same order as ids/texts.
+
+    Raises:
+        ValueError: If input_type is not "document" or "query", if ids
+            and texts have different lengths, or if any text is empty.
+        RuntimeError: If the Voyage API returns a different number of
+            embeddings than texts sent, or a vector with an unexpected
+            dimensionality.
+    """
     if input_type not in ("document", "query"):
         raise ValueError(f"input_type must be 'document' or 'query', got: {input_type!r}")
     if len(ids) != len(texts):
@@ -135,6 +165,15 @@ def embed_documents(
     resolved model BEFORE calling this (one call per model group), not
     pass a mixed-model batch through a single call. cli.py's cmd_index
     does this grouping; this function stays unaware of source_dataset.
+
+    Args:
+        client: Voyage API client (or a fake implementing VoyageClientProtocol).
+        indexed_texts: (context_id, full_indexed_content) pairs to embed.
+        model: Voyage embedding model to use for this batch.
+
+    Returns:
+        One EmbeddingVector per input pair, in the same order, or an
+        empty list if indexed_texts is empty.
     """
     if not indexed_texts:
         return []
@@ -146,4 +185,15 @@ def embed_documents(
 def embed_query(
     client: VoyageClientProtocol, question_id: str, query_text: str, model: str = MODEL
 ) -> EmbeddingVector:
+    """Embeds a single query text.
+
+    Args:
+        client: Voyage API client (or a fake implementing VoyageClientProtocol).
+        question_id: Identifier for the query.
+        query_text: Query text to embed.
+        model: Voyage embedding model to use.
+
+    Returns:
+        The embedding vector for query_text.
+    """
     return embed_texts(client, [question_id], [query_text], input_type="query", model=model)[0]

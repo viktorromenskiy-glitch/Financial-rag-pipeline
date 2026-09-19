@@ -66,6 +66,15 @@ def load_gold_context_ids(questions_path: str | Path) -> dict[str, str]:
     """Loads {question_id: gold_context_id} straight from the eval parquet's
     own `id`/`context_id` columns - no per-source raw-dataset lookup or
     gold_inds mapping needed, see module docstring for why.
+
+    Args:
+        questions_path: Path to the eval questions parquet file.
+
+    Returns:
+        Mapping from question_id to its gold context_id.
+
+    Raises:
+        ValueError: If the parquet is missing the `id` or `context_id` column.
     """
     df = pd.read_parquet(questions_path)
     if "id" not in df.columns or "context_id" not in df.columns:
@@ -77,6 +86,20 @@ def classify(gold_context_id: str, candidate_top50: list[dict], reranked_top5: l
     """The deterministic decision tree from the audit doc (section "Logic"),
     unchanged except for the terminology correction noted in the module
     docstring. Never uses an LLM - purely set membership on context_id.
+
+    Args:
+        gold_context_id: context_id of the document the question was
+            written against.
+        candidate_top50: Pre-rerank candidate pool, each dict with a
+            context_id key.
+        reranked_top5: Post-rerank top pool, each dict with a context_id key.
+        judge_correct: Whether the judge marked the generated answer
+            correct, or None if not yet judged.
+
+    Returns:
+        One of the module-level failure_stage constants
+        (RETRIEVAL_FAILURE, RERANKING_FAILURE,
+        GENERATION_FAILURE_CANDIDATE, SUCCESS, or UNKNOWN_OUTCOME).
     """
     top50_ids = {c["context_id"] for c in candidate_top50}
     top5_ids = {c["context_id"] for c in reranked_top5}
@@ -100,12 +123,24 @@ def attribute_run(retrieval_trace_path: str | Path, eval_results_path: str | Pat
     against a previous run's judge verdicts if it was computed for the
     exact same questions against the exact same indexed corpus.
 
+    Args:
+        retrieval_trace_path: Path to a retrieval_trace.jsonl produced by
+            `eval --retrieval-only`.
+        eval_results_path: Path to an eval_results.jsonl from a
+            previously judged run.
+        questions_path: Path to the eval questions parquet both runs were
+            computed against.
+
     Returns:
         One dict per question, each with keys: question_id,
         source_dataset, gold_context_id, gold_in_top50 (bool),
         gold_in_top5 (bool), judge_correct (bool | None), and
         failure_stage (one of the module-level *_FAILURE / SUCCESS /
         UNKNOWN_OUTCOME constants above).
+
+    Raises:
+        ValueError: If a question_id in the retrieval trace has no gold
+            context_id in questions_path (trace file/questions file mismatch).
     """
     gold = load_gold_context_ids(questions_path)
 
@@ -144,6 +179,9 @@ def summarize_attribution(records: list[dict]) -> dict:
     mandatory stratification convention used everywhere else in this
     project (docs/tehnicheskoe_zadanie.md, section 10).
 
+    Args:
+        records: Per-question attribution records, as returned by attribute_run.
+
     Returns:
         {"n": total record count, "overall": {failure_stage: count},
         "by_source_dataset": {source_dataset: {failure_stage: count}}}.
@@ -157,6 +195,15 @@ def summarize_attribution(records: list[dict]) -> dict:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI entry point: runs attribute_run() + summarize_attribution() for
+    a --retrieval-run-id / --judged-run-id pair and writes
+    attribution_results.jsonl / attribution_summary.json under the
+    retrieval run's results directory.
+
+    Args:
+        argv: Command-line arguments to parse, or None to use sys.argv
+            (argparse default).
+    """
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)

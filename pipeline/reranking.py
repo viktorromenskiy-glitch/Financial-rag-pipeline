@@ -79,7 +79,23 @@ def rerank(
     """candidates: module 6 Candidate objects (context_id,
     full_indexed_content, score) - the pool_size hybrid retrieval output.
     full_indexed_content must be the full, untruncated text - see module
-    docstring."""
+    docstring.
+
+    Args:
+        client: Cohere API client (or a fake implementing CohereClientProtocol).
+        query: The question text to rerank candidates against.
+        candidates: Candidate objects to rerank (see above); empty input
+            returns an empty list.
+        top_n: Number of top candidates to return, ranked by relevance.
+        max_tokens_per_doc: Per-document token cap passed to the Cohere API.
+
+    Returns:
+        Up to top_n RerankedCandidate objects, ordered best-first by
+        relevance_score.
+
+    Raises:
+        ValueError: If any candidate's full_indexed_content is empty.
+    """
     if not candidates:
         return []
 

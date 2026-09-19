@@ -127,6 +127,16 @@ def cache_key(question: str, context: str, answer: str, prompt_version: str = PR
     JUDGE_PROMPT revision above (v1 -> v2 -> v3), precisely so any
     existing judge_cache.jsonl entries from an older prompt version are
     not silently reused under the new prompt.
+
+    Args:
+        question: The question text.
+        context: The retrieved context actually used for generation.
+        answer: The generated answer text.
+        prompt_version: The judge prompt version this key is scoped to.
+
+    Returns:
+        A hex-encoded sha256 digest identifying this (question, context,
+        answer, prompt_version) combination.
     """
     raw = "\x1f".join([question, context, answer, prompt_version])
     return sha256(raw.encode("utf-8")).hexdigest()
@@ -141,12 +151,21 @@ class JudgeCache:
     results. Mirrors module 4's EnrichmentCheckpoint."""
 
     def __init__(self, path: str | Path):
+        """Args:
+            path: Path to the judge cache JSONL file (created on first
+                append if it doesn't exist).
+        """
         self.path = Path(path)
 
     def load(self) -> dict[str, dict]:
-        """Returns {cache_key: cached record (question_id, judge_scores,
-        deterministic_match, judge_agrees)} for every result already
-        appended to the cache file, or {} if the file does not exist yet."""
+        """Loads the cache file's contents.
+
+        Returns:
+            Mapping from cache_key to the cached record (question_id,
+            judge_scores, deterministic_match, judge_agrees) for every
+            result already appended to the cache file, or {} if the file
+            does not exist yet.
+        """
         if not self.path.exists():
             return {}
         cache: dict[str, dict] = {}
@@ -160,6 +179,13 @@ class JudgeCache:
         return cache
 
     def append(self, key: str, result: EvalResult) -> None:
+        """Appends one judged result to the cache file, creating it (and
+        any parent directories) if needed.
+
+        Args:
+            key: The cache_key this result is stored under.
+            result: The evaluation result to record.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as f:
             f.write(
@@ -196,9 +222,23 @@ def evaluate_answer(
     the batch entry point with caching, mirroring module 4's
     enrich_document/enrich_documents split).
 
-    context: the retrieved context actually used for generation (module
-    6/7 candidates' full_indexed_content), part of the cache key so a
-    retrieval/reranking change also invalidates stale judge results.
+    Args:
+        judge: Claude judge client (or a fake implementing JudgeProtocol).
+        question_id: Identifier for the question being evaluated.
+        question: The question text.
+        context: the retrieved context actually used for generation
+            (module 6/7 candidates' full_indexed_content), part of the
+            cache key so a retrieval/reranking change also invalidates
+            stale judge results.
+        generated_answer: The model's generated answer text.
+        gold_answer: The dataset's gold answer text.
+        prompt_version: Judge prompt version to use; part of the cache key.
+        deterministic_check_enabled: Whether to also run the
+            is_close_v2 deterministic check and factor it into judge_agrees.
+
+    Returns:
+        An EvalResult with question_id, judge_scores (verdict,
+        judge_correct), deterministic_match, and judge_agrees.
     """
     deterministic_match = (
         is_close_v2(generated_answer, gold_answer) if deterministic_check_enabled else False
@@ -239,11 +279,22 @@ def evaluate_answers(
     Loads the cache once up front (not per item - O(n), not O(n^2)) and
     skips re-judging any item whose cache key is already present.
 
-    latency_sink: if given, the wall-clock seconds of each actual
-    evaluate_answer() call (a real judge API call) is appended to it -
-    never for a cache hit, which takes microseconds and would silently
-    deflate the reported latency (see pipeline/common/latency.py, added
-    for docs/tehnicheskoe_zadanie.md "Follow-up plan 2, item 2").
+    Args:
+        judge: Claude judge client (or a fake implementing JudgeProtocol).
+        items: Questions to evaluate (see above).
+        cache: Judge cache to load hits from and append new results to,
+            or None to disable caching entirely.
+        prompt_version: Judge prompt version to use; part of the cache key.
+        deterministic_check_enabled: Whether to also run the
+            deterministic is_close_v2 check for each item.
+        latency_sink: if given, the wall-clock seconds of each actual
+            evaluate_answer() call (a real judge API call) is appended to it -
+            never for a cache hit, which takes microseconds and would silently
+            deflate the reported latency (see pipeline/common/latency.py, added
+            for docs/tehnicheskoe_zadanie.md "Follow-up plan 2, item 2").
+
+    Returns:
+        One EvalResult per item in `items`, in the same order.
     """
     cached = cache.load() if cache is not None else {}
     results: list[EvalResult] = []
@@ -291,6 +342,10 @@ def regression_report(previous: list[EvalResult], current: list[EvalResult]) -> 
 
     Questions present in `current` but not in `previous` are skipped (no
     prior result to compare against, not a regression signal).
+
+    Args:
+        previous: EvalResult list from the earlier run.
+        current: EvalResult list from the later run being compared against it.
 
     Returns:
         {"improved": [...], "regressed": [...], "unchanged_correct": [...],

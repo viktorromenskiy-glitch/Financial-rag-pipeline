@@ -32,6 +32,17 @@ def build_full_indexed_content(
     the Step 4 Colab test (metadata_prefix prepended to the
     already-assembled full_indexed_content, not inserted as a third
     concatenation term).
+
+    Args:
+        raw_content: The document's raw context text.
+        contextual_summary: The enrichment summary for this document, or
+            "" if enrichment is disabled.
+        metadata_prefix: Prefix to prepend (see
+            pipeline.ingestion.build_metadata_prefix), or "" if no
+            metadata is available.
+
+    Returns:
+        The assembled full_indexed_content string.
     """
     if contextual_summary:
         body = f"{contextual_summary}\n\n{raw_content}"
@@ -52,9 +63,16 @@ def dedupe_documents(records) -> list[dict]:
     from document-level fields (company_name/report_year/company_sector),
     so it must be identical for every row sharing a context_id.
 
+    Args:
+        records: DocumentRecord list produced by Module 1 (ingestion).
+
     Returns:
         A list of dicts, one per unique context_id, each with
         context_id, source_dataset, raw_content, and metadata_prefix.
+
+    Raises:
+        ValueError: If the same context_id appears with a different
+            context, source_dataset, or metadata_prefix across rows.
     """
     by_id: dict[str, dict] = {}
     for r in records:
@@ -95,6 +113,16 @@ class CollectionProtocol(Protocol):
 
 
 def is_indexed(collection: CollectionProtocol, context_id: str) -> bool:
+    """Checks whether a document is already marked indexed.
+
+    Args:
+        collection: MongoDB collection (or a fake implementing CollectionProtocol).
+        context_id: Identifier of the document to check.
+
+    Returns:
+        True if a document with this context_id and is_indexed=True
+        exists in the collection, False otherwise.
+    """
     doc = collection.find_one({"context_id": context_id, "is_indexed": True}, {"_id": 1})
     return doc is not None
 
@@ -119,6 +147,17 @@ def upsert_document(
     model must never be compared against documents embedded with the
     other. Filtering by source_dataset keeps every $vectorSearch comparison
     within a single, consistent embedding space.
+
+    Args:
+        collection: MongoDB collection (or a fake implementing CollectionProtocol).
+        context_id: Identifier of the document to upsert.
+        raw_content: The document's raw context text.
+        contextual_summary: The enrichment summary for this document, or
+            "" if enrichment is disabled.
+        metadata_prefix: Metadata prefix for this document (see
+            pipeline.ingestion.build_metadata_prefix).
+        embedding: The document's embedding vector.
+        source_dataset: The source dataset this document belongs to.
     """
     full_indexed_content = build_full_indexed_content(raw_content, contextual_summary, metadata_prefix)
     collection.update_one(
@@ -155,11 +194,26 @@ def index_corpus(
     source_dataset resolves to (see pipeline.embedding.resolve_embedding_model);
     this function just writes whatever vector it's given.
 
-    Returns the number of documents actually written (not skipped via
-    checkpoint). Resilient to a mid-run failure while indexing the full
-    corpus - documents already marked is_indexed=True are skipped instead of
+    Resilient to a mid-run failure while indexing the full corpus -
+    documents already marked is_indexed=True are skipped instead of
     restarting from scratch (specifikatsiya_moduley.md, module 5,
     "Resilience").
+
+    Args:
+        collection: MongoDB collection (or a fake implementing CollectionProtocol).
+        documents: Deduplicated documents, as returned by dedupe_documents().
+        contextual_summaries: Mapping from context_id to
+            contextual_summary, as returned by enrich_documents().
+        embeddings_by_id: Mapping from context_id to embedding vector.
+        skip_already_indexed: If True, skips documents already marked
+            is_indexed=True instead of re-writing them.
+
+    Returns:
+        The number of documents actually written (not skipped via checkpoint).
+
+    Raises:
+        KeyError: If a document in `documents` has no corresponding
+            entry in embeddings_by_id.
     """
     count = 0
     for doc in documents:
@@ -201,6 +255,16 @@ def validate_startup_indexes(collection: CollectionProtocol, check_source_datase
     only for a cluster where routing is deliberately disabled
     (config.embedding.routing.enabled=false) and the index has not been
     updated with the filter field yet.
+
+    Args:
+        collection: MongoDB collection (or a fake implementing CollectionProtocol).
+        check_source_dataset_filter: Whether to also check that a
+            source_dataset filter on $vectorSearch returns results.
+
+    Raises:
+        AssertionError: If the vector index, the full-text index, or
+            (when check_source_dataset_filter is True) the
+            source_dataset filter check returns an empty result.
     """
     # A zero vector is invalid for $vectorSearch: Atlas uses cosine
     # similarity internally, which is undefined for a zero-magnitude

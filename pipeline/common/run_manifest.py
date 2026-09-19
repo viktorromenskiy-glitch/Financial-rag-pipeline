@@ -69,6 +69,15 @@ def build_run_manifest(
     See write_run_manifest_if_absent below for the file-writing wrapper
     scripts/run_agent_eval.py actually calls.
 
+    Args:
+        run_id: Identifier for this run.
+        config: The effective configuration used for this run.
+        expected_question_ids: Question ids pre-registered as the ones
+            this run must cover.
+        expected_canary_ids: Canary question ids pre-registered for this run.
+        repo_root: Path to the repository checkout, used to resolve the
+            current git SHA.
+
     Returns:
         A dict with run_id, created_at, git_sha, config_hash,
         expected_question_ids, and expected_canary_ids - the exact shape
@@ -105,6 +114,16 @@ def write_run_manifest_if_absent(
     already seeing some real answers). So a resume leaves the original
     manifest untouched and this just returns its existing path.
 
+    Args:
+        run_id: Identifier for this run.
+        config: The effective configuration used for this run.
+        expected_question_ids: Question ids pre-registered as the ones
+            this run must cover.
+        expected_canary_ids: Canary question ids pre-registered for this run.
+        repo_root: Path to the repository checkout, used to resolve the
+            current git SHA.
+        results_dir: Root directory containing per-run result folders.
+
     Returns:
         The path to the manifest (freshly written, or the pre-existing one).
     """
@@ -140,6 +159,14 @@ def verify_manifest_coverage(
     favorable run (e.g. someone appends a few rows from a different,
     better-looking run before committing) - only exact equality in both
     directions closes that gap.
+
+    Args:
+        manifest: The pre-registered run manifest (as built by
+            build_run_manifest).
+        baseline_question_ids: question_ids actually present in
+            baseline_results.jsonl.
+        agent_question_ids: question_ids actually present in
+            agent_results.jsonl.
 
     Raises:
         ValueError: on any mismatch, naming exactly which question_ids

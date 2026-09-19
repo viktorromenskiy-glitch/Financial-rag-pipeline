@@ -45,6 +45,9 @@ _REQUIRED_KEYS = {
 def load_financial_entity_ambiguity_fixture(path: str | Path = DEFAULT_FIXTURE_PATH) -> list[dict]:
     """Loads and shape-validates the fixture.
 
+    Args:
+        path: Path to the financial entity-ambiguity fixture JSON file.
+
     Returns:
         The fixture as a list of dicts, each guaranteed to have every key
         in _REQUIRED_KEYS.

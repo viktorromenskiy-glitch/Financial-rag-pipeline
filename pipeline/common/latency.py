@@ -28,17 +28,22 @@ from pathlib import Path
 
 
 def summarize_latencies(latencies: dict[str, list[float]]) -> dict[str, dict | None]:
-    """latencies: {stage_name: [seconds, ...]} - one entry per actual API
-    call timed for that stage during a run (see cmd_eval).
-
-    Returns {stage_name: {n, mean_s, median_s, p95_s, min_s, max_s,
-    total_s}} for every stage with at least one measurement, or None for
-    a stage with zero (e.g. reranker disabled, or every question resumed
-    from checkpoint).
+    """Aggregates per-stage timing samples into summary statistics.
 
     p95 uses the nearest-rank method (ceil(0.95 * n), 1-indexed, clamped
     to the last element) - simple and standard for the sample sizes this
     project runs (n in the hundreds), not an interpolated percentile.
+
+    Args:
+        latencies: Mapping from stage name to the list of per-call
+            durations in seconds recorded for that stage during a run
+            (see cmd_eval).
+
+    Returns:
+        Mapping from stage name to a dict with keys n, mean_s, median_s,
+        p95_s, min_s, max_s, total_s for every stage with at least one
+        measurement, or None for a stage with zero measurements (e.g.
+        reranker disabled, or every question resumed from checkpoint).
     """
     summary: dict[str, dict | None] = {}
     for stage, values in latencies.items():
@@ -66,7 +71,15 @@ def write_latency_report(latencies: dict[str, list[float]], run_id: str, results
     since that's read as prose, this as structured data for later
     aggregation across runs.
 
-    Returns the path the file was written to.
+    Args:
+        latencies: Mapping from stage name to the list of per-call
+            durations in seconds recorded for that stage during a run.
+        run_id: Identifier of the run these latencies belong to; used to
+            pick the output directory under results_dir.
+        results_dir: Root directory containing per-run result folders.
+
+    Returns:
+        The path the latency_report.json file was written to.
     """
     summary = summarize_latencies(latencies)
     out_dir = Path(results_dir) / run_id

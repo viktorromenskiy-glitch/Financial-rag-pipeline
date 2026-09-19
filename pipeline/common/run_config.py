@@ -25,10 +25,14 @@ from pathlib import Path
 
 
 def build_run_config(config: dict, run_id: str) -> dict:
-    """config: the parsed config.yaml dict (see
-    docs/struktura_repozitoriya.md for the schema). run_id: identifier for
-    this run (e.g. a timestamp or short description), used as the
-    results/<run_id>/ directory name.
+    """Builds the run_config.json snapshot dict for a run (see module
+    docstring for the fields this includes).
+
+    Args:
+        config: The parsed config.yaml dict (see
+            docs/struktura_repozitoriya.md for the schema).
+        run_id: Identifier for this run (e.g. a timestamp or short
+            description), used as the results/<run_id>/ directory name.
 
     Returns:
         A flat dict with run_id, created_at, and the specific
@@ -62,6 +66,12 @@ def build_run_config(config: dict, run_id: str) -> dict:
 
 def write_run_config(config: dict, run_id: str, results_dir: str | Path = "results") -> Path:
     """Builds the snapshot and writes it to results/<run_id>/run_config.json.
+
+    Args:
+        config: The parsed config.yaml dict.
+        run_id: Identifier for this run; used as the results/<run_id>/
+            directory name.
+        results_dir: Root directory containing per-run result folders.
 
     Returns:
         The path the file was written to.

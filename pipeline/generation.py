@@ -220,7 +220,19 @@ def build_context_block(candidates: list) -> str:
     """candidates: module 7 RerankedCandidate list (or module 6 Candidate
     list if the reranker is disabled) - both expose full_indexed_content.
     Concatenates the documents with an explicit boundary, in the order
-    given (already ranked by relevance upstream - not re-sorted here)."""
+    given (already ranked by relevance upstream - not re-sorted here).
+
+    Args:
+        candidates: Context documents to include, already ranked; must
+            be non-empty.
+
+    Returns:
+        The concatenated context block, with each document under a
+        "[Document N]" heading.
+
+    Raises:
+        ValueError: If candidates is empty.
+    """
     if not candidates:
         raise ValueError("generate_answer() requires at least one context document")
     blocks = [f"[Document {i}]\n{c.full_indexed_content}" for i, c in enumerate(candidates, start=1)]
@@ -231,7 +243,16 @@ def build_prompt(question: str, candidates: list, template: str = PROMPT_TEMPLAT
     """template defaults to the production baseline PROMPT_TEMPLATE - pass
     one of the PROMPT_TEMPLATE_VARIANTS values (or PROMPT_TEMPLATE_CITE_AND_CHECK
     / PROMPT_TEMPLATE_FORMULA_BASE directly) to run a Phase 5 intervention
-    instead. Any template must accept the same {context}/{question} slots."""
+    instead. Any template must accept the same {context}/{question} slots.
+
+    Args:
+        question: The question text to insert into the prompt.
+        candidates: Context documents to include (see build_context_block).
+        template: Prompt template to fill; must accept {context}/{question}.
+
+    Returns:
+        The fully-formatted prompt string.
+    """
     return template.format(context=build_context_block(candidates), question=question)
 
 
@@ -254,7 +275,19 @@ def generate_answer(
     how many documents to include.
 
     template defaults to the production baseline PROMPT_TEMPLATE - see
-    build_prompt() for how to select a Phase 5 variant instead."""
+    build_prompt() for how to select a Phase 5 variant instead.
+
+    Args:
+        generator: Claude generation client (or a fake implementing GeneratorProtocol).
+        question_id: Identifier for the question being answered.
+        question: The question text.
+        candidates: Context documents to include (see above).
+        template: Prompt template to use; see build_prompt().
+
+    Returns:
+        A GeneratedAnswer with question_id, the extracted answer_text,
+        and the raw_response the model produced.
+    """
     prompt = build_prompt(question, candidates, template=template)
     raw_response = _generate_with_retry(generator, prompt)
     answer_text = _extract_final_answer(raw_response)

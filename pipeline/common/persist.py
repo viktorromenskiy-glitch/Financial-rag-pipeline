@@ -65,8 +65,17 @@ def verify_run_files(run_dir: Path, expected_line_counts: dict[str, int]) -> Non
     """Hard check (rule point 7). For every (filename, expected_n) pair,
     confirms run_dir/filename exists, is non-empty, and has exactly
     expected_n lines (JSONL: one record per line, so line count is
-    record count). Raises RunVerificationError - never just warns -
-    naming every problem found, not just the first.
+    record count).
+
+    Args:
+        run_dir: Directory containing the run's output files.
+        expected_line_counts: Mapping from filename (relative to run_dir)
+            to the exact number of lines that file is expected to contain.
+
+    Raises:
+        RunVerificationError: If any file is missing, empty, or has a
+            line count that doesn't match expected_line_counts - never
+            just warns, naming every problem found, not just the first.
     """
     run_dir = Path(run_dir)
     problems = []
@@ -102,6 +111,19 @@ def find_canonical_root(configured_root: str) -> Path:
     - parent exists, nothing similar found -> raise and say so; creating
       the root itself is a one-time manual action per the rule, not
       something this function does on a script's behalf.
+
+    Args:
+        configured_root: The persistence.google_drive_results_dir path
+            from config.yaml.
+
+    Returns:
+        The confirmed canonical root path.
+
+    Raises:
+        PersistPathMismatchError: If configured_root does not exist
+            exactly as configured, whether because its parent is
+            missing, a similarly-named sibling exists instead, or
+            nothing similar was found at all.
     """
     root = Path(configured_root)
     if root.is_dir():
@@ -161,7 +183,22 @@ def save_run_to_drive(run_dir: Path, drive_results_root: str, run_id: str) -> Pa
     4. Prints the final absolute path loudly (rule 6) so a human
        skimming the run's output sees it without hunting for it.
 
-    Returns the resolved destination path.
+    Args:
+        run_dir: Directory containing the already-verified run output to copy.
+        drive_results_root: The configured persistent-storage root
+            (config.yaml's persistence.google_drive_results_dir).
+        run_id: Identifier for this run; becomes the destination
+            subdirectory name.
+
+    Returns:
+        The resolved destination path.
+
+    Raises:
+        PersistPathMismatchError: If drive_results_root does not exist
+            exactly as configured, or if the copy lands outside the
+            resolved canonical root after resolving symlinks.
+        RunVerificationError: If the destination already exists
+            (refusing to overwrite a previous run's saved output).
     """
     run_dir = Path(run_dir)
     root = find_canonical_root(drive_results_root)

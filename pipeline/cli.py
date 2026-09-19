@@ -117,11 +117,26 @@ class ClaudeSummarizer:
 Только справка, без вступлений."""
 
     def __init__(self, client, model: str, temperature: float):
+        """Args:
+            client: An anthropic.Anthropic client.
+            model: Claude model name to use for summarization (e.g.
+                claude-haiku-4-5-20251001).
+            temperature: Sampling temperature for the summarization call.
+        """
         self.client = client
         self.model = model
         self.temperature = temperature
 
     def summarize(self, raw_content: str) -> str:
+        """Summarizes a document chunk into a short contextual blurb.
+
+        Args:
+            raw_content: The document text to summarize; only the first
+                3000 characters are sent to the model (see class docstring).
+
+        Returns:
+            The model's summary text, stripped of leading/trailing whitespace.
+        """
         # The validated test truncated the summarization *input* to the
         # first 3000 characters - this only affects what the model sees
         # when writing the blurb. The full, untruncated raw_content is
@@ -169,12 +184,27 @@ class ClaudeGenerator:
     """
 
     def __init__(self, client, model: str, temperature: float, max_tokens: int = 1024):
+        """Args:
+            client: An anthropic.Anthropic client.
+            model: Claude model name to use for generation (e.g. claude-sonnet-5).
+            temperature: Sampling temperature; read from config but not
+                sent to the API for this model (see class docstring).
+            max_tokens: Maximum tokens for the generation response.
+        """
         self.client = client
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
 
     def generate(self, prompt: str) -> str:
+        """Generates a raw answer response for the given prompt.
+
+        Args:
+            prompt: The fully-formatted generation prompt.
+
+        Returns:
+            The text of the model's response.
+        """
         response = self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
@@ -197,11 +227,25 @@ class ClaudeJudge:
     """
 
     def __init__(self, client, model: str, temperature: float):
+        """Args:
+            client: An anthropic.Anthropic client.
+            model: Claude model name to use for judging (e.g. claude-sonnet-5).
+            temperature: Sampling temperature; read from config but not
+                sent to the API for this model (see class docstring).
+        """
         self.client = client
         self.model = model
         self.temperature = temperature
 
     def judge(self, prompt: str) -> str:
+        """Generates a raw verdict response for the given judge prompt.
+
+        Args:
+            prompt: The fully-formatted judge prompt.
+
+        Returns:
+            The text of the model's response.
+        """
         response = self.client.messages.create(
             model=self.model,
             max_tokens=1024,
@@ -220,9 +264,16 @@ def build_clients(config: PipelineConfig) -> dict:
     cohere.ClientV2() defaults to CO_API_KEY, not COHERE_API_KEY, which is
     what .env.example declares).
 
+    Args:
+        config: The loaded pipeline configuration (mongodb connection settings).
+
     Returns:
         {"collection": the MongoDB collection, "voyage": voyageai.Client,
         "anthropic": anthropic.Anthropic, "cohere": cohere.ClientV2}.
+
+    Raises:
+        RuntimeError: If VOYAGE_API_KEY, ANTHROPIC_API_KEY, or
+            COHERE_API_KEY is missing from the environment.
     """
     import anthropic
     import cohere
@@ -285,6 +336,13 @@ def _resolve_prompt_template(prompt_variant: str) -> str:
 
 
 def cmd_index(args: argparse.Namespace) -> None:
+    """Runs the `index` subcommand: Ingestion -> Chunking -> Contextual
+    enrichment -> Embedding -> Indexing (modules 1-5).
+
+    Args:
+        args: Parsed CLI arguments (config, data_dir, checkpoint) from
+            the `index` subparser.
+    """
     config = load_config(args.config)
     clients = build_clients(config)
     collection = clients["collection"]
@@ -441,9 +499,16 @@ def load_eval_questions(path: str | Path) -> list[dict]:
     silently route the query to the wrong model and filter, not just
     mislabel a report column.
 
+    Args:
+        path: Path to the eval questions parquet file.
+
     Returns:
         One dict per row, with keys: question_id, question, gold_answer,
         source_dataset (all str).
+
+    Raises:
+        ValueError: If the parquet has no 'question' column, or has
+            neither 'answer' nor 'program_answer' for the gold value.
     """
     df = pd.read_parquet(path)
     if "question" not in df.columns:
@@ -614,6 +679,17 @@ def _append_retrieval_trace_record(path: Path, record: dict) -> None:
 
 
 def load_eval_results(path: Path) -> list[EvalResult]:
+    """Loads a previous run's eval_results.jsonl for regression comparison.
+
+    Args:
+        path: Path to the eval_results.jsonl file to load.
+
+    Returns:
+        One EvalResult per line in the file, in file order.
+
+    Raises:
+        FileNotFoundError: If path does not exist.
+    """
     if not path.exists():
         raise FileNotFoundError(f"No previous run found at {path} - check --compare-to")
     results = []
@@ -650,6 +726,19 @@ def write_eval_report(
     comparison that has repeatedly caught real bugs hidden behind a stable
     or even improved aggregate metric earlier in this project (e.g. the
     bge-reranker case: 13 fixed but 44 broken, aggregate looked neutral).
+
+    Args:
+        path: Where to write eval_report.md.
+        results: Per-question judged evaluation results for this run.
+        items: The eval question items (for source_dataset lookup), as
+            returned by load_eval_questions.
+        run_id: Identifier for this run, included in the report heading.
+        previous_results: Results from a previous run to diff against,
+            or None to skip the regression section.
+        compare_to: run_id of previous_results, for labeling the
+            regression section.
+        latency_summary: Per-stage latency summary (see
+            summarize_latencies), or None to skip the latency section.
     """
     id_to_source = {item["question_id"]: item["source_dataset"] for item in items}
     total = len(results)
@@ -816,6 +905,15 @@ def _cmd_eval_retrieval_only(args: argparse.Namespace, config, clients: dict, it
 
 
 def cmd_eval(args: argparse.Namespace) -> None:
+    """Runs the `eval` subcommand: Hybrid retrieval -> Reranking ->
+    Generation -> LLM Judge Evaluation (modules 6-9), or, with
+    args.retrieval_only, just retrieval+reranking (see
+    _cmd_eval_retrieval_only).
+
+    Args:
+        args: Parsed CLI arguments (config, questions, run_id, limit,
+            compare_to, retrieval_only) from the `eval` subparser.
+    """
     config = load_config(args.config)
     clients = build_clients(config)
     collection = clients["collection"]
@@ -1020,6 +1118,13 @@ def cmd_eval(args: argparse.Namespace) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI entry point: parses arguments and dispatches to the `index` or
+    `eval` subcommand.
+
+    Args:
+        argv: Command-line arguments to parse, or None to use sys.argv
+            (argparse default).
+    """
     try:
         from dotenv import load_dotenv
 

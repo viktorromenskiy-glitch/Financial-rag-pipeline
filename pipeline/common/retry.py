@@ -43,6 +43,12 @@ def is_transient_error(exc: BaseException) -> bool:
     """True for errors worth retrying: 429, 5xx, and connection/timeout
     failures. False for 4xx errors and anything else - retrying those only
     masks a real bug with useless repeated calls (spec section 11).
+
+    Args:
+        exc: The exception raised by an SDK call.
+
+    Returns:
+        True if exc should be retried, False otherwise.
     """
     status = _status_code(exc)
     if status is not None:
@@ -55,6 +61,10 @@ def retryable():
     """Decorator factory applying the project's standard retry policy.
 
     Usage: @retryable() on any function making a single external API call.
+
+    Returns:
+        A tenacity retry decorator configured with the project's standard
+        stop/wait/retry-condition policy.
     """
     return retry(
         retry=retry_if_exception(is_transient_error),

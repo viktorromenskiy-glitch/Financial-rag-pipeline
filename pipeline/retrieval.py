@@ -107,6 +107,27 @@ def build_rank_fusion_pipeline(
     pipeline.indexing.validate_startup_indexes() checks this at startup
     and fails loudly if it's missing, rather than silently returning
     zero/wrong candidates.
+
+    Args:
+        query_vector: The embedded query vector for $vectorSearch.
+        query_text: The raw query text for $search.
+        pool_size: Number of candidates to return; must be positive.
+        vector_weight: $rankFusion combination weight for the vector pipeline.
+        text_weight: $rankFusion combination weight for the text pipeline.
+        source_dataset: If set, restricts candidates to exactly this
+            source_dataset (routed-query mode). Mutually exclusive with
+            exclude_source_datasets.
+        exclude_source_datasets: If set, excludes these source_dataset
+            values from the candidate pool (unrouted-query mode).
+            Mutually exclusive with source_dataset.
+
+    Returns:
+        A MongoDB aggregation pipeline (list of stage dicts)
+        implementing the described $rankFusion query.
+
+    Raises:
+        ValueError: If pool_size is not positive, or if both
+            source_dataset and exclude_source_datasets are given.
     """
     if pool_size <= 0:
         raise ValueError(f"pool_size must be positive, got {pool_size}")
@@ -220,6 +241,26 @@ def retrieve(
     default (unrouted questions always use the default model) - see
     build_rank_fusion_pipeline()'s docstring for why these two filter
     modes are not interchangeable.
+
+    Args:
+        voyage_client: Voyage API client (or a fake implementing VoyageClientProtocol).
+        collection: MongoDB collection (or a fake implementing CollectionProtocol).
+        question_text: The query text to retrieve candidates for.
+        pool_size: Number of candidates to return.
+        vector_weight: $rankFusion combination weight for the vector pipeline.
+        text_weight: $rankFusion combination weight for the text pipeline.
+        source_dataset: Set for a ROUTED question only; see above.
+        exclude_source_datasets: Set for an UNROUTED question only; see above.
+        embedding_model: Model used to embed question_text; must agree
+            with source_dataset, see above.
+
+    Returns:
+        Up to pool_size Candidate objects, ranked by the combined RRF score.
+
+    Raises:
+        AssertionError: If $rankFusion returns a duplicate context_id,
+            indicating de-duplication did not happen as expected (see
+            module docstring).
     """
     query_vector = embed_query(
         voyage_client, question_id="__query__", query_text=question_text, model=embedding_model

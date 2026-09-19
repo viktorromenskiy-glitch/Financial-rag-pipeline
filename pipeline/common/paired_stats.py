@@ -86,10 +86,27 @@ def compare_paired_binary_outcomes(
     both_wrong: int,
     confidence_level: float = 0.95,
 ) -> PairedComparisonResult:
-    """`a_only`: number of matched questions where system A was correct and
-    B was not (and vice versa for `b_only`) - the two discordant cells of
-    the 2x2 table, same layout scripts/mcnemar_phase6.py already uses
+    """Compares two systems on the same matched questions via McNemar's
+    exact test, and an exact conditional CI on the difference in marginal
+    proportions (see module docstring for the CI derivation). `a_only`:
+    number of matched questions where system A was correct and B was not
+    (and vice versa for `b_only`) - the two discordant cells of the 2x2
+    table, same layout scripts/mcnemar_phase6.py already uses
     ([[both_correct, a_only], [b_only, both_wrong]]).
+
+    Args:
+        both_correct: Number of matched questions where both systems were correct.
+        a_only: Number of matched questions where system A was correct and B was not.
+        b_only: Number of matched questions where system B was correct and A was not.
+        both_wrong: Number of matched questions where both systems were incorrect.
+        confidence_level: Confidence level for the exact CI on the difference in proportions.
+
+    Returns:
+        A PairedComparisonResult with the matched-pair counts (n,
+        both_correct, a_only, b_only, both_wrong, n_discordant), each
+        system's marginal accuracy (p_a, p_b), their difference, the
+        exact confidence interval (ci_low, ci_high) at confidence_level,
+        and the two-sided exact McNemar p-value (mcnemar_exact_pvalue).
 
     Raises:
         ValueError: if any cell count is negative, or all four are zero

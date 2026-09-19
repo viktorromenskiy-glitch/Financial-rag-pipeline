@@ -48,6 +48,9 @@ DEFAULT_FIXTURE_PATH = Path(__file__).resolve().parent.parent / "data" / "cuad_s
 def load_cuad_smoke_fixture(path: str | Path = DEFAULT_FIXTURE_PATH) -> tuple[list[DocumentRecord], list[dict]]:
     """Loads and validates the CUAD smoke fixture.
 
+    Args:
+        path: Path to the CUAD smoke fixture JSON file.
+
     Returns:
         (document_records, eval_items) - see module docstring for both
         shapes. document_records has one entry per QUESTION (not per
