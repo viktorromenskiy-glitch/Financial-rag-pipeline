@@ -255,9 +255,25 @@ class ClaudeEvidenceAssessor:
     """
 
     def __init__(self, client: GeneratorProtocol):
+        """Args:
+            client: The GeneratorProtocol-shaped client used to make the
+                assessment call.
+        """
         self.client = client
 
     def assess(self, question: str, context_text: str, calls_remaining: int) -> EvidenceAssessment:
+        """Args:
+            question: The question being answered.
+            context_text: The accumulated retrieved passages so far.
+            calls_remaining: How many additional search_fn calls the loop
+                could still make after this assessment, if needed.
+
+        Returns:
+            An EvidenceAssessment: `sufficient` is True if the model judged
+            the evidence enough to answer; `reformulated_query` is the
+            model's proposed next search query when not sufficient (and a
+            usable one was given), otherwise None.
+        """
         prompt = _ASSESSMENT_PROMPT_TEMPLATE.format(
             question=question, context=context_text, calls_remaining=calls_remaining
         )
@@ -267,6 +283,24 @@ class ClaudeEvidenceAssessor:
 
 @dataclass(frozen=True)
 class AgentAnswer:
+    """The result of running run_agent_query() for one question.
+
+    Attributes:
+        question_id: The question's id, echoed back from the call.
+        answer_text: The agent's final answer text, or
+            INSUFFICIENT_CONTEXT_MARKER when forced_insufficient is True.
+        context_ids: The ids of every candidate accumulated across all
+            search_fn calls made for this question, in accumulation order.
+        additional_calls_used: How many search_fn calls beyond the
+            mandatory first one were actually made.
+        stopped_reason: Why the loop stopped - one of this module's
+            STOP_* constants.
+        forced_insufficient: True if the give-up policy forced
+            answer_text to INSUFFICIENT_CONTEXT rather than letting the
+            generator produce an answer (see module docstring).
+        context_documents: see below.
+    """
+
     question_id: str
     answer_text: str
     context_ids: tuple[str, ...]
@@ -489,46 +523,53 @@ def run_agent_query(
 ) -> AgentAnswer:
     """Runs the full bounded loop for one question.
 
-    `search_fn`: a callable taking a query string and returning a
-    SearchToolCall - agent.tools.search_documents bound to real
-    voyage/collection/cohere clients and config-driven parameters (via
-    functools.partial or a small closure), or a fake in tests. This
-    keeps the loop itself free of any dependency on MongoDB/Voyage/Cohere
-    - it only ever calls search_fn(query).
-
-    `max_additional_tool_calls`: config.agent.max_additional_tool_calls -
-    read by the caller from config/config.yaml, not hardcoded here (see
-    config.config_schema.AgentConfig).
-
-    `prompt_template` defaults to this module's own AGENT_ANSWER_PROMPT_TEMPLATE
-    (not pipeline.generation.PROMPT_TEMPLATE - see module docstring's "Day 2
-    additions" note) - pass a different template explicitly to override.
-
-    `max_wall_clock_seconds`: optional per-question safety limit
-    (config.agent.max_wall_clock_seconds - Day 2, "Global safety
-    limits"). None (the default) disables the check entirely, so
-    existing callers/tests that never set it are unaffected. Checked once
-    per loop iteration, before starting another additional search+assessment
-    round - not mid-call, since a blocking search_fn/assessor call can't be
-    interrupted from here. If exceeded, the loop stops immediately with
-    whatever evidence has already been accumulated and is forced to
-    INSUFFICIENT_CONTEXT, the same as STOP_BUDGET_EXHAUSTED (a timeout is
-    just another way of running out of budget - see forced_insufficient
-    below).
-
-    `clock`: injectable time source (default time.monotonic) purely for
-    deterministic tests of max_wall_clock_seconds - see test_agent_loop.py.
-
-    `enable_deictic_entity_guard`: config.agent.enable_deictic_entity_guard
-    (see config.config_schema.AgentConfig's docstring). When True, this
-    function checks _deictic_entity_guard_should_block(question_text)
-    BEFORE the mandatory first search_fn call - if it returns True,
-    search_fn is never called at all and the function returns immediately
-    with stopped_reason=STOP_DEICTIC_ENTITY_GUARD, forced_insufficient=True,
-    answer_text=INSUFFICIENT_CONTEXT_MARKER. Default False, so every
-    existing caller/test that does not pass this argument keeps the exact
-    prior behavior (the guard function is defined above but inert unless
-    explicitly enabled here).
+    Args:
+        question_id: The question's id, echoed back on the returned AgentAnswer.
+        question_text: The question to answer.
+        search_fn: A callable taking a query string and returning a
+            SearchToolCall - agent.tools.search_documents bound to real
+            voyage/collection/cohere clients and config-driven parameters
+            (via functools.partial or a small closure), or a fake in
+            tests. This keeps the loop itself free of any dependency on
+            MongoDB/Voyage/Cohere - it only ever calls search_fn(query).
+        assessor: The evidence-sufficiency assessor used between search calls.
+        generator: The generator used to produce the final answer once the
+            loop stops with sufficient evidence.
+        max_additional_tool_calls: config.agent.max_additional_tool_calls -
+            read by the caller from config/config.yaml, not hardcoded here
+            (see config.config_schema.AgentConfig).
+        prompt_template: Defaults to this module's own
+            AGENT_ANSWER_PROMPT_TEMPLATE (not
+            pipeline.generation.PROMPT_TEMPLATE - see module docstring's
+            "Day 2 additions" note) - pass a different template explicitly
+            to override.
+        trace_writer: Optional sink for this question's step-by-step
+            trace (see agent/tracing.py). None (the default) disables
+            tracing entirely.
+        max_wall_clock_seconds: Optional per-question safety limit
+            (config.agent.max_wall_clock_seconds - Day 2, "Global safety
+            limits"). None (the default) disables the check entirely, so
+            existing callers/tests that never set it are unaffected. Checked
+            once per loop iteration, before starting another additional
+            search+assessment round - not mid-call, since a blocking
+            search_fn/assessor call can't be interrupted from here. If
+            exceeded, the loop stops immediately with whatever evidence has
+            already been accumulated and is forced to INSUFFICIENT_CONTEXT,
+            the same as STOP_BUDGET_EXHAUSTED (a timeout is just another way
+            of running out of budget - see forced_insufficient on the
+            returned AgentAnswer).
+        clock: Injectable time source (default time.monotonic) purely for
+            deterministic tests of max_wall_clock_seconds - see test_agent_loop.py.
+        enable_deictic_entity_guard: config.agent.enable_deictic_entity_guard
+            (see config.config_schema.AgentConfig's docstring). When True, this
+            function checks _deictic_entity_guard_should_block(question_text)
+            BEFORE the mandatory first search_fn call - if it returns True,
+            search_fn is never called at all and the function returns immediately
+            with stopped_reason=STOP_DEICTIC_ENTITY_GUARD, forced_insufficient=True,
+            answer_text=INSUFFICIENT_CONTEXT_MARKER. Default False, so every
+            existing caller/test that does not pass this argument keeps the exact
+            prior behavior (the guard function is defined above but inert unless
+            explicitly enabled here).
 
     Raises:
         ValueError: if max_additional_tool_calls is negative - config

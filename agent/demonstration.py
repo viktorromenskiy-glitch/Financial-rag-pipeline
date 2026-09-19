@@ -82,7 +82,14 @@ class MatchedQuestionClassification:
     ALL discordant questions (a_only + b_only), not only the one
     pre-registered representative of each bucket that
     `select_demonstration_cases` shows - see
-    scripts/render_demonstration_cases.py's --all-discordant flag."""
+    scripts/render_demonstration_cases.py's --all-discordant flag.
+
+    Attributes:
+        a_only: question_ids where the agent succeeded and the baseline failed.
+        b_only: question_ids where the baseline succeeded and the agent failed.
+        both_wrong: question_ids where both the agent and the baseline failed.
+        both_correct: question_ids where both the agent and the baseline succeeded.
+    """
 
     a_only: tuple[str, ...]
     b_only: tuple[str, ...]
@@ -130,12 +137,20 @@ def classify_matched_questions(
     discordant question, not just the pre-registered representative, can
     call this directly instead of re-deriving the buckets itself.
 
-    `baseline_records`/`agent_records`: {question_id: record}, matching
-    exactly the shape scripts/run_agent_eval.py's `_load_jsonl_checkpoint`
-    already produces from baseline_results.jsonl/agent_results.jsonl (see
-    that script) - this function takes plain dicts, not file paths, so it
-    stays independently testable with fabricated fixtures (see
-    tests/test_agent_demonstration.py) and has no file I/O of its own.
+    Args:
+        baseline_records: {question_id: record}, matching exactly the
+            shape scripts/run_agent_eval.py's `_load_jsonl_checkpoint`
+            already produces from baseline_results.jsonl (see that
+            script) - this function takes plain dicts, not file paths, so
+            it stays independently testable with fabricated fixtures (see
+            tests/test_agent_demonstration.py) and has no file I/O of its
+            own.
+        agent_records: Same shape as `baseline_records`, loaded from
+            agent_results.jsonl.
+        agent_success_field: The boolean field name in each agent record
+            that says whether the agent answered correctly.
+        baseline_success_field: The boolean field name in each baseline
+            record that says whether the baseline answered correctly.
 
     Raises:
         ValueError: if there is no question_id present in both inputs at
@@ -184,6 +199,20 @@ def select_demonstration_cases(
     picking exactly one representative question_id per case slot (the
     lowest-question_id entry of the relevant bucket - see
     `classify_matched_questions` above for the full, unfiltered buckets).
+
+    Args:
+        baseline_records: See `classify_matched_questions`.
+        agent_records: See `classify_matched_questions`.
+        agent_success_field: See `classify_matched_questions`.
+        baseline_success_field: See `classify_matched_questions`.
+
+    Returns:
+        A two-element list: the positive case (role=ROLE_AGENT_HELPED)
+        first, then the negative case (role=ROLE_AGENT_HURT or, in the
+        b_only-empty fallback, ROLE_AGENT_DID_NOT_HELP). Each element is a
+        DemonstrationCase with question_id set to the selected question,
+        or to "" with an explanatory `note` when the relevant bucket was
+        empty (see the selection rule above).
 
     Raises:
         ValueError: see `classify_matched_questions` - propagated from

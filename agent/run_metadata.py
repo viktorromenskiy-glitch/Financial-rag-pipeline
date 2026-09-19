@@ -35,7 +35,16 @@ def git_short_hash(repo_root: Path | None = None) -> str | None:
     or this isn't a git checkout - a run must still be able to write its
     metadata (and proceed) even if the commit hash can't be determined,
     rather than crashing an otherwise-successful, already-paid-for
-    evaluation run over a purely informational field."""
+    evaluation run over a purely informational field.
+
+    Args:
+        repo_root: Directory to run `git rev-parse` in. Defaults to this
+            repository's root when not given.
+
+    Returns:
+        The short commit hash of HEAD, or None if git is unavailable, this
+        isn't a git checkout, or the command otherwise fails.
+    """
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -52,12 +61,17 @@ def git_short_hash(repo_root: Path | None = None) -> str | None:
 
 
 def build_agent_eval_run_metadata(config, run_id: str, *, repo_root: Path | None = None) -> dict:
-    """config: a loaded config.config_schema.PipelineConfig.
+    """Args:
+        config: A loaded config.config_schema.PipelineConfig.
+        run_id: The evaluation run's id, echoed back in the returned dict.
+        repo_root: Directory to determine the git commit hash from
+            (see git_short_hash). Defaults to this repository's root.
 
-    Returns a plain dict, meant to be written verbatim as
-    results/<run_id>/agent_run_metadata.json by scripts/run_agent_eval.py
-    (kept separate from that run's baseline-pipeline run_config.json,
-    written unchanged via pipeline.common.run_config as usual).
+    Returns:
+        A plain dict, meant to be written verbatim as
+        results/<run_id>/agent_run_metadata.json by scripts/run_agent_eval.py
+        (kept separate from that run's baseline-pipeline run_config.json,
+        written unchanged via pipeline.common.run_config as usual).
     """
     return {
         "run_id": run_id,

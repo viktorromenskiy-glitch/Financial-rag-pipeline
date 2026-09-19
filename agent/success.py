@@ -127,6 +127,16 @@ def judge_context_insufficiency(judge: JudgeProtocol, question: str, context_tex
     of the 35 logged runs - all real verdicts were clean). See
     claude/status_agent_rezultaty_4_nahodki_kod.md, finding 3, and
     claude/verifikaciya_qwen_substring_bug.md for the full trace.
+
+    Args:
+        judge: The judge client to send the insufficiency prompt to.
+        question: The original question the agent refused to answer.
+        context_text: The evidence the agent actually had when it refused.
+        gold_answer: The true correct answer, not shown to the agent.
+
+    Returns:
+        True if the judge's verdict is exactly "JUSTIFIED_REFUSAL" (fails
+        safe to False on any other or malformed verdict).
     """
     prompt = INSUFFICIENCY_JUDGE_PROMPT.format(question=question, context=context_text, gold_answer=gold_answer)
     raw = _judge_with_retry(judge, prompt)
@@ -167,33 +177,56 @@ def evaluate_agent_success(
     harness run - see module docstring for the three cases this branches
     on.
 
-    `context_text`: the accumulated retrieved passages the agent actually
-    had when it stopped (agent.loop.AgentAnswer doesn't carry this
-    directly - the harness script builds it from the same candidates used
-    for context_ids, via pipeline.generation.build_context_block, before
-    calling this function).
-
-    `stopped_reason`: agent.loop.AgentAnswer.stopped_reason, if the caller
-    has it (both scripts/run_agent_eval.py and scripts/run_cuad_smoke.py
-    do). When this is STOP_DEICTIC_ENTITY_GUARD - the agent was blocked by
-    the deictic/entity guard BEFORE search_fn was ever called - this
-    question is excluded from the judge-based insufficiency check and from
-    the primary success metric entirely (SuccessResult.success=None), rather
-    than being scored via judge_context_insufficiency. Rationale: with
-    context_documents always empty in this case, the judge would almost
-    always trivially answer "justified" regardless of whether the guard was
-    actually right to block, which would make both the descriptive
-    successful-completion-rate and the paired McNemar comparison
-    uninformative for these questions - see
-    claude/itog_ekspertizy_cuad_overrefusal_fix.md, item 4, and the four
-    claude/prompt_ekspert*_success_guard_interaction.md review documents
-    (4-round independent expert review, unanimous on this point).
-
     This check does NOT apply when gold_answer is itself genuinely
     unanswerable (the gold_is_insufficient branch below, checked first): a
     guard-blocked canary/probe question whose correct answer really is
     "INSUFFICIENT_CONTEXT" is still a correct outcome regardless of why the
     agent refused, so that direct comparison is left untouched.
+
+    Args:
+        judge: The judge client used both for judge_context_insufficiency
+            and (via pipeline.evaluation.evaluate_answer) for ordinary
+            correctness judging.
+        question_id: The question's id, echoed back on the returned SuccessResult.
+        question: The original question text.
+        context_text: The accumulated retrieved passages the agent
+            actually had when it stopped (agent.loop.AgentAnswer doesn't
+            carry this directly - the harness script builds it from the
+            same candidates used for context_ids, via
+            pipeline.generation.build_context_block, before calling this
+            function).
+        agent_answer_text: The agent's final answer text (or the
+            INSUFFICIENT_CONTEXT marker if it refused).
+        gold_answer: The true correct answer for this question.
+        deterministic_check_enabled: Passed through unchanged to
+            pipeline.evaluation.evaluate_answer for the "agent actually
+            answered" path.
+        stopped_reason: agent.loop.AgentAnswer.stopped_reason, if the
+            caller has it (both scripts/run_agent_eval.py and
+            scripts/run_cuad_smoke.py do). When this is
+            STOP_DEICTIC_ENTITY_GUARD - the agent was blocked by the
+            deictic/entity guard BEFORE search_fn was ever called - this
+            question is excluded from the judge-based insufficiency check
+            and from the primary success metric entirely
+            (SuccessResult.success=None), rather than being scored via
+            judge_context_insufficiency. Rationale: with context_documents
+            always empty in this case, the judge would almost always
+            trivially answer "justified" regardless of whether the guard
+            was actually right to block, which would make both the
+            descriptive successful-completion-rate and the paired McNemar
+            comparison uninformative for these questions - see
+            claude/itog_ekspertizy_cuad_overrefusal_fix.md, item 4, and the
+            four claude/prompt_ekspert*_success_guard_interaction.md review
+            documents (4-round independent expert review, unanimous on
+            this point).
+
+    Returns:
+        A SuccessResult: `success` is True/False, or None when this
+        question is excluded from the primary metric (guard-blocked pre-
+        retrieval - see `stopped_reason` above); `reason` is one of this
+        module's short reason strings identifying which branch produced
+        the verdict; `judge_scores` carries pipeline.evaluation's judge
+        scores dict on the ordinary-answer path, None otherwise.
     """
     gold_is_insufficient = _is_insufficient(str(gold_answer))
     answer_is_insufficient = _is_insufficient(agent_answer_text)

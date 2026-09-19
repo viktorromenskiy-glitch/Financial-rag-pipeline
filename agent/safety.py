@@ -84,6 +84,16 @@ class RunBudgetTracker:
         cost_per_llm_call_usd: float = 0.0,
         clock: Callable[[], float] = time.monotonic,
     ):
+        """Args:
+            limits: The run's safety ceilings (each field optional/opt-in).
+            cost_per_llm_call_usd: Estimated dollar cost charged per
+                recorded LLM call, used only to check against
+                `limits.max_estimated_cost_usd`.
+            clock: Injectable time source, purely for deterministic tests.
+
+        Raises:
+            ValueError: If `cost_per_llm_call_usd` is negative.
+        """
         if cost_per_llm_call_usd < 0:
             raise ValueError(f"cost_per_llm_call_usd must be >= 0, got {cost_per_llm_call_usd}")
         self.limits = limits
@@ -95,17 +105,35 @@ class RunBudgetTracker:
 
     @property
     def llm_calls(self) -> int:
+        """Returns:
+            The number of LLM calls recorded so far via record_llm_call().
+        """
         return self._llm_calls
 
     @property
     def estimated_cost_usd(self) -> float:
+        """Returns:
+            The estimated total dollar cost of all calls recorded so far.
+        """
         return self._estimated_cost_usd
 
     @property
     def elapsed_seconds(self) -> float:
+        """Returns:
+            Wall-clock seconds elapsed since this tracker was constructed,
+            per its injected `clock`.
+        """
         return self._clock() - self._start
 
     def record_llm_call(self) -> None:
+        """Records one LLM call against this run's budget.
+
+        Raises:
+            BudgetExceededError: If this call pushes any configured limit
+                (call count, wall clock, or estimated cost) over its
+                ceiling. The call still counts toward `llm_calls`/
+                `estimated_cost_usd` before the error is raised.
+        """
         self._llm_calls += 1
         self._estimated_cost_usd += self.cost_per_llm_call_usd
         self._check()
@@ -137,10 +165,24 @@ class BudgetedGenerator:
     assessments, all counting against the same run-level budget."""
 
     def __init__(self, inner: GeneratorProtocol, tracker: RunBudgetTracker):
+        """Args:
+            inner: The real GeneratorProtocol-shaped client to wrap.
+            tracker: The shared RunBudgetTracker to record each call against.
+        """
         self.inner = inner
         self.tracker = tracker
 
     def generate(self, prompt: str) -> str:
+        """Args:
+            prompt: The prompt to forward to the wrapped generator, unchanged.
+
+        Returns:
+            The wrapped generator's response text, unchanged.
+
+        Raises:
+            BudgetExceededError: See RunBudgetTracker.record_llm_call -
+                raised before the wrapped generator is ever called.
+        """
         self.tracker.record_llm_call()
         return self.inner.generate(prompt)
 
@@ -152,9 +194,23 @@ class BudgetedJudge:
     only because JudgeProtocol's method is named judge(), not generate()."""
 
     def __init__(self, inner: JudgeProtocol, tracker: RunBudgetTracker):
+        """Args:
+            inner: The real JudgeProtocol-shaped client to wrap.
+            tracker: The shared RunBudgetTracker to record each call against.
+        """
         self.inner = inner
         self.tracker = tracker
 
     def judge(self, prompt: str) -> str:
+        """Args:
+            prompt: The prompt to forward to the wrapped judge, unchanged.
+
+        Returns:
+            The wrapped judge's response text, unchanged.
+
+        Raises:
+            BudgetExceededError: See RunBudgetTracker.record_llm_call -
+                raised before the wrapped judge is ever called.
+        """
         self.tracker.record_llm_call()
         return self.inner.judge(prompt)

@@ -45,6 +45,12 @@ def group_by_question(records: Iterable[dict]) -> "OrderedDict[str, list[dict]]"
     every real record agent/loop.py emits always has one, so this only
     guards against a hand-built/corrupted fixture in a test.
 
+    Args:
+        records: A flat sequence of trace record dicts, e.g. one
+            agent_trace.jsonl file's lines already json.loads'd, or one
+            InMemoryTraceWriter.records list, covering one or several
+            questions in run order.
+
     Returns:
         An OrderedDict mapping each question_id to the list of its trace
         records, in original step order, with keys ordered by each
@@ -110,7 +116,18 @@ _STEP_FORMATTERS = {
 
 def format_step(record: dict, index: int) -> str:
     """Renders one trace record as one (possibly multi-line) human-readable
-    entry, prefixed with its 1-based position in the question's trace."""
+    entry, prefixed with its 1-based position in the question's trace.
+
+    Args:
+        record: One trace record dict (a retrieval_N, evidence_assessment,
+            reformulated_query, or answer step, or any other step - an
+            unrecognized step name falls back to a generic dump, see
+            module docstring).
+        index: The record's 1-based position within its question's trace.
+
+    Returns:
+        The formatted entry, prefixed with `[index]`.
+    """
     step = record.get("step", "")
     if step.startswith("retrieval_"):
         body = _format_retrieval(record)
@@ -126,7 +143,18 @@ def format_step(record: dict, index: int) -> str:
 def render_question_trace(question_id: str, records: list[dict]) -> str:
     """Renders every step of a single question's trace, in the order the
     records appear in `records` (the caller is responsible for passing
-    them in run order - group_by_question preserves this automatically)."""
+    them in run order - group_by_question preserves this automatically).
+
+    Args:
+        question_id: The question these records belong to, used only for
+            the header line.
+        records: This question's trace records, in run order.
+
+    Returns:
+        A header line naming `question_id`, followed by one formatted
+        line (via format_step) per record, or a "(no trace records)"
+        placeholder if `records` is empty.
+    """
     header = f"=== Question {question_id} ==="
     if not records:
         return f"{header}\n(no trace records)"
@@ -139,7 +167,16 @@ def render_trace_dump(records: Iterable[dict]) -> str:
     `records` (e.g. a whole agent_trace.jsonl file, read line-by-line and
     json.loads'd into dicts), one section per question in first-seen
     order, separated by a blank line - the report this module exists to
-    produce (see module docstring)."""
+    produce (see module docstring).
+
+    Args:
+        records: The flat trace records to render, covering one or
+            several questions (see group_by_question).
+
+    Returns:
+        The full rendered dump, or "(no trace records)" if `records` is
+        empty or none of its records carry a "question_id".
+    """
     grouped = group_by_question(records)
     if not grouped:
         return "(no trace records)"

@@ -32,10 +32,18 @@ class TraceWriter:
     """Writes each record as one JSON line, appended immediately."""
 
     def __init__(self, path: str | Path):
+        """Args:
+            path: The JSONL file to append to. Its parent directory is
+                created if it does not already exist.
+        """
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def append(self, record: dict) -> None:
+        """Args:
+            record: The trace fields to write. A "ts" (current time)
+                field is added automatically before writing.
+        """
         record = {"ts": time.time(), **record}
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -50,4 +58,7 @@ class InMemoryTraceWriter:
         self.records: list[dict] = []
 
     def append(self, record: dict) -> None:
+        """Args:
+            record: The trace fields to append to `self.records`, as-is.
+        """
         self.records.append(record)

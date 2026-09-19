@@ -105,6 +105,9 @@ class SearchToolCall:
 
     @property
     def context_ids(self) -> frozenset[str]:
+        """Returns:
+            The distinct context_id values across all candidates in this call.
+        """
         return frozenset(c.context_id for c in self.candidates)
 
 
@@ -134,6 +137,26 @@ def search_documents(
     source_dataset - see pipeline.retrieval.retrieve()'s docstring for
     why source_dataset/exclude_source_datasets/embedding_model must agree
     and must never be derived from model output).
+
+    Args:
+        voyage_client: Embedding client, passed through to retrieve() unchanged.
+        collection: The MongoDB collection to search, passed through to retrieve() unchanged.
+        cohere_client: Reranking client. Required (must not be None) whenever
+            `reranker_enabled` is True and retrieve() returns any candidates;
+            unused otherwise.
+        query: The free-text search query - the only value the LLM ever
+            supplies (see module docstring's NoSQL-injection invariant).
+        pool_size: Candidate pool size, passed through to retrieve() unchanged.
+        vector_weight: Vector-similarity weight, passed through to retrieve() unchanged.
+        text_weight: Full-text weight, passed through to retrieve() unchanged.
+        reranker_enabled: Whether to rerank retrieve()'s candidates via `cohere_client`.
+        reranker_top_n: How many top candidates to keep, whether reranked
+            or (reranker disabled or degraded) taken unreranked.
+        embedding_model: Embedding model name, passed through to retrieve() unchanged.
+        source_dataset: Restricts retrieval to this dataset, passed through
+            to retrieve() unchanged.
+        exclude_source_datasets: Datasets to exclude from retrieval, passed
+            through to retrieve() unchanged.
 
     Raises:
         ValueError: if `query` is empty or whitespace-only - an agent
