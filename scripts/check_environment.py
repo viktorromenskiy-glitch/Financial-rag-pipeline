@@ -46,6 +46,11 @@ from pipeline.ingestion import EXPECTED_DOCUMENTS
 
 
 def main() -> None:
+    """Runs the four-step environment check, stopping at the first failed layer.
+
+    Raises:
+        SystemExit: If the indexed collection is completely empty.
+    """
     print("=" * 70)
     print("STEP 1: environment check (zero API cost - no Voyage/Cohere/Anthropic calls)")
     print("=" * 70)

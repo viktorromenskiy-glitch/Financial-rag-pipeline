@@ -16,6 +16,14 @@ ROOT = Path(__file__).resolve().parent.parent / "results"
 
 
 def load(run_id):
+    """Loads judge_correct scores for one run, keyed by question_id.
+
+    Args:
+        run_id: Identifier of the results run to load (results/<run_id>/eval_results.jsonl).
+
+    Returns:
+        A mapping from question_id to that question's judge_correct boolean.
+    """
     path = ROOT / run_id / "eval_results.jsonl"
     out = {}
     with path.open(encoding="utf-8") as f:

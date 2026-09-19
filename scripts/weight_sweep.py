@@ -56,6 +56,15 @@ POOL_SIZE = 50
 
 
 def recall_at_5(candidates, gold_context_id: str) -> bool:
+    """Checks whether the gold document is among the top-5 fused-ranked candidates.
+
+    Args:
+        candidates: Retrieved candidates in $rankFusion's own output order.
+        gold_context_id: context_id of the question's gold document.
+
+    Returns:
+        True if the gold document appears in the top 5 candidates.
+    """
     # $rankFusion's own output order is already the fused-score ranking
     # (confirmed via the "score": {"$meta": "score"} projection in
     # pipeline/retrieval.py) - candidates[:5] is the top-5, no re-sort here.
@@ -63,6 +72,19 @@ def recall_at_5(candidates, gold_context_id: str) -> bool:
 
 
 def run_one_weight_combo(clients, config, items, vector_weight: float, text_weight: float) -> list[bool]:
+    """Runs retrieval for every question at one vector/text weight combination.
+
+    Args:
+        clients: API clients dict as returned by pipeline.cli.build_clients().
+        config: The loaded pipeline configuration.
+        items: Eval questions as returned by load_eval_questions(), each with
+            a "context_id" key added.
+        vector_weight: Weight given to the vector search leg of $rankFusion.
+        text_weight: Weight given to the text search leg of $rankFusion.
+
+    Returns:
+        Recall@5 hit/miss for each question, in the same order as items.
+    """
     routing = config.embedding.routing
     hits = []
     for i, item in enumerate(items):
@@ -86,6 +108,16 @@ def run_one_weight_combo(clients, config, items, vector_weight: float, text_weig
 
 
 def mcnemar_vs_default(default_hits: list[bool], other_hits: list[bool]):
+    """Runs the exact McNemar test between the default weight combo and one alternative.
+
+    Args:
+        default_hits: Per-question Recall@5 hits for the 0.5/0.5 default combo.
+        other_hits: Per-question Recall@5 hits for the alternative combo, in the
+            same question order as default_hits.
+
+    Returns:
+        A tuple (b, c, p): the two discordant counts and the exact McNemar p-value.
+    """
     b = sum(1 for d, o in zip(default_hits, other_hits) if d and not o)  # default right, other wrong
     c = sum(1 for d, o in zip(default_hits, other_hits) if not d and o)  # default wrong, other right
     n = b + c

@@ -41,6 +41,15 @@ QUESTIONS = "data/t2-ragbench/eval_subset_250.parquet"
 
 
 def mcnemar_exact(b: int, c: int) -> float:
+    """Computes the exact two-sided McNemar p-value from the two discordant counts.
+
+    Args:
+        b: Count of pairs where the baseline was correct and the fixed run was not.
+        c: Count of pairs where the fixed run was correct and the baseline was not.
+
+    Returns:
+        The exact McNemar p-value, or 1.0 if there are no discordant pairs.
+    """
     n = b + c
     if n == 0:
         return 1.0

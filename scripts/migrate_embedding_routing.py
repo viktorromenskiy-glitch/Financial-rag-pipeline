@@ -51,6 +51,13 @@ ROUTED_SOURCES = {"TAT-DQA"}  # must match config/config.yaml embedding.routing.
 
 
 def main() -> None:
+    """Backfills source_dataset and switches TAT-DQA embeddings to voyage-finance-2.
+
+    Raises:
+        RuntimeError: If documents from the raw dataset are missing from the
+            indexed collection, or if any TAT-DQA document lacks a precomputed
+            embedding_finance2 field.
+    """
     mongo_client = pymongo.MongoClient(os.environ["MONGODB_URI"])
     collection = mongo_client["rag_project"]["t2_ragbench_full"]
 

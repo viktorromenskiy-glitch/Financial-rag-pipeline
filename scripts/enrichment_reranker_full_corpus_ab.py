@@ -59,6 +59,15 @@ ARMS = {
 
 
 def mcnemar_exact(b: int, c: int) -> float:
+    """Computes the exact two-sided McNemar p-value from the two discordant counts.
+
+    Args:
+        b: Count of questions where the "enriched" arm hit and "raw" missed.
+        c: Count of questions where the "raw" arm hit and "enriched" missed.
+
+    Returns:
+        The exact McNemar p-value, or 1.0 if there are no discordant pairs.
+    """
     n = b + c
     if n == 0:
         return 1.0
@@ -66,6 +75,20 @@ def mcnemar_exact(b: int, c: int) -> float:
 
 
 def build_pipeline(query_vector: list[float], query_text: str, vector_index: str, text_index: str, field: str, embedding_field: str) -> list[dict]:
+    """Builds the $rankFusion aggregation pipeline for one retrieval arm.
+
+    Args:
+        query_vector: Query embedding to search with.
+        query_text: Raw query text for the text-search leg.
+        vector_index: Name of the arm's vector search index.
+        text_index: Name of the arm's text search index.
+        field: Document field the text index is built over.
+        embedding_field: Document field the vector index is built over.
+
+    Returns:
+        A MongoDB aggregation pipeline (list of stage dicts) ready to pass
+        to `collection.aggregate()`.
+    """
     num_candidates = POOL_SIZE * NUM_CANDIDATES_MULTIPLIER
     return [
         {
@@ -103,7 +126,21 @@ def build_pipeline(query_vector: list[float], query_text: str, vector_index: str
 
 
 def retrieve_arm(collection, voyage_client, cohere_client, query_text: str, query_vector: list[float], arm: dict) -> list[str]:
-    """Returns the top-TOP_N context_ids after retrieval + rerank for one arm."""
+    """Retrieves and reranks candidates for one question against one arm.
+
+    Args:
+        collection: The temporary cluster's destination collection.
+        voyage_client: Voyage AI client (unused directly here; kept for a
+            consistent call signature with the query-embedding step).
+        cohere_client: Cohere client used to rerank the candidate pool.
+        query_text: Raw question text.
+        query_vector: Precomputed query embedding.
+        arm: One entry of ARMS, naming the arm's indexes and fields.
+
+    Returns:
+        The top-TOP_N context_ids after retrieval + rerank for this arm,
+        or an empty list if retrieval returned no candidates.
+    """
     pipeline = build_pipeline(query_vector, query_text, arm["vector_index"], arm["text_index"], arm["field"], arm["embedding"])
     results = list(collection.aggregate(pipeline))
     if not results:
@@ -114,6 +151,12 @@ def retrieve_arm(collection, voyage_client, cohere_client, query_text: str, quer
 
 
 def sample_questions() -> list[dict]:
+    """Samples up to PER_SOURCE_N questions per source_dataset from the raw corpus.
+
+    Returns:
+        Sampled question records (each with "question", "context_id" and
+        "source_dataset"), shuffled across sources.
+    """
     raw = load_raw(DATA_DIR)
     records = to_document_records(raw)
 

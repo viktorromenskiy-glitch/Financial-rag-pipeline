@@ -73,6 +73,11 @@ def _wait_until_queryable(collection, index_name: str) -> None:
 
 
 def update_vector_index(collection) -> None:
+    """Adds the source_dataset filter field to the vector search index, if not already present.
+
+    Args:
+        collection: The MongoDB collection whose vector_index_full index to update.
+    """
     definition = _current_definition(collection, VECTOR_INDEX_NAME)
     fields = list(definition.get("fields", []))
 
@@ -88,6 +93,11 @@ def update_vector_index(collection) -> None:
 
 
 def update_text_index(collection) -> None:
+    """Adds the source_dataset token field to the text search index, if not already present.
+
+    Args:
+        collection: The MongoDB collection whose text_index_full index to update.
+    """
     definition = _current_definition(collection, TEXT_INDEX_NAME)
     mappings = definition.setdefault("mappings", {})
     fields = mappings.setdefault("fields", {})

@@ -97,6 +97,11 @@ TAT_DQA_KEYS = {
 
 
 def load_questions() -> list[dict]:
+    """Loads the unanswerable-probe question set.
+
+    Returns:
+        The probe question records from QUESTIONS_PATH, in file order.
+    """
     items = []
     with QUESTIONS_PATH.open(encoding="utf-8") as f:
         for line in f:
@@ -105,6 +110,16 @@ def load_questions() -> list[dict]:
 
 
 def infer_source_dataset(rec: dict) -> str:
+    """Infers which source_dataset label to use for retrieval routing on a probe question.
+
+    Args:
+        rec: A probe question record (as loaded by `load_questions`), with
+            "category" and "company" keys.
+
+    Returns:
+        "TAT-DQA" if the question targets a known TAT-DQA company under a
+        missing year, otherwise "FinQA" (a non-routed placeholder).
+    """
     if rec["category"] == "wrong_year":
         # company key was stored implicitly via the question text at build
         # time; re-derive from build_questions.py's WRONG_YEAR_QUESTIONS

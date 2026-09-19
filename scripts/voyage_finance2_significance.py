@@ -68,11 +68,19 @@ RANDOM_SEED = 42
 
 
 def mcnemar_exact(b: int, c: int) -> float:
-    """Exact two-sided McNemar's test via the binomial distribution (no
-    chi-square/continuity-correction approximation - appropriate given
-    these per-source_dataset discordant-pair counts can be small).
-    b = model A right / model B wrong on the same query.
-    c = model A wrong / model B right on the same query."""
+    """Runs the exact two-sided McNemar's test via the binomial distribution.
+
+    Uses the binomial distribution directly (no chi-square/continuity-
+    correction approximation) since these per-source_dataset discordant-pair
+    counts can be small.
+
+    Args:
+        b: Count of queries where model A was right and model B was wrong.
+        c: Count of queries where model A was wrong and model B was right.
+
+    Returns:
+        The exact McNemar p-value, or 1.0 if there are no discordant pairs.
+    """
     n = b + c
     if n == 0:
         return 1.0
@@ -80,6 +88,13 @@ def mcnemar_exact(b: int, c: int) -> float:
 
 
 def main() -> None:
+    """Runs the full-corpus voyage-4 vs voyage-finance-2 significance check end to end.
+
+    Raises:
+        RuntimeError: If any indexed document is missing its embedding_finance2
+            vector, or if a sampled query's gold context_id is not found in the
+            indexed collection.
+    """
     mongo_client = pymongo.MongoClient(os.environ["MONGODB_URI"])
     collection = mongo_client["rag_project"]["t2_ragbench_full"]
     voyage_client = voyageai.Client(api_key=os.environ["VOYAGE_API_KEY"])

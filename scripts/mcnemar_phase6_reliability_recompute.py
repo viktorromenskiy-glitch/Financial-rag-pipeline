@@ -38,6 +38,15 @@ PAIRS = [
 
 
 def load(field: str) -> dict[str, dict[str, bool]]:
+    """Loads one boolean field from the reeval summary, keyed by variant then question_id.
+
+    Args:
+        field: Name of the boolean field to extract from each summary record
+            (e.g. "original_judge_correct", "new_judge_correct", "deterministic_match").
+
+    Returns:
+        A mapping from variant name to a mapping from question_id to that field's value.
+    """
     data: dict[str, dict[str, bool]] = defaultdict(dict)
     with SUMMARY_PATH.open(encoding="utf-8") as f:
         for line in f:
@@ -47,6 +56,13 @@ def load(field: str) -> dict[str, dict[str, bool]]:
 
 
 def run_mcnemar(data: dict[str, dict[str, bool]], label: str) -> None:
+    """Runs the paired McNemar test between all three variant pairs and prints the results.
+
+    Args:
+        data: Per-variant mapping from question_id to a boolean correctness value,
+            as returned by `load`.
+        label: Description of the signal being tested, used only in printed output.
+    """
     ids = [set(data[v].keys()) for v in VARIANTS]
     assert ids[0] == ids[1] == ids[2], f"[{label}] question_id sets differ between variants"
     n = len(ids[0])

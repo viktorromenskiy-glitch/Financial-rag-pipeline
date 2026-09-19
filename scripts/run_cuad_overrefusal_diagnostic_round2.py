@@ -287,6 +287,13 @@ def _load_checkpoint(path: Path) -> dict[str, dict]:
 
 
 def main() -> None:
+    """Runs round 2's two ablation variants against the CUAD smoke fixture.
+
+    Raises:
+        RuntimeError: If the relevant document for a question is not found
+            among that question's retrieved candidates (a retrieval
+            regression, not something this diagnostic can answer).
+    """
     config = load_config(str(CONFIG_PATH))
     clients = build_clients(config)
     collection = clients["collection"]

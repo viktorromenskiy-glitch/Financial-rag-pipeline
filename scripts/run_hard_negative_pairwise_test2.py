@@ -122,11 +122,16 @@ CATEGORIES = [
 
 
 def build_pair_list() -> list[dict]:
-    """All (question_id, category, gold_context_id, sibling_context_id)
-    pairs with a non-null sibling - reuses exactly the deterministic
-    sibling assignment already computed and committed by Test 1, not
-    recomputed here, so the two tests can never disagree about which
-    sibling a question was paired with."""
+    """Builds the list of gold/sibling pairs to test, reusing Test 1's sibling assignment.
+
+    Reuses exactly the deterministic sibling assignment already computed
+    and committed by Test 1, not recomputed here, so the two tests can
+    never disagree about which sibling a question was paired with.
+
+    Returns:
+        All (question_id, category, gold_context_id, sibling_context_id)
+        pairs with a non-null sibling.
+    """
     data = json.loads(STRESS_ANALYSIS_PATH.read_text())
     pairs = []
     for q in data["per_question"]:
@@ -146,6 +151,11 @@ def build_pair_list() -> list[dict]:
 
 
 def build_question_text_map() -> dict[str, str]:
+    """Builds the question_id -> question text map from the eval subset.
+
+    Returns:
+        A mapping from question_id to its question text.
+    """
     import pandas as pd
 
     df = pd.read_parquet(EVAL_SUBSET_PATH)
@@ -153,12 +163,17 @@ def build_question_text_map() -> dict[str, str]:
 
 
 def load_known_content_hashes() -> dict[tuple[str, str], str]:
-    """(question_id, context_id) -> content_sha256, from every entry
-    (candidate_top50, so it covers gold and any naturally-competing
-    sibling) already recorded in retrieval_trace_250. Used only as an
-    integrity cross-check against freshly Mongo-fetched content - if a
-    hash mismatches, the corpus changed since 2026-08-21 and that pair's
-    result should not be trusted at face value."""
+    """Loads previously-recorded content hashes for integrity cross-checking.
+
+    Used only as an integrity cross-check against freshly Mongo-fetched
+    content - if a hash mismatches, the corpus changed since 2026-08-21
+    and that pair's result should not be trusted at face value.
+
+    Returns:
+        A mapping from (question_id, context_id) to content_sha256, from
+        every candidate_top50 entry already recorded in retrieval_trace_250
+        (covers gold and any naturally-competing sibling).
+    """
     hashes: dict[tuple[str, str], str] = {}
     with TRACE_PATH.open() as f:
         for line in f:
@@ -170,6 +185,18 @@ def load_known_content_hashes() -> dict[tuple[str, str], str]:
 
 
 def fetch_full_indexed_content(collection, context_id: str) -> str:
+    """Fetches one document's full_indexed_content field from MongoDB.
+
+    Args:
+        collection: The MongoDB collection to fetch from.
+        context_id: context_id of the document to fetch.
+
+    Returns:
+        The document's full_indexed_content text.
+
+    Raises:
+        RuntimeError: If context_id is not found, or its full_indexed_content is empty.
+    """
     doc = collection.find_one({"context_id": context_id}, {"full_indexed_content": 1})
     if doc is None or not doc.get("full_indexed_content"):
         raise RuntimeError(
@@ -181,6 +208,15 @@ def fetch_full_indexed_content(collection, context_id: str) -> str:
 
 
 def load_checkpoint(path: Path) -> set[tuple[str, str]]:
+    """Loads the set of (question_id, category) pairs already completed.
+
+    Args:
+        path: Path to the checkpoint JSONL file (may not exist yet).
+
+    Returns:
+        The (question_id, category) pairs already recorded in the file, or
+        an empty set if it does not exist.
+    """
     if not path.exists():
         return set()
     done = set()
@@ -192,12 +228,24 @@ def load_checkpoint(path: Path) -> set[tuple[str, str]]:
 
 
 def append_result(path: Path, record: dict) -> None:
+    """Appends one JSON record as a line to a JSONL file, creating parent dirs as needed.
+
+    Args:
+        path: Path to append to.
+        record: The record to serialize and append.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def run(dry_run: bool) -> None:
+    """Runs (or dry-run previews) the forced pairwise reranking test.
+
+    Args:
+        dry_run: If True, only prints the pair count and cost estimate and
+            makes no MongoDB/Cohere/Drive calls.
+    """
     pairs = build_pair_list()
     by_cat: dict[str, int] = {}
     for p in pairs:
@@ -340,6 +388,16 @@ def run(dry_run: bool) -> None:
 
 
 def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Computes the Wilson score confidence interval for a binomial proportion.
+
+    Args:
+        successes: Number of successes observed.
+        n: Total number of trials.
+        z: Z-score for the desired confidence level (default: 1.96, ~95%).
+
+    Returns:
+        A (lower, upper) bound tuple, or (nan, nan) if n is 0.
+    """
     if n == 0:
         return (float("nan"), float("nan"))
     p = successes / n
@@ -350,6 +408,16 @@ def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def rank_in(trace_list: list[dict], context_id: str) -> int | None:
+    """Finds a context_id's recorded rank within a retrieval trace list.
+
+    Args:
+        trace_list: candidate_top50 or reranked_top5 entries from a
+            retrieval_trace.jsonl record.
+        context_id: context_id to look up.
+
+    Returns:
+        The matching entry's rank, or None if context_id is not present.
+    """
     for entry in trace_list:
         if entry["context_id"] == context_id:
             return entry["rank"]
@@ -357,14 +425,25 @@ def rank_in(trace_list: list[dict], context_id: str) -> int | None:
 
 
 def natural_order_from_test1(question_id: str, gold_id: str, sibling_id: str, trace_by_qid: dict) -> bool | None:
-    """True/False = gold beat / lost to the sibling in the ALREADY-OBSERVED
-    natural reranked_top5 for this question; None = undeterminable from
-    Test 1's saved data (sibling never in the same candidate_top50 batch as
-    gold, gold itself never reached candidate_top50, or both gold and
-    sibling missed the saved top-5 slice so their relative order beyond
-    rank 5 was never recorded). See this script's module docstring, design
-    revision point 1, for why this is stricter than Test 1's own
-    not_naturally_covered_needs_paid_test2 field."""
+    """Determines gold vs. sibling order as already observed in Test 1's natural batch.
+
+    See this script's module docstring, design revision point 1, for why
+    this is stricter than Test 1's own not_naturally_covered_needs_paid_test2
+    field.
+
+    Args:
+        question_id: The question whose natural retrieval order to check.
+        gold_id: context_id of the gold document.
+        sibling_id: context_id of the hard-negative sibling.
+        trace_by_qid: Retrieval trace records keyed by question_id.
+
+    Returns:
+        True if gold beat the sibling, False if it lost, or None if
+        undeterminable from Test 1's saved data (sibling never in the same
+        candidate_top50 batch as gold, gold itself never reached
+        candidate_top50, or both gold and sibling missed the saved top-5
+        slice so their relative order beyond rank 5 was never recorded).
+    """
     trace = trace_by_qid.get(question_id)
     if trace is None:
         return None
@@ -386,6 +465,11 @@ def natural_order_from_test1(question_id: str, gold_id: str, sibling_id: str, tr
 
 
 def summarize(path: Path) -> None:
+    """Summarizes an existing pairwise_results.jsonl and writes pairwise_summary.json alongside it.
+
+    Args:
+        path: Path to the pairwise_results.jsonl file to summarize.
+    """
     if not path.exists():
         print(f"{path} does not exist - run the paid step first, or pass --path to an existing pairwise_results.jsonl.")
         return

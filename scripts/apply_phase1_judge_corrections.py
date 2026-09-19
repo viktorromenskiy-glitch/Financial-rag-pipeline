@@ -156,22 +156,48 @@ CORRECTIONS = {
 
 
 def load_jsonl(path: Path) -> list[dict]:
+    """Loads a JSONL file into a list of records.
+
+    Args:
+        path: Path to the JSONL file to read.
+
+    Returns:
+        The parsed records, in file order.
+    """
     with path.open(encoding="utf-8") as f:
         return [json.loads(line) for line in f]
 
 
 def write_jsonl(path: Path, records: list[dict]) -> None:
+    """Writes records to a JSONL file, one JSON object per line.
+
+    Args:
+        path: Path to write to (overwritten if it already exists).
+        records: Records to serialize, in the order to write them.
+    """
     with path.open("w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
 def apply_corrections(records: list[dict]) -> list[dict]:
-    """Returns a new list with a `manual_correction` field added to the 5
-    corrected records (all other records unchanged, and the original
-    `failure_stage`/`judge_correct` fields on the corrected records are
-    LEFT AS-IS - the raw deterministic classification stays visible; the
-    correction is an explicit annotation on top, not a silent rewrite)."""
+    """Adds a `manual_correction` field to the 5 corrected records.
+
+    All other records are unchanged, and the original `failure_stage`/
+    `judge_correct` fields on the corrected records are LEFT AS-IS - the
+    raw deterministic classification stays visible; the correction is an
+    explicit annotation on top, not a silent rewrite.
+
+    Args:
+        records: attribution_results.jsonl records to annotate.
+
+    Returns:
+        A new list of records, each with a `manual_correction` field added
+        for the 5 question_ids in CORRECTIONS.
+
+    Raises:
+        ValueError: If any question_id in CORRECTIONS is not found in records.
+    """
     corrected = []
     seen = set()
     for r in records:
@@ -194,12 +220,21 @@ def apply_corrections(records: list[dict]) -> list[dict]:
 
 
 def corrected_stage_counts(records: list[dict]) -> Counter:
-    """The Phase-1-corrected view of failure_stage counts: applies
-    corrected_stage where a manual_correction says to move a question,
-    otherwise keeps the original deterministic failure_stage. The one
-    context_data_inconsistency case gets its own bucket (corrected_stage is
-    None but reason is set) rather than silently staying counted as
-    generation_failure_candidate."""
+    """Computes the Phase-1-corrected view of failure_stage counts.
+
+    Applies corrected_stage where a manual_correction says to move a
+    question, otherwise keeps the original deterministic failure_stage. The
+    one context_data_inconsistency case gets its own bucket (corrected_stage
+    is None but reason is set) rather than silently staying counted as
+    generation_failure_candidate.
+
+    Args:
+        records: attribution_results.jsonl records, as returned by
+            `apply_corrections`.
+
+    Returns:
+        A count of records per corrected failure_stage/reason bucket.
+    """
     counts: Counter = Counter()
     for r in records:
         mc = r.get("manual_correction")

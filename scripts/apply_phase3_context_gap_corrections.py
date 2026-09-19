@@ -242,17 +242,47 @@ CORRECTIONS = {
 
 
 def load_jsonl(path: Path) -> list[dict]:
+    """Loads a JSONL file into a list of records.
+
+    Args:
+        path: Path to the JSONL file to read.
+
+    Returns:
+        The parsed records, in file order.
+    """
     with path.open(encoding="utf-8") as f:
         return [json.loads(line) for line in f]
 
 
 def write_jsonl(path: Path, records: list[dict]) -> None:
+    """Writes records to a JSONL file, one JSON object per line.
+
+    Args:
+        path: Path to write to (overwritten if it already exists).
+        records: Records to serialize, in the order to write them.
+    """
     with path.open("w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
 def apply_corrections(records: list[dict]) -> list[dict]:
+    """Adds a `manual_correction_phase3` field to the 8 Phase 3 reviewed records.
+
+    All other records are unchanged, and the original `failure_stage`/
+    `judge_correct` fields, plus earlier phases' correction fields, are
+    left as-is.
+
+    Args:
+        records: attribution_results.jsonl records to annotate.
+
+    Returns:
+        A new list of records, each with a `manual_correction_phase3` field
+        added for the question_ids in CORRECTIONS.
+
+    Raises:
+        ValueError: If any question_id in CORRECTIONS is not found in records.
+    """
     corrected = []
     seen = set()
     for r in records:
@@ -275,9 +305,20 @@ def apply_corrections(records: list[dict]) -> list[dict]:
 
 
 def cumulative_corrected_stage(r: dict) -> str:
-    """Applies Phase 1's correction, then Phase 2's, then Phase 3's on top -
+    """Computes the cumulative Phase 1 + 2 + 3 corrected failure stage for one record.
+
+    Applies Phase 1's correction, then Phase 2's, then Phase 3's on top -
     the final, cumulative view of where this question_id nets out after all
-    three manual review phases."""
+    three manual review phases.
+
+    Args:
+        r: An attribution_results.jsonl record, possibly carrying
+            `manual_correction`, `manual_correction_phase2` and/or
+            `manual_correction_phase3` fields.
+
+    Returns:
+        The record's final corrected failure_stage/reason bucket name.
+    """
     stage = r["failure_stage"]
     for field in ("manual_correction", "manual_correction_phase2", "manual_correction_phase3"):
         mc = r.get(field)

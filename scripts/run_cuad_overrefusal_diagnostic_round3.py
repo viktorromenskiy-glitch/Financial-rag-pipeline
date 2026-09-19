@@ -397,6 +397,13 @@ def _load_checkpoint(path: Path) -> dict[str, dict]:
 
 
 def main() -> None:
+    """Runs round 3's `original` vs `structured_relevant_first` ablation against the CUAD smoke fixture.
+
+    Raises:
+        RuntimeError: If a question's correct document is not found among
+            its retrieved candidates (a retrieval regression, not something
+            this diagnostic can answer).
+    """
     config = load_config(str(CONFIG_PATH))
     clients = build_clients(config)
     collection = clients["collection"]

@@ -76,6 +76,19 @@ def _get_field(obj: Any, dotted_path: str) -> Any:
 
 
 def compute_code_constant(source: dict) -> int:
+    """Reads an integer module-level constant's value out of a source file.
+
+    Args:
+        source: The check's "source" dict, with "file" (path relative to
+            the repo root) and "constant" (the constant's name) keys.
+
+    Returns:
+        The constant's current integer value.
+
+    Raises:
+        CheckError: If the file does not exist, or the constant is not
+            found as a top-level `NAME = <int>` assignment in it.
+    """
     path = REPO_ROOT / source["file"]
     if not path.exists():
         raise CheckError(f"file not found: {source['file']}")
@@ -88,11 +101,41 @@ def compute_code_constant(source: dict) -> int:
 
 
 def compute_json_field(source: dict) -> Any:
+    """Reads one dotted-path field out of a JSON file.
+
+    Args:
+        source: The check's "source" dict, with "file" (path relative to
+            the repo root) and "field_path" (dotted field path) keys.
+
+    Returns:
+        The value at that field path.
+    """
     obj = _read_json(source["file"])
     return _get_field(obj, source["field_path"])
 
 
 def compute_aggregation(source: dict) -> Any:
+    """Computes an aggregate value over a results file, per the check's declared op.
+
+    Supported ops: "rate" (fraction of JSONL rows with a truthy field,
+    optionally filtered by question_id_prefix), "min"/"max"/"sum" (over a
+    list of JSON fields), "count_not_equal" (JSONL rows whose field differs
+    from a given value), "dict_field" (a nested JSON field), and
+    "join_compare" (agreement/discordance between two JSONL files joined
+    on a key).
+
+    Args:
+        source: The check's "source" dict; its keys depend on "op" (see
+            the manifest schema for each op's required keys).
+
+    Returns:
+        The aggregated value - a float for "rate", an int for the others,
+        or a dict of counts for "join_compare".
+
+    Raises:
+        CheckError: If "op" is unrecognized, or a "rate" aggregation's
+            filter matches zero rows.
+    """
     op = source["op"]
 
     if op == "rate":
@@ -162,6 +205,18 @@ def compute_aggregation(source: dict) -> Any:
 
 
 def compute_true_value(check: dict) -> Any:
+    """Dispatches a manifest check to the right compute_* function by its type.
+
+    Args:
+        check: One check entry from the manifest, with a "type" key of
+            "code_constant", "json_field" or "aggregation".
+
+    Returns:
+        The computed true value, in whatever shape that check type produces.
+
+    Raises:
+        CheckError: If the check's type is not one of the computable types.
+    """
     ctype = check["type"]
     if ctype == "code_constant":
         return compute_code_constant(check["source"])
@@ -180,6 +235,19 @@ def compute_true_value(check: dict) -> Any:
 # ---------------------------------------------------------------------------
 
 def normalize(kind: str, value: Any) -> Any:
+    """Normalizes a computed or README-extracted value into a comparable form.
+
+    Args:
+        kind: Normalization kind: "int_strip_separators", "percent_1dp",
+            "percent_0dp_from_fraction", or "dict_exact".
+        value: The raw value to normalize (a number or a README-extracted string).
+
+    Returns:
+        The normalized value, comparable across both sides of a check.
+
+    Raises:
+        CheckError: If kind is not one of the recognized normalization kinds.
+    """
     if kind == "int_strip_separators":
         if isinstance(value, (int, float)):
             return int(value)
@@ -211,6 +279,15 @@ def normalize(kind: str, value: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 def extract_from_readme(readme_text: str, anchor_pattern: str) -> str | None:
+    """Extracts a check's claimed value from a README's text via its anchor regex.
+
+    Args:
+        readme_text: Full text of one README file.
+        anchor_pattern: Regex with one capture group locating the claimed value.
+
+    Returns:
+        The captured value string, or None if the anchor pattern did not match.
+    """
     m = re.search(anchor_pattern, readme_text)
     if not m:
         return None
@@ -222,6 +299,12 @@ def extract_from_readme(readme_text: str, anchor_pattern: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    """Runs every wired manifest check against each README file and prints the results.
+
+    Returns:
+        0 if every wired check passes in every README that declares an
+        anchor for it, 1 if any check fails or errors.
+    """
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     readme_texts = {}
     for fname in README_FILES:

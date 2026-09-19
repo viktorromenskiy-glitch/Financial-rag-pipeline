@@ -53,8 +53,15 @@ OUT_DIR = Path("results/hard_negative_stress_250")
 
 
 def build_doc_metadata() -> dict[str, dict]:
-    """context_id -> {company_name, report_year, company_sector}, one row
-    per unique document (DocumentRecord is one-per-question, so dedupe)."""
+    """Builds per-document metadata from the ingested corpus.
+
+    DocumentRecord is one-per-question, so this dedupes down to one entry
+    per unique context_id.
+
+    Returns:
+        A mapping from context_id to a dict of company_name, report_year
+        and company_sector.
+    """
     records = ingest(DATA_DIR)
     meta: dict[str, dict] = {}
     for r in records:
@@ -70,9 +77,14 @@ def build_doc_metadata() -> dict[str, dict]:
 
 
 def build_gold_map() -> dict[str, str]:
-    """question_id -> gold context_id, from the eval subset itself (this is
-    the same file the committed error_analysis_250/retrieval_trace_250 runs
-    were evaluated against)."""
+    """Builds the question_id -> gold context_id map from the eval subset.
+
+    This is the same file the committed error_analysis_250/
+    retrieval_trace_250 runs were evaluated against.
+
+    Returns:
+        A mapping from question_id to its gold context_id.
+    """
     import pandas as pd
 
     df = pd.read_parquet(EVAL_SUBSET_PATH)
@@ -80,6 +92,18 @@ def build_gold_map() -> dict[str, str]:
 
 
 def pick_category_a(gold_id: str, meta: dict[str, dict], by_company: dict[str, list[str]]) -> str | None:
+    """Picks the Category A hard-negative sibling: same company, different report_year.
+
+    Args:
+        gold_id: context_id of the question's gold document.
+        meta: Per-document metadata, as returned by `build_doc_metadata`.
+        by_company: Mapping from company_name to its context_ids.
+
+    Returns:
+        The nearest-year sibling's context_id (ties broken by
+        lexicographically smallest context_id), or None if there is no
+        other-year document for this company.
+    """
     company = meta[gold_id]["company_name"]
     gold_year = meta[gold_id]["report_year"]
     siblings = [
@@ -94,6 +118,17 @@ def pick_category_a(gold_id: str, meta: dict[str, dict], by_company: dict[str, l
 
 
 def pick_category_b(gold_id: str, meta: dict[str, dict], by_company_year: dict[tuple, list[str]]) -> str | None:
+    """Picks the Category B hard-negative sibling: same company+year, different document.
+
+    Args:
+        gold_id: context_id of the question's gold document.
+        meta: Per-document metadata, as returned by `build_doc_metadata`.
+        by_company_year: Mapping from (company_name, report_year) to its context_ids.
+
+    Returns:
+        The lexicographically smallest sibling context_id in the same
+        company-year group, or None if there is no other document in it.
+    """
     company = meta[gold_id]["company_name"]
     year = meta[gold_id]["report_year"]
     siblings = sorted(cid for cid in by_company_year.get((company, year), []) if cid != gold_id)
@@ -101,6 +136,18 @@ def pick_category_b(gold_id: str, meta: dict[str, dict], by_company_year: dict[t
 
 
 def pick_category_c(gold_id: str, meta: dict[str, dict], by_sector: dict[str, list[str]]) -> str | None:
+    """Picks the Category C hard-negative sibling: same sector, different company.
+
+    Args:
+        gold_id: context_id of the question's gold document.
+        meta: Per-document metadata, as returned by `build_doc_metadata`.
+        by_sector: Mapping from company_sector to its context_ids.
+
+    Returns:
+        The lexicographically smallest sibling context_id from a different
+        company in the same sector, or None if the gold document has no
+        sector or no such sibling exists.
+    """
     sector = meta[gold_id]["company_sector"]
     if not sector:
         return None
@@ -112,6 +159,16 @@ def pick_category_c(gold_id: str, meta: dict[str, dict], by_sector: dict[str, li
 
 
 def rank_in(trace_list: list[dict], context_id: str) -> int | None:
+    """Finds a context_id's recorded rank within a retrieval trace list.
+
+    Args:
+        trace_list: candidate_top50 or reranked_top5 entries from a
+            retrieval_trace.jsonl record.
+        context_id: context_id to look up.
+
+    Returns:
+        The matching entry's rank, or None if context_id is not present.
+    """
     for entry in trace_list:
         if entry["context_id"] == context_id:
             return entry["rank"]
@@ -119,6 +176,16 @@ def rank_in(trace_list: list[dict], context_id: str) -> int | None:
 
 
 def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Computes the Wilson score confidence interval for a binomial proportion.
+
+    Args:
+        successes: Number of successes observed.
+        n: Total number of trials.
+        z: Z-score for the desired confidence level (default: 1.96, ~95%).
+
+    Returns:
+        A (lower, upper) bound tuple, or (nan, nan) if n is 0.
+    """
     if n == 0:
         return (float("nan"), float("nan"))
     p = successes / n

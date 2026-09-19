@@ -66,6 +66,13 @@ def _index_exists(collection, index_name: str) -> bool:
 
 
 def create_vector_index(collection, index_name: str, path: str) -> None:
+    """Creates a vectorSearch index on the given field, if it does not already exist.
+
+    Args:
+        collection: The MongoDB collection to create the index on.
+        index_name: Name to give the new search index.
+        path: Document field the index is built over.
+    """
     if _index_exists(collection, index_name):
         print(f"  {index_name!r} already exists - skipping")
         return
@@ -89,6 +96,13 @@ def create_vector_index(collection, index_name: str, path: str) -> None:
 
 
 def create_text_index(collection, index_name: str, path: str) -> None:
+    """Creates a text search index on the given field, if it does not already exist.
+
+    Args:
+        collection: The MongoDB collection to create the index on.
+        index_name: Name to give the new search index.
+        path: Document field the index is built over.
+    """
     if _index_exists(collection, index_name):
         print(f"  {index_name!r} already exists - skipping")
         return
@@ -103,6 +117,11 @@ def create_text_index(collection, index_name: str, path: str) -> None:
 
 
 def main() -> None:
+    """Creates all 4 vector/text indexes on the temporary cluster's destination collection.
+
+    Raises:
+        RuntimeError: If the destination collection is empty.
+    """
     dest_client = pymongo.MongoClient(os.environ["DEST_MONGODB_URI"])
     collection = dest_client[DEST_DB_NAME][DEST_COLLECTION_NAME]
 

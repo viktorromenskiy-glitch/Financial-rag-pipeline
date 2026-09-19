@@ -163,6 +163,11 @@ def _fetch_candidates(collection, top5: list[dict]) -> tuple[list[_StoredCandida
 
 
 def main() -> None:
+    """Replays generation for the residual generation_failure_candidate pool and records raw traces.
+
+    Raises:
+        ValueError: If any remaining question_id has no retrieval_trace.jsonl record.
+    """
     residual = _residual_question_ids()
     done = _load_done()
     remaining = [qid for qid in residual if qid not in done]

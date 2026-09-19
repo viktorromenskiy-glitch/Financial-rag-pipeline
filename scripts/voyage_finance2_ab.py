@@ -55,12 +55,22 @@ _SOURCE_PREFIX_MAP = [
 
 
 def infer_source(*candidates) -> str:
-    """Tries each candidate in order (mirrors pipeline/cli.py's
-    _infer_source_dataset()) - context_id alone isn't reliably prefixed
-    for every source_dataset in this corpus (confirmed 2026-08-15: TAT-DQA
-    rows' context_id didn't match, while their 'id' column did), so the
-    caller should pass both the row's 'id' and 'context_id' rather than
-    context_id alone."""
+    """Infers a row's source_dataset from an id-like value's known prefix.
+
+    Mirrors pipeline/cli.py's _infer_source_dataset(). context_id alone
+    isn't reliably prefixed for every source_dataset in this corpus
+    (confirmed 2026-08-15: TAT-DQA rows' context_id didn't match, while
+    their 'id' column did), so the caller should pass both the row's 'id'
+    and 'context_id' rather than context_id alone.
+
+    Args:
+        *candidates: Id-like values to check in order, e.g. a row's 'id'
+            and 'context_id'; the first one with a recognized prefix wins.
+
+    Returns:
+        The matched source_dataset name, or "unknown" if no candidate
+        matched a known prefix.
+    """
     for value in candidates:
         if value is None:
             continue
@@ -72,7 +82,17 @@ def infer_source(*candidates) -> str:
 
 
 def embed_batch(client: voyageai.Client, texts: list[str], model: str, input_type: str) -> np.ndarray:
-    """Embeds texts in BATCH_SIZE chunks, returns an (n, dim) array."""
+    """Embeds texts in BATCH_SIZE-sized chunks.
+
+    Args:
+        client: Voyage AI client to embed with.
+        texts: Texts to embed.
+        model: Voyage embedding model name to use.
+        input_type: Voyage input_type ("query" or "document").
+
+    Returns:
+        An (n, dim) array of embedding vectors, one row per input text.
+    """
     vectors = []
     for i in range(0, len(texts), BATCH_SIZE):
         batch = texts[i : i + BATCH_SIZE]
@@ -84,16 +104,36 @@ def embed_batch(client: voyageai.Client, texts: list[str], model: str, input_typ
 
 
 def normalize(vectors: np.ndarray) -> np.ndarray:
+    """L2-normalizes each row of a vector array.
+
+    Args:
+        vectors: An (n, dim) array of vectors to normalize.
+
+    Returns:
+        An (n, dim) array with each row scaled to unit length (rows that
+        were already all-zero are left unscaled).
+    """
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
     return vectors / norms
 
 
 def recall_and_mrr(sims: np.ndarray, pool_ids: list[str], queries: list[dict]) -> pd.DataFrame:
-    """sims: (n_queries, n_pool) cosine similarity matrix. Returns one row
-    per query with the gold document's rank (1-indexed, None if the gold
-    document isn't in the pool at all - shouldn't happen here since gold
-    docs are always included in the pool, but guarded defensively)."""
+    """Ranks the gold document for each query from a similarity matrix.
+
+    Args:
+        sims: (n_queries, n_pool) cosine similarity matrix.
+        pool_ids: context_id of each document in the pool, in the same
+            column order as sims.
+        queries: Query records, each with a "context_id" (gold document)
+            and optional "id".
+
+    Returns:
+        One row per query with the gold document's rank (1-indexed, or
+        None if the gold document isn't in the pool at all - shouldn't
+        happen here since gold docs are always included in the pool, but
+        guarded defensively).
+    """
     rows = []
     for i, q in enumerate(queries):
         gold_cid = q["context_id"]
@@ -112,6 +152,15 @@ def recall_and_mrr(sims: np.ndarray, pool_ids: list[str], queries: list[dict]) -
 
 
 def print_metrics(df_ranks: pd.DataFrame, label: str) -> dict:
+    """Computes and prints recall@k/MRR metrics from a ranks DataFrame.
+
+    Args:
+        df_ranks: Per-query ranks as returned by `recall_and_mrr`.
+        label: Heading to print above the metrics.
+
+    Returns:
+        A mapping from metric name (e.g. "recall@5", "mrr") to its value.
+    """
     metrics = {}
     for k in TOP_KS:
         metrics[f"recall@{k}"] = float((df_ranks["rank"].notna() & (df_ranks["rank"] <= k)).mean())
@@ -127,6 +176,12 @@ def print_metrics(df_ranks: pd.DataFrame, label: str) -> dict:
 
 
 def main() -> None:
+    """Runs the voyage-4 vs voyage-finance-2 A/B retrieval comparison end to end.
+
+    Raises:
+        RuntimeError: If a sampled query's gold context_id is not found in
+            the indexed collection.
+    """
     mongo_client = pymongo.MongoClient(os.environ["MONGODB_URI"])
     collection = mongo_client["rag_project"]["t2_ragbench_full"]
     voyage_client = voyageai.Client(api_key=os.environ["VOYAGE_API_KEY"])
