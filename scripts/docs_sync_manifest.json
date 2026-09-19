@@ -1,0 +1,368 @@
+{
+  "$comment": "Manifest for Rule B (README/docs numeric sync). Each check declares HOW to compute the true value (source) and one anchor per README file (regex, first-match) to extract the value the doc currently claims. check_docs_sync.py normalizes both sides before comparing. Types: code_constant, json_field, aggregation, manual_external (skipped by the checker, listed for completeness/audit only).",
+  "checks": [
+    {
+      "id": "expected_documents",
+      "type": "code_constant",
+      "description": "Total real financial documents in the T2-RAGBench corpus",
+      "source": {
+        "file": "pipeline/ingestion.py",
+        "constant": "EXPECTED_DOCUMENTS"
+      },
+      "normalize": "int_strip_separators",
+      "anchors": {
+        "README.md": "([\\d,]{4,})\\s+real financial filings",
+        "README.ru.md": "([\\d \\u00a0]{4,})\\s+реальных финансовых документов",
+        "README.uk.md": "([\\d \\u00a0]{4,})\\s+реальних фінансових документів"
+      }
+    },
+    {
+      "id": "expected_questions",
+      "type": "code_constant",
+      "description": "Total questions in the T2-RAGBench corpus",
+      "source": {
+        "file": "pipeline/ingestion.py",
+        "constant": "EXPECTED_QUESTIONS"
+      },
+      "normalize": "int_strip_separators",
+      "anchors": {
+        "README.md": "([\\d,]{4,})\\s+questions\\s+·",
+        "README.ru.md": "([\\d \\u00a0]{4,})\\s+вопросов\\s+·",
+        "README.uk.md": "([\\d \\u00a0]{4,})\\s+питань\\s+·"
+      }
+    },
+    {
+      "id": "e2e_accuracy_overall",
+      "type": "aggregation",
+      "description": "End-to-end accuracy, judge_correct==True over 250 rows, all sources combined",
+      "source": {
+        "file": "results/error_analysis_250/eval_results.jsonl",
+        "op": "rate",
+        "field": "judge_scores.judge_correct",
+        "filter": null
+      },
+      "normalize": "percent_1dp",
+      "anchors": {
+        "README.md": "End-to-end accuracy \\| (\\d+\\.\\d)%",
+        "README.ru.md": "Точность end-to-end \\| (\\d+\\.\\d)%",
+        "README.uk.md": "Точність end-to-end \\| (\\d+\\.\\d)%"
+      }
+    },
+    {
+      "id": "e2e_accuracy_finqa",
+      "type": "aggregation",
+      "description": "End-to-end accuracy for FinQA subset (question_id prefix finqa_)",
+      "source": {
+        "file": "results/error_analysis_250/eval_results.jsonl",
+        "op": "rate",
+        "field": "judge_scores.judge_correct",
+        "filter": {
+          "question_id_prefix": "finqa_"
+        }
+      },
+      "normalize": "percent_1dp",
+      "anchors": {
+        "README.md": "split: (\\d+\\.\\d)% \\(FinQA\\)",
+        "README.ru.md": "split: (\\d+\\.\\d)% \\(FinQA\\)",
+        "README.uk.md": "спліті: (\\d+\\.\\d)% \\(FinQA\\)"
+      },
+      "note": "Anchor found in the 'Comparison to published work' section (FinAgent-RAG comparison paragraph), the only place in any of the three README files where the per-source breakdown appears: '...n=250 split: 72.2% (FinQA), 83.8% (ConvFinQA), 76.4% (TAT-DQA), 76.0% overall'. The dataset-name labels are left untranslated in README.ru.md/README.uk.md, so the same regex matches in all three files. Disambiguated from FinAgent-RAG's own per-source numbers (76.81%/78.46%/74.96%, same paragraph) via the 'split:' prefix that precedes only this project's own numbers."
+    },
+    {
+      "id": "e2e_accuracy_convfinqa",
+      "type": "aggregation",
+      "description": "End-to-end accuracy for ConvFinQA subset (question_id prefix convfinqa_)",
+      "source": {
+        "file": "results/error_analysis_250/eval_results.jsonl",
+        "op": "rate",
+        "field": "judge_scores.judge_correct",
+        "filter": {
+          "question_id_prefix": "convfinqa_"
+        }
+      },
+      "normalize": "percent_1dp",
+      "anchors": {
+        "README.md": "split: \\d+\\.\\d% \\(FinQA\\), (\\d+\\.\\d)% \\(ConvFinQA\\)",
+        "README.ru.md": "split: \\d+\\.\\d% \\(FinQA\\), (\\d+\\.\\d)% \\(ConvFinQA\\)",
+        "README.uk.md": "спліті: \\d+\\.\\d% \\(FinQA\\), (\\d+\\.\\d)% \\(ConvFinQA\\)"
+      },
+      "note": "Same anchor sentence as e2e_accuracy_finqa — see that check's note."
+    },
+    {
+      "id": "e2e_accuracy_tatdqa",
+      "type": "aggregation",
+      "description": "End-to-end accuracy for TAT-DQA subset (question_id prefix tatqa_)",
+      "source": {
+        "file": "results/error_analysis_250/eval_results.jsonl",
+        "op": "rate",
+        "field": "judge_scores.judge_correct",
+        "filter": {
+          "question_id_prefix": "tatqa_"
+        }
+      },
+      "normalize": "percent_1dp",
+      "anchors": {
+        "README.md": "split: \\d+\\.\\d% \\(FinQA\\), \\d+\\.\\d% \\(ConvFinQA\\), (\\d+\\.\\d)% \\(TAT-DQA\\)",
+        "README.ru.md": "split: \\d+\\.\\d% \\(FinQA\\), \\d+\\.\\d% \\(ConvFinQA\\), (\\d+\\.\\d)% \\(TAT-DQA\\)",
+        "README.uk.md": "спліті: \\d+\\.\\d% \\(FinQA\\), \\d+\\.\\d% \\(ConvFinQA\\), (\\d+\\.\\d)% \\(TAT-DQA\\)"
+      },
+      "note": "Same anchor sentence as e2e_accuracy_finqa — see that check's note."
+    },
+    {
+      "id": "recall_at_5_pool50",
+      "type": "json_field",
+      "description": "Retrieval Recall@5, full corpus, pool=50, reranker on (n=900)",
+      "source": {
+        "file": "results/reranker_pool_sweep_900/pool_sweep_summary.json",
+        "field_path": "recall_at_5_by_pool.pool_50"
+      },
+      "normalize": "percent_1dp",
+      "anchors": {
+        "README.md": "Retrieval Recall@5 \\| (\\d+\\.\\d)%",
+        "README.ru.md": "Recall@5 \\(retrieval\\) \\| (\\d+\\.\\d)%",
+        "README.uk.md": "Recall@5 \\(retrieval\\) \\| (\\d+\\.\\d)%"
+      }
+    },
+    {
+      "id": "hard_negative_pairwise_range_low",
+      "type": "aggregation",
+      "description": "Minimum pairwise_accuracy across the three hard-negative categories (A/B/C)",
+      "source": {
+        "file": "results/hard_negative_pairwise_test2/pairwise_summary.json",
+        "op": "min",
+        "fields": [
+          "A_same_company_other_year.pairwise_accuracy",
+          "B_same_company_year_other_doc.pairwise_accuracy",
+          "C_same_sector_other_company.pairwise_accuracy"
+        ]
+      },
+      "normalize": "percent_1dp",
+      "anchors": {
+        "README.md": "pairwise accuracy \\| (\\d+\\.\\d)% – \\d+\\.\\d%",
+        "README.ru.md": "Pairwise accuracy на hard negatives \\| (\\d+\\.\\d)–\\d+\\.\\d%",
+        "README.uk.md": "Pairwise accuracy на hard negatives \\| (\\d+\\.\\d)–\\d+\\.\\d%"
+      }
+    },
+    {
+      "id": "hard_negative_pairwise_range_high",
+      "type": "aggregation",
+      "description": "Maximum pairwise_accuracy across the three hard-negative categories (A/B/C)",
+      "source": {
+        "file": "results/hard_negative_pairwise_test2/pairwise_summary.json",
+        "op": "max",
+        "fields": [
+          "A_same_company_other_year.pairwise_accuracy",
+          "B_same_company_year_other_doc.pairwise_accuracy",
+          "C_same_sector_other_company.pairwise_accuracy"
+        ]
+      },
+      "normalize": "percent_1dp",
+      "anchors": {
+        "README.md": "pairwise accuracy \\| \\d+\\.\\d% – (\\d+\\.\\d)%",
+        "README.ru.md": "Pairwise accuracy на hard negatives \\| \\d+\\.\\d–(\\d+\\.\\d)%",
+        "README.uk.md": "Pairwise accuracy на hard negatives \\| \\d+\\.\\d–(\\d+\\.\\d)%"
+      }
+    },
+    {
+      "id": "hard_negative_pairwise_n",
+      "type": "aggregation",
+      "description": "Sum of n_pairs across the three hard-negative categories (A/B/C)",
+      "source": {
+        "file": "results/hard_negative_pairwise_test2/pairwise_summary.json",
+        "op": "sum",
+        "fields": [
+          "A_same_company_other_year.n_pairs",
+          "B_same_company_year_other_doc.n_pairs",
+          "C_same_sector_other_company.n_pairs"
+        ]
+      },
+      "normalize": "int_strip_separators",
+      "anchors": {
+        "README.md": "n=(\\d+) forced pairwise comparisons",
+        "README.ru.md": "n=(\\d+) принудительных парных сравнений",
+        "README.uk.md": "n=(\\d+) примусових парних порівнянь"
+      }
+    },
+    {
+      "id": "tests_passing_count",
+      "type": "manual_external",
+      "description": "Static shields.io badge text '464 passing' — hardcoded string in the badge URL, NOT generated by CI. True value must come from a real pytest run, which this checker cannot do inside a docs-sync job without also running the full suite (that is the test job's responsibility). Listed here for audit visibility; not automatically checked against the badge text by this script. Recommended: docs-sync job asserts the badge text matches an environment variable passed in from the test job's own pytest summary, once such wiring exists (see Section on CI architecture in pravilo_b_dokumentaciya_final.md).",
+      "anchors": {
+        "README.md": "Tests: (\\d+) passing",
+        "README.ru.md": "Tests: (\\d+) passing",
+        "README.uk.md": "Tests: (\\d+) passing"
+      }
+    },
+    {
+      "id": "judge_calibration_agreement",
+      "type": "json_field",
+      "description": "Judge/human agreement rate on the calibration sample",
+      "source": {
+        "file": "data/human_calibration/calibration_summary.json",
+        "field_path": "judge.agreement.point"
+      },
+      "normalize": "percent_0dp_from_fraction",
+      "anchors": {
+        "README.md": "(\\d+)% agreement \\(30/30\\)",
+        "README.ru.md": "(\\d+)% согласия \\(30/30\\)",
+        "README.uk.md": "(\\d+)% згоди \\(30/30\\)"
+      },
+      "note": "Anchor pinned to the '(30/30)' denominator specifically (n=30 calibration sample, matching TPR k=22/n=22 + TNR k=8/n=8 = 30 in calibration_summary.json) to disambiguate from the adjacent judge-vs-deterministic row in the same table, which reads '...% agreement (28/30)' one line above and would otherwise be matched by an unanchored regex (confirmed the hard way: an earlier version of this anchor without '(30/30)' matched the fractional digit after the decimal point in that other row's '93.3%')."
+    },
+    {
+      "id": "unanswerable_probe_fabrications",
+      "type": "aggregation",
+      "description": "Count of probe rows where behavior != 'refused' (README claims 0/32 fabrications)",
+      "source": {
+        "file": "results/unanswerable_probe/probe_results.jsonl",
+        "op": "count_not_equal",
+        "field": "behavior",
+        "value": "refused"
+      },
+      "normalize": "int_strip_separators",
+      "anchors": {
+        "README.md": "found (\\d+)/32 fabrications",
+        "README.ru.md": "(\\d+) из 32 фабрикаций",
+        "README.uk.md": "(\\d+) із 32 фабрикацій"
+      },
+      "note": "Anchor confirmed by direct read of the 'Known limitations' section in all three README files (English: 'found 0/32 fabrications'; Russian: '0 из 32 фабрикаций'; Ukrainian: '0 із 32 фабрикацій')."
+    },
+    {
+      "id": "error_attribution_overall",
+      "type": "aggregation",
+      "description": "Whole-object comparison of the 'overall' error-attribution category counts (generation_failure_candidate/success/reranking_failure/retrieval_failure) — compared field-by-field via 'components' rather than one regex, since no single line in the README states all four numbers as one machine-matchable token; each category IS its own table row, with the category name left untranslated at the start of the row in all three README files, e.g. ru: '| success (gold-документ дошёл до топ-5, ответ верный) | 186 | 74.4% |'.",
+      "source": {
+        "file": "results/retrieval_trace_250/attribution_summary.json",
+        "op": "dict_field",
+        "field_path": "overall"
+      },
+      "components": [
+        {
+          "key": "success",
+          "field": "success",
+          "normalize": "int_strip_separators",
+          "anchors": {
+            "README.md": "success \\([^)]*\\) \\| (\\d+) \\|",
+            "README.ru.md": "success \\([^)]*\\) \\| (\\d+) \\|",
+            "README.uk.md": "success \\([^)]*\\) \\| (\\d+) \\|"
+          }
+        },
+        {
+          "key": "generation_failure_candidate",
+          "field": "generation_failure_candidate",
+          "normalize": "int_strip_separators",
+          "anchors": {
+            "README.md": "generation_failure_candidate \\([^)]*\\) \\| (\\d+) \\|",
+            "README.ru.md": "generation_failure_candidate \\([^)]*\\) \\| (\\d+) \\|",
+            "README.uk.md": "generation_failure_candidate \\([^)]*\\) \\| (\\d+) \\|"
+          }
+        },
+        {
+          "key": "reranking_failure",
+          "field": "reranking_failure",
+          "normalize": "int_strip_separators",
+          "anchors": {
+            "README.md": "reranking_failure \\([^)]*\\) \\| (\\d+) \\|",
+            "README.ru.md": "reranking_failure \\([^)]*\\) \\| (\\d+) \\|",
+            "README.uk.md": "reranking_failure \\([^)]*\\) \\| (\\d+) \\|"
+          }
+        },
+        {
+          "key": "retrieval_failure",
+          "field": "retrieval_failure",
+          "normalize": "int_strip_separators",
+          "anchors": {
+            "README.md": "retrieval_failure \\([^)]*\\) \\| (\\d+) \\|",
+            "README.ru.md": "retrieval_failure \\([^)]*\\) \\| (\\d+) \\|",
+            "README.uk.md": "retrieval_failure \\([^)]*\\) \\| (\\d+) \\|"
+          }
+        }
+      ]
+    },
+    {
+      "id": "agent_vs_baseline_join",
+      "type": "aggregation",
+      "description": "Join agent_results.jsonl and baseline_results.jsonl on question_id; compare success vs judge_correct. README states the two systems reached an identical success rate on the n=30 sample ('23/30 each') — checked as two components (agent's own count, baseline's own count) that must both equal the value in that sentence. The README does not state the discordant-pair count as a bare number (it appears in the McNemar CI/p-value instead), so that part is not wired to a regex — computed and available in the checker's own output for a human to cross-check, not silently guessed into an anchor.",
+      "source": {
+        "file_a": "results/agent_eval_day2/agent_results.jsonl",
+        "file_b": "results/agent_eval_day2/baseline_results.jsonl",
+        "join_key": "question_id",
+        "op": "join_compare",
+        "field_a": "success",
+        "field_b": "judge_correct"
+      },
+      "components": [
+        {
+          "key": "agent_success_count",
+          "field": "a_true_count",
+          "normalize": "int_strip_separators",
+          "anchors": {
+            "README.md": "(\\d+)/30 each",
+            "README.ru.md": "(\\d+)/30 у каждого",
+            "README.uk.md": "(\\d+)/30 у кожного"
+          }
+        },
+        {
+          "key": "baseline_success_count",
+          "field": "b_true_count",
+          "normalize": "int_strip_separators",
+          "anchors": {
+            "README.md": "(\\d+)/30 each",
+            "README.ru.md": "(\\d+)/30 у каждого",
+            "README.uk.md": "(\\d+)/30 у кожного"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit_economics_cost_per_question",
+      "type": "manual_external",
+      "description": "~$0.016 per question — computed from external, time-varying provider prices; README itself notes this is a calculation, not a measurement",
+      "anchors": {
+        "README.md": null,
+        "README.ru.md": null,
+        "README.uk.md": null
+      }
+    },
+    {
+      "id": "comparison_akarsu_et_al",
+      "type": "manual_external",
+      "description": "Comparison to Akarsu et al. — requires methodology/currency judgment, not numeric comparison",
+      "anchors": {
+        "README.md": null,
+        "README.ru.md": null,
+        "README.uk.md": null
+      }
+    },
+    {
+      "id": "comparison_finagent_rag",
+      "type": "manual_external",
+      "description": "Comparison to FinAgent-RAG — paper was withdrawn by its author; README notes this explicitly; not a numeric check",
+      "anchors": {
+        "README.md": null,
+        "README.ru.md": null,
+        "README.uk.md": null
+      }
+    },
+    {
+      "id": "reranker_pool_sweep_provenance",
+      "type": "manual_external",
+      "description": "pool_sweep_summary.json carries its own 'provenance' field stating it was manually transcribed from a Colab notebook with no recoverable raw per-question data. This check can only ever validate 'README matches the recorded summary JSON', never 'summary JSON matches raw data' — do not report the same confidence level as aggregation-type checks.",
+      "anchors": {
+        "README.md": null,
+        "README.ru.md": null,
+        "README.uk.md": null
+      }
+    },
+    {
+      "id": "cuad_refusals",
+      "type": "manual_external",
+      "description": "CUAD section 'n=5 refusals... unjustified' — the fact '5/5 refused' is checkable, but the qualitative judgment 'unjustified' is not; keep these as separate manifest entries if the numeric half is ever wired up",
+      "anchors": {
+        "README.md": null,
+        "README.ru.md": null,
+        "README.uk.md": null
+      }
+    }
+  ]
+}
