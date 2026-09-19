@@ -21,6 +21,18 @@ _ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
 
 
 class MongoDBConfig(BaseModel):
+    """MongoDB Atlas connection and index configuration.
+
+    Attributes:
+        uri: MongoDB connection string (typically resolved from the
+            MONGODB_URI environment variable via config.yaml's
+            "${MONGODB_URI}" placeholder).
+        db_name: Name of the MongoDB database holding the pipeline's collection.
+        collection_name: Name of the collection storing indexed DocumentRecord chunks.
+        vector_index_name: Name of the Atlas Vector Search index used for dense retrieval.
+        text_index_name: Name of the Atlas Search (text) index used for lexical retrieval.
+    """
+
     uri: str
     db_name: str
     collection_name: str
@@ -29,6 +41,12 @@ class MongoDBConfig(BaseModel):
 
     @model_validator(mode="after")
     def uri_not_empty(self) -> "MongoDBConfig":
+        """Validates that `uri` was actually resolved to a non-empty value.
+
+        Raises:
+            ValueError: If `uri` is empty (e.g. MONGODB_URI was not set
+                before ${MONGODB_URI} substitution).
+        """
         if not self.uri:
             raise ValueError("mongodb.uri is empty - check that MONGODB_URI is set in .env")
         return self
@@ -45,6 +63,16 @@ class EmbeddingRoutingConfig(BaseModel):
     source_dataset (routed_sources is ignored) - the config-level on/off
     switch this project's convention requires for every architectural
     choice (docs/struktura_repozitoriya.md).
+
+    Attributes:
+        enabled: Turns per-dataset routing on/off - see above for the
+            full on/off semantics.
+        finance_model: Name of the finance-specialized embedding model
+            (e.g. "voyage-finance-2") used for documents/queries from
+            `routed_sources` when `enabled` is True.
+        routed_sources: The source_dataset values that should use
+            `finance_model` instead of `embedding.model`; ignored
+            entirely when `enabled` is False.
     """
 
     enabled: bool
@@ -53,12 +81,34 @@ class EmbeddingRoutingConfig(BaseModel):
 
 
 class EmbeddingConfig(BaseModel):
+    """Embedding model and batching configuration for ingestion/retrieval.
+
+    Attributes:
+        model: Default embedding model used for all documents/queries.
+        batch_size: Number of texts embedded per API call.
+        routing: Optional per-dataset override that routes some documents
+            to a different, finance-specialized embedding model instead
+            of `model` - see EmbeddingRoutingConfig.
+    """
+
     model: str
     batch_size: PositiveInt
     routing: EmbeddingRoutingConfig
 
 
 class EnrichmentConfig(BaseModel):
+    """LLM-based document enrichment configuration, applied during ingestion.
+
+    Attributes:
+        enabled: Whether enrichment runs at all; when False, ingestion
+            skips it entirely.
+        model: Name of the LLM used to enrich documents.
+        temperature: Sampling temperature passed to the enrichment model.
+        prompt_version: Identifier of the enrichment prompt template
+            version in use, so a wording change can be traced against
+            the results it produced.
+    """
+
     enabled: bool
     model: str
     temperature: float = Field(ge=0.0, le=1.0)
@@ -66,16 +116,43 @@ class EnrichmentConfig(BaseModel):
 
 
 class RetrievalWeights(BaseModel):
+    """Relative weighting between vector and text scores in hybrid retrieval.
+
+    Attributes:
+        vector: Weight given to the dense/vector search score.
+        text: Weight given to the lexical/text search score.
+    """
+
     vector: float = Field(ge=0.0, le=1.0)
     text: float = Field(ge=0.0, le=1.0)
 
 
 class RetrievalConfig(BaseModel):
+    """Hybrid retrieval configuration.
+
+    Attributes:
+        pool_size: Number of candidate documents retrieved before
+            reranking/truncation.
+        weights: Relative weighting between vector and text search
+            scores - see RetrievalWeights.
+    """
+
     pool_size: PositiveInt
     weights: RetrievalWeights
 
 
 class RerankerConfig(BaseModel):
+    """Cross-encoder reranking configuration applied after initial retrieval.
+
+    Attributes:
+        enabled: Whether reranking runs at all; when False, the retrieval
+            pool is used as-is (truncated to top_n) with no reranking pass.
+        model: Name of the reranker model.
+        pool_size: Number of retrieval candidates passed into the reranker.
+        top_n: Number of top-ranked documents kept after reranking, for
+            generation.
+    """
+
     enabled: bool
     model: str
     pool_size: PositiveInt
@@ -83,6 +160,17 @@ class RerankerConfig(BaseModel):
 
 
 class GenerationConfig(BaseModel):
+    """Answer-generation model configuration.
+
+    Attributes:
+        model: Name of the LLM used to generate the final answer.
+        temperature: Sampling temperature passed to the generation model.
+        prompt_variant: Key selecting which generation prompt template is
+            used - see the inline comment on this field for what it
+            selects and the backward-compatibility rationale behind its
+            default.
+    """
+
     model: str
     temperature: float = Field(ge=0.0, le=1.0)
     # Фаза 5 (docs/tehnicheskoe_zadanie.md, section 28): selects a key of
@@ -97,6 +185,16 @@ class GenerationConfig(BaseModel):
 
 
 class JudgeConfig(BaseModel):
+    """LLM-judge configuration for scoring generated answers against gold answers.
+
+    Attributes:
+        model: Name of the LLM used as the judge.
+        temperature: Sampling temperature passed to the judge model.
+        prompt_version: Identifier of the judge prompt template version in use.
+        deterministic_check_enabled: Whether the deterministic numeric
+            check (is_close_v2) also runs alongside the LLM judge verdict.
+    """
+
     model: str
     temperature: float = Field(ge=0.0, le=1.0)
     prompt_version: str
@@ -104,12 +202,26 @@ class JudgeConfig(BaseModel):
 
 
 class RetryConfig(BaseModel):
+    """Retry policy for external API calls (embedding/generation/judge/etc.).
+
+    Attributes:
+        stop_after_attempt: Maximum number of attempts before giving up.
+        wait_min_seconds: Minimum backoff wait between attempts.
+        wait_max_seconds: Maximum backoff wait between attempts; must be
+            >= wait_min_seconds (enforced by wait_max_not_below_min below).
+    """
+
     stop_after_attempt: PositiveInt
     wait_min_seconds: PositiveInt
     wait_max_seconds: PositiveInt
 
     @model_validator(mode="after")
     def wait_max_not_below_min(self) -> "RetryConfig":
+        """Validates that the configured backoff bounds are internally consistent.
+
+        Raises:
+            ValueError: If `wait_max_seconds` is less than `wait_min_seconds`.
+        """
         if self.wait_max_seconds < self.wait_min_seconds:
             raise ValueError(
                 f"retry.wait_max_seconds ({self.wait_max_seconds}) must be >= "
@@ -189,7 +301,23 @@ class AgentEvalConfig(BaseModel):
     generate+judge pass - $0.02/call is conservative per CALL, not per
     question) - real per-call cost varies by prompt/response length and
     is not tracked exactly here (see agent/safety.py's module docstring
-    on why this counts calls, not tokens).
+    on why this counts calls, not tokens). max_estimated_cost_usd=10.0 is
+    the corresponding hard budget ceiling (estimated as max_llm_calls *
+    cost_per_llm_call_usd internally by RunBudgetTracker) - at the
+    defaults above, 400 * $0.02 = $8, comfortably under the $10.0 ceiling,
+    so max_llm_calls is expected to be the tighter of the two limits in
+    practice.
+
+    Attributes:
+        max_llm_calls: Maximum total LLM calls (agent + baseline + judge)
+            across the whole run before it is stopped; None disables the
+            limit.
+        max_wall_clock_seconds: Maximum wall-clock time for the whole run;
+            None disables the limit.
+        max_estimated_cost_usd: Maximum estimated total cost for the whole
+            run (see sizing rationale above); None disables the limit.
+        cost_per_llm_call_usd: Flat per-call cost estimate used to compute
+            the running estimated cost against max_estimated_cost_usd.
     """
 
     max_llm_calls: int | None = Field(default=400, ge=1)
@@ -199,6 +327,14 @@ class AgentEvalConfig(BaseModel):
 
 
 class PersistenceConfig(BaseModel):
+    """Persistent-storage configuration for long, paid pipeline runs.
+
+    Attributes:
+        google_drive_results_dir: Canonical Google Drive results directory
+            - see the comment on this field for why its exact casing
+            matters and where it is consumed.
+    """
+
     # "Правила сохранения долгих платных прогонов" (project doc,
     # 2026-08-24): THE canonical persistent-storage root, set once here,
     # not retyped in any Colab cell/script. pipeline/common/persist.py's
@@ -211,6 +347,33 @@ class PersistenceConfig(BaseModel):
 
 
 class PipelineConfig(BaseModel):
+    """Root pydantic schema for config/config.yaml - the full validated
+    pipeline configuration returned by load_config().
+
+    Attributes:
+        mongodb: MongoDB Atlas connection and index settings - see
+            MongoDBConfig.
+        embedding: Embedding model, batching, and per-dataset routing
+            settings - see EmbeddingConfig.
+        enrichment: LLM-based document enrichment settings - see
+            EnrichmentConfig.
+        retrieval: Hybrid retrieval pool size and vector/text weighting -
+            see RetrievalConfig.
+        reranker: Cross-encoder reranking settings - see RerankerConfig.
+        generation: Answer-generation model settings - see GenerationConfig.
+        judge: LLM-judge scoring settings - see JudgeConfig.
+        retry: Retry policy for external API calls - see RetryConfig.
+        persistence: Persistent-storage settings for long paid runs;
+            defaults to PersistenceConfig() so config files predating
+            this field keep loading unchanged - see PersistenceConfig.
+        agent: Bounded agentic tool-use loop settings for agent/; defaults
+            to the 4-expert consensus value (max_additional_tool_calls=2)
+            so config files predating agent/ keep loading unchanged - see
+            AgentConfig.
+        agent_eval: Global safety limits for a whole agent-evaluation
+            harness run - see AgentEvalConfig.
+    """
+
     mongodb: MongoDBConfig
     embedding: EmbeddingConfig
     enrichment: EnrichmentConfig
@@ -262,6 +425,9 @@ def _substitute_env_vars(value: Any) -> Any:
 def load_config(path: str | Path = "config/config.yaml") -> PipelineConfig:
     """Loads config.yaml, substitutes ${ENV_VAR} placeholders, and
     validates the result against PipelineConfig.
+
+    Args:
+        path: Path to the YAML config file to load.
 
     Raises:
         FileNotFoundError: if the config file does not exist.
