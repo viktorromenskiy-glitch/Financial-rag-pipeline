@@ -1,9 +1,9 @@
 """Builds the out-of-corpus probe question set for the adversarial-robustness
 plan's Priority 3 ("unanswerable/out-of-corpus"), motivated by this project's
 internal working materials (not in this repository), section on Priority 3:
-  "Дёшево тестируется: сконструировать вопросы про периоды/темы,
-  отсутствующие в корпусе, и проверить, отказывается ли система отвечать
-  или генерирует правдоподобное, но необоснованное число."
+  "Cheap to test: construct questions about periods/topics absent from the
+  corpus, and check whether the system refuses to answer or generates a
+  plausible but unsubstantiated number."
 
 Every question here is checked programmatically against the actual indexed
 corpus metadata (data/t2-ragbench/*.parquet), not guessed - see
@@ -166,9 +166,9 @@ def verify_absence() -> None:
             f"retrieval could surface a real mention."
         )
 
-    print(f"Проверено: все {len(WRONG_YEAR_QUESTIONS)} пар компания/год и все "
-          f"{len(ABSENT_COMPANY_QUESTIONS)} компаний подтверждены отсутствующими "
-          f"в реальных данных корпуса.")
+    print(f"Verified: all {len(WRONG_YEAR_QUESTIONS)} company/year pairs and all "
+          f"{len(ABSENT_COMPANY_QUESTIONS)} companies confirmed absent "
+          f"from the real corpus data.")
 
 
 def build() -> None:
@@ -209,7 +209,7 @@ def build() -> None:
     with OUT_PATH.open("w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"Записано {len(records)} вопросов в {OUT_PATH}")
+    print(f"Wrote {len(records)} questions to {OUT_PATH}")
 
 
 if __name__ == "__main__":

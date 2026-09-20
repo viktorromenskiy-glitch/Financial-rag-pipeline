@@ -1,74 +1,76 @@
-"""Строит фикстуру для узкой финансовой проверки деиктической/entity гипотезы
-(см. claude/itog_ekspertizy_cuad_overrefusal_fix.md, "Что осталось сделать",
-п.2) - вопрос: насколько сильно падает `sufficient=yes` у ассессора, когда из
-текста вопроса убрано название компании, а document-level метаданные
-(metadata_prefix) при этом остаются на месте, при ФИКСИРОВАННОМ (не
-retrieval-зависимом) контексте gold-документ + 3 дистрактора той же
-Sector (то самое поле, которое реально попадает в metadata_prefix - см.
-pipeline/ingestion.py's build_metadata_prefix(), которое использует
-company_sector, а не company_industry - здесь используется то же поле, чтобы
-дистракторы были того же "класса", что видит модель в тексте документа, а не
-более узкой категории, которой модель не видит).
+"""Builds a fixture for a narrow financial check of the deictic/entity
+hypothesis (see claude/itog_ekspertizy_cuad_overrefusal_fix.md, "What remains
+to be done", section 2) - question: how much does the assessor's
+`sufficient=yes` drop when the company name is removed from the question
+text, while the document-level metadata (metadata_prefix) stays in place,
+under a FIXED (not retrieval-dependent) context of gold document + 3
+distractors from the same Sector (the very field that actually ends up in
+metadata_prefix - see pipeline/ingestion.py's build_metadata_prefix(), which
+uses company_sector, not company_industry - the same field is used here so
+the distractors are of the same "class" the model sees in the document text,
+not a narrower category the model never sees).
 
-Дизайн согласован 4 независимыми экспертами (раунды 2-4 каскада
-"prompt_ekspert2/3/4_cuad_fix_dizayn.md", см. claude/itog_ekspertizy_cuad_overrefusal_fix.md
-пункт 6 сводной таблицы): парное сравнение (одинаковый вопрос, 2 текстовых
-условия) на ~20-30 вопросах, контекст собран вручную (gold + 3 дистрактора той
-же Sector, ближайший report_year), НЕ через live retrieval - чтобы изолировать
-ассессора от изменчивости retrieval. `_ASSESSMENT_PROMPT_TEMPLATE` не
-изменяется вообще - тестируется существующий продакшен-промпт как есть.
+Design agreed on by 4 independent experts (rounds 2-4 of the
+"prompt_ekspert2/3/4_cuad_fix_dizayn.md" cascade, see
+claude/itog_ekspertizy_cuad_overrefusal_fix.md, item 6 of the summary table):
+a paired comparison (same question, 2 text conditions) over ~20-30 questions,
+context assembled by hand (gold + 3 distractors from the same Sector,
+closest report_year), NOT via live retrieval - to isolate the assessor from
+retrieval variability. `_ASSESSMENT_PROMPT_TEMPLATE` is not modified at all
+- the existing production prompt is tested as-is.
 
-## Отбор вопросов (полностью проверяемо кодом ниже, не вручную)
+## Question selection (fully verifiable by the code below, not by hand)
 
-Источник: data/t2-ragbench/eval_subset_250.parquet (тот же файл, на котором
-раньше уже считалось 246/250 explicit-company - см.
-claude/nahodka_deiktichnost_round3_dlya_ekspertov.md). Кандидат должен:
+Source: data/t2-ragbench/eval_subset_250.parquet (the same file on which
+246/250 explicit-company was previously counted - see
+claude/nahodka_deiktichnost_round3_dlya_ekspertov.md). A candidate must:
 
-1. Иметь непустые company_name И company_sector (после join с
-   pipeline.ingestion.to_document_records() - то же самое построение
-   DocumentRecord, что использует продакшен-индексация, не отдельный парсинг).
-2. Явно называть свою компанию (humanize_company_name()) в тексте вопроса -
-   проверяется строгим regex с границами слова (`\\b<name>\\b`,
-   регистронезависимо), не эвристикой "первое слово" (та эвристика
-   использовалась только для черновой оценки масштаба 246/250, здесь нужна
-   ТОЧНАЯ, обратимая замена - см. anonymize_question() ниже).
-3. Его Sector должен иметь >= 4 РАЗЛИЧНЫХ компаний во ВСЁM корпусе (7318
-   документов, не только eval_subset) - иначе не набрать 3 дистрактора от
-   разных компаний.
+1. Have non-empty company_name AND company_sector (after joining with
+   pipeline.ingestion.to_document_records() - the same DocumentRecord
+   construction used by production indexing, not a separate parser).
+2. Explicitly name its company (humanize_company_name()) in the question
+   text - checked with a strict word-boundary regex (`\\b<name>\\b`,
+   case-insensitive), not the "first word" heuristic (that heuristic was
+   only used for the rough 246/250 scale estimate; here an EXACT, reversible
+   replacement is needed - see anonymize_question() below).
+3. Its Sector must have >= 4 DISTINCT companies across the ENTIRE corpus
+   (7318 documents, not just eval_subset) - otherwise 3 distractors from
+   different companies cannot be assembled.
 
-Из отобранных кандидатов вручную (детерминированно, без случайности) взят по
-1 представителю на сектор (сортировка кандидатов сектора по company_name,
-затем context_id - первый), и по 2-му представителю для секторов с >= 6
-различными компаниями в корпусе (даёт больше материала для дистракторов и
-сохраняет разнообразие) - итог см. в TARGET_CONTEXT_IDS ниже, зафиксирован
-явным списком context_id (не пересчитывается заново при каждом запуске
-скрипта), чтобы результат был стабилен и проверяем построчно в code review,
-а не воспроизводился только "если повезёт с сортировкой".
+From the selected candidates, chosen by hand (deterministically, without
+randomness): 1 representative per sector (candidates within a sector sorted
+by company_name, then context_id - first one taken), plus a 2nd
+representative for sectors with >= 6 distinct companies in the corpus (gives
+more material for distractors and preserves diversity) - the result is
+recorded in TARGET_CONTEXT_IDS below, fixed as an explicit list of
+context_ids (not recomputed on every script run), so the result is stable
+and can be checked line-by-line in code review, rather than reproduced only
+"if the sort happens to come out the same way."
 
-## Дистракторы
+## Distractors
 
-3 документа той же Sector, ДРУГИХ компаний (никогда не той же компании, что
-gold), по одному документу на компанию, ближайший по |report_year - gold_year|
-(детерминированный tie-break по context_id). Если для какой-то компании
-несколько документов - берётся document-level первый по context_id
-(детерминированно).
+3 documents from the same Sector, OTHER companies (never the same company as
+gold), one document per company, closest by |report_year - gold_year|
+(deterministic tie-break by context_id). If a company has several documents,
+the document-level first by context_id is taken (deterministically).
 
-## Анонимизация вопроса
+## Question anonymization
 
-Заменяется КАЖДОЕ вхождение humanized company name (с учётом притяжательной
-формы 's / ' на конце) на "the company" / "the company's" - см.
-anonymize_question(). Каждая замена проверяется программно (после замены
-исходное имя не должно встречаться в анонимизированном тексте ни в каком
-регистре) - не полагается на визуальную проверку одной замены как на
-доказательство, что все вхождения обработаны.
+EVERY occurrence of the humanized company name (accounting for a trailing
+possessive 's / ') is replaced with "the company" / "the company's" - see
+anonymize_question(). Each replacement is checked programmatically (after
+the replacement, the original name must not appear anywhere in the
+anonymized text, in any case) - this does not rely on a visual check of one
+replacement as proof that every occurrence was handled.
 
-## Что НЕ проверяет этот скрипт
+## What this script does NOT check
 
-Не проверяет, что диагностика физически возможна (это делает основной
-диагностический скрипт scripts/run_financial_entity_ambiguity_diagnostic.py -
-_check_already_indexed() там). Этот скрипт строит только текстовую фикстуру
-(вопросы, gold/дистрактор context_id, анонимизированный текст) -
-не обращается к MongoDB, не делает retrieval, не тратит деньги.
+It does not check that the diagnostic is physically feasible (that's done by
+the main diagnostic script
+scripts/run_financial_entity_ambiguity_diagnostic.py -
+_check_already_indexed() there). This script only builds the text fixture
+(questions, gold/distractor context_ids, anonymized text) - it does not
+touch MongoDB, does not run retrieval, and does not spend any money.
 """
 from __future__ import annotations
 
@@ -92,14 +94,15 @@ from pipeline.ingestion import humanize_company_name, load_raw, to_document_reco
 MIN_DISTINCT_COMPANIES_PER_SECTOR = 4
 N_DISTRACTORS = 3
 
-# Явно зафиксированный отбор (context_id вопроса-кандидата - context_id
-# документа, question/company/sector совпадают с реальными данными, что
-# отдельно ассертится ниже в build(), а не только предполагается по имени
-# переменной). 28 вопросов, 20 различных секторов (см. докстринг выше про
-# принцип отбора: 1 на сектор + 2-й для секторов с >= 6 компаниями в корпусе,
-# минус 4 вручную убранных "вторых" представителя - Materials,
-# Telecommunications, Communication Services, Shipping - чтобы уложиться в
-# согласованный экспертами диапазон 20-30, а не строго держаться формулы).
+# Explicitly fixed selection (candidate question's context_id = document's
+# context_id; question/company/sector match the real data, which is
+# separately asserted below in build(), not just assumed from the variable
+# name). 28 questions, 20 distinct sectors (see the docstring above for the
+# selection principle: 1 per sector + a 2nd for sectors with >= 6 companies
+# in the corpus, minus 4 manually dropped "second" representatives -
+# Materials, Telecommunications, Communication Services, Shipping - to stay
+# within the expert-agreed 20-30 range rather than strictly following the
+# formula).
 TARGET_CONTEXT_IDS: list[str] = [
     "convfinqa_ctx_379",  # Financials / Aon
     "convfinqa_ctx_893",  # Financials / BlackRock
@@ -136,33 +139,35 @@ def _strict_name_in_text(name: str, text: str) -> bool:
     return re.search(r"\b" + re.escape(name) + r"\b", text, re.IGNORECASE) is not None
 
 
-# Юридические суффиксы, которые в оригинальном тексте вопроса иногда
-# следуют ЗА humanized-именем (например, humanize_company_name() возвращает
-# "American Airlines Group", а вопрос называет её "American Airlines Group
-# Inc.") - без этого суффикс оставался бы приклеенным к замене ("the company
-# Inc."), что не искажает деиктичность (сам по себе "Inc." не идентифицирует
-# компанию), но выглядит как явный артефакт замены при чтении вопроса
-# человеком - поэтому поглощается вместе с именем в одном совпадении.
+# Corporate suffixes that sometimes follow the humanized name in the
+# original question text (e.g. humanize_company_name() returns "American
+# Airlines Group", but the question calls it "American Airlines Group
+# Inc.") - without this, the suffix would stay stuck to the replacement
+# ("the company Inc."), which doesn't distort deicticity (by itself "Inc."
+# doesn't identify the company), but reads as an obvious replacement
+# artifact to a human reading the question - so it's absorbed together with
+# the name into a single match.
 _CORP_SUFFIX = r"(?:\s+(?:Inc|Incorporated|Corp(?:oration)?|Co|Company|Ltd|Limited|LLC|plc))?"
 
 
 def anonymize_question(name: str, question: str) -> str:
-    """Заменяет каждое вхождение `name` (с учётом необязательного юридического
-    суффикса сразу после имени и притяжательной формы 's/'/'s) на
-    "the company"/"the company's". Регистронезависимо, все вхождения сразу
-    (re.sub без count=1) - см. модульный докстринг про то, что каждая замена
-    проверяется программно после применения (исходное имя не должно остаться
-    в анонимизированном тексте), а не просто предполагается по построению
-    паттерна.
+    """Replaces every occurrence of `name` (accounting for an optional
+    corporate suffix right after the name and a possessive form 's/'/'s)
+    with "the company"/"the company's". Case-insensitive, all occurrences
+    at once (re.sub without count=1) - see the module docstring on how
+    every replacement is checked programmatically after being applied (the
+    original name must not remain in the anonymized text), rather than
+    simply assumed to hold from the pattern's construction.
 
     Args:
-        name: Humanized имя компании (см. humanize_company_name()),
-            которое нужно найти и заменить в тексте вопроса.
-        question: Исходный текст вопроса, в котором выполняется замена.
+        name: Humanized company name (see humanize_company_name()) to find
+            and replace in the question text.
+        question: The original question text in which the replacement is
+            performed.
 
     Returns:
-        Текст вопроса с каждым вхождением `name` (вместе с необязательным
-        юридическим суффиксом и притяжательной формой) заменённым на
+        The question text with every occurrence of `name` (together with
+        the optional corporate suffix and possessive form) replaced with
         "the company"/"the company's".
     """
     pattern = re.compile(
@@ -180,21 +185,21 @@ def anonymize_question(name: str, question: str) -> str:
 
 
 def build() -> None:
-    """Строит фикстуру (по одной паре условий на каждый элемент
-    TARGET_CONTEXT_IDS: вопрос/gold-документ/3 дистрактора/анонимизированный
-    текст) и записывает её в OUT_PATH - см. модульный докстринг для полного
-    дизайна отбора и происхождения TARGET_CONTEXT_IDS.
+    """Builds the fixture (one pair of conditions per TARGET_CONTEXT_IDS
+    entry: question/gold document/3 distractors/anonymized text) and writes
+    it to OUT_PATH - see the module docstring for the full selection design
+    and the origin of TARGET_CONTEXT_IDS.
 
     Raises:
-        ValueError: Если элемент TARGET_CONTEXT_IDS не найден в
-            eval_subset_250.parquet или среди построенных DocumentRecord,
-            не имеет company_name/company_sector, его сектор содержит
-            меньше MIN_DISTINCT_COMPANIES_PER_SECTOR различных компаний
-            в корпусе, или анонимизация не удалила все вхождения имени
-            компании / не изменила текст вопроса.
-        AssertionError: Если в построенной фикстуре есть повторяющиеся
-            question_id или повторно использованные (в разных элементах)
-            gold_context_id.
+        ValueError: If a TARGET_CONTEXT_IDS entry is not found in
+            eval_subset_250.parquet or among the constructed
+            DocumentRecords, has no company_name/company_sector, its
+            sector has fewer than MIN_DISTINCT_COMPANIES_PER_SECTOR
+            distinct companies in the corpus, or anonymization did not
+            remove all occurrences of the company name / did not change
+            the question text.
+        AssertionError: If the built fixture has duplicate question_ids,
+            or gold_context_ids reused across different entries.
     """
     raw = load_raw(CORPUS_DIR)
     records = to_document_records(raw)
@@ -202,7 +207,7 @@ def build() -> None:
     docs_by_id: dict[str, object] = {}
     for r in records:
         docs_by_id.setdefault(r.context_id, r)
-    print(f"Полный корпус: {len(docs_by_id)} уникальных документов.")
+    print(f"Full corpus: {len(docs_by_id)} unique documents.")
 
     q_index: dict[tuple[str, str], object] = {}
     for r in records:
@@ -219,30 +224,30 @@ def build() -> None:
 
     items: list[dict] = []
     for context_id in TARGET_CONTEXT_IDS:
-        # Найти вопрос из eval_subset_250, реально указывающий на этот context_id
+        # Find the question from eval_subset_250 that actually points to this context_id
         eval_rows = eval_df[eval_df["context_id"] == context_id]
         if eval_rows.empty:
-            raise ValueError(f"context_id={context_id!r} не найден в eval_subset_250.parquet")
+            raise ValueError(f"context_id={context_id!r} not found in eval_subset_250.parquet")
         row = eval_rows.iloc[0]
         key = (context_id, row["question"].strip())
         rec = q_index.get(key)
         if rec is None:
-            raise ValueError(f"context_id={context_id!r}: вопрос не найден среди DocumentRecord (несовпадение текста?)")
+            raise ValueError(f"context_id={context_id!r}: question not found among DocumentRecords (text mismatch?)")
         if not rec.company_name or not rec.company_sector:
-            raise ValueError(f"context_id={context_id!r}: company_name/company_sector отсутствуют")
+            raise ValueError(f"context_id={context_id!r}: company_name/company_sector missing")
 
         humanized = humanize_company_name(rec.company_name)
         if not humanized or not _strict_name_in_text(humanized, row["question"]):
             raise ValueError(
-                f"context_id={context_id!r}: имя компании {humanized!r} не найдено в тексте вопроса "
-                f"{row['question']!r} - отбор нарушен"
+                f"context_id={context_id!r}: company name {humanized!r} not found in question text "
+                f"{row['question']!r} - selection criteria violated"
             )
 
         n_companies_in_sector = len(sector_companies[rec.company_sector])
         if n_companies_in_sector < MIN_DISTINCT_COMPANIES_PER_SECTOR:
             raise ValueError(
-                f"context_id={context_id!r}: сектор {rec.company_sector!r} имеет только "
-                f"{n_companies_in_sector} различных компаний в корпусе, нужно >= "
+                f"context_id={context_id!r}: sector {rec.company_sector!r} has only "
+                f"{n_companies_in_sector} distinct companies in the corpus, need >= "
                 f"{MIN_DISTINCT_COMPANIES_PER_SECTOR}"
             )
 
@@ -261,19 +266,19 @@ def build() -> None:
         distractor_candidates.sort(key=lambda t: (t[0], t[1]))
         if len(distractor_candidates) < N_DISTRACTORS:
             raise ValueError(
-                f"context_id={context_id!r}: только {len(distractor_candidates)} потенциальных "
-                f"дистракторов в секторе {rec.company_sector!r}, нужно {N_DISTRACTORS}"
+                f"context_id={context_id!r}: only {len(distractor_candidates)} potential "
+                f"distractors in sector {rec.company_sector!r}, need {N_DISTRACTORS}"
             )
         distractors = [t[2] for t in distractor_candidates[:N_DISTRACTORS]]
 
         anonymized_question = anonymize_question(humanized, row["question"])
         if _strict_name_in_text(humanized, anonymized_question):
             raise ValueError(
-                f"context_id={context_id!r}: анонимизация не удалила все вхождения {humanized!r} "
-                f"из вопроса - осталось: {anonymized_question!r}"
+                f"context_id={context_id!r}: anonymization did not remove all occurrences of {humanized!r} "
+                f"from the question - remaining: {anonymized_question!r}"
             )
         if anonymized_question == row["question"]:
-            raise ValueError(f"context_id={context_id!r}: анонимизация не изменила текст вопроса")
+            raise ValueError(f"context_id={context_id!r}: anonymization did not change the question text")
 
         items.append(
             {
@@ -293,17 +298,17 @@ def build() -> None:
             }
         )
 
-    # Проверка уникальности question_id и отсутствия повторного использования
-    # одного и того же context_id как gold в двух разных элементах (иначе
-    # результат не будет честно "N независимых пар").
+    # Check uniqueness of question_id and that the same context_id is not
+    # reused as gold in two different entries (otherwise the result would
+    # not honestly be "N independent pairs").
     qids = [it["question_id"] for it in items]
-    assert len(qids) == len(set(qids)), "Повторяющиеся question_id в фикстуре"
+    assert len(qids) == len(set(qids)), "Duplicate question_id in fixture"
     gold_ids = [it["gold_context_id"] for it in items]
-    assert len(gold_ids) == len(set(gold_ids)), "Повторяющиеся gold_context_id в фикстуре"
+    assert len(gold_ids) == len(set(gold_ids)), "Duplicate gold_context_id in fixture"
 
-    print(f"\nПостроено {len(items)} пар вопросов (2 условия каждая = {len(items) * 2} вызовов ассессора).")
-    print(f"Секторов: {len(set(it['gold_sector'] for it in items))}")
-    print("\n--- Ручная проверка анонимизации (все строки) ---")
+    print(f"\nBuilt {len(items)} question pairs (2 conditions each = {len(items) * 2} assessor calls).")
+    print(f"Sectors: {len(set(it['gold_sector'] for it in items))}")
+    print("\n--- Manual anonymization check (all rows) ---")
     for it in items:
         print(f"[{it['question_id']}] {it['gold_company_name_humanized']!r}")
         print(f"  ORIG: {it['question_original']}")
@@ -312,7 +317,7 @@ def build() -> None:
 
     with OUT_PATH.open("w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
-    print(f"\nЗаписано в {OUT_PATH}")
+    print(f"\nWritten to {OUT_PATH}")
 
 
 if __name__ == "__main__":
