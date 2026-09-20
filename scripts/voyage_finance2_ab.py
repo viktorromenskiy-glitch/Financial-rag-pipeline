@@ -239,7 +239,7 @@ def main() -> None:
     print("  Done.")
 
     print("\n" + "=" * 60)
-    print("ИТОГ: voyage-4 vs voyage-finance-2 (recall on full 7318-doc corpus)")
+    print("SUMMARY: voyage-4 vs voyage-finance-2 (recall on full 7318-doc corpus)")
     print("=" * 60)
     for k in TOP_KS:
         v4 = results["voyage-4"][f"recall@{k}"]

@@ -254,7 +254,7 @@ save_run_to_drive(run_dir, config.persistence.google_drive_results_dir, RUN_ID)
 
 print(
     f"\nTrack A pilot data collection complete. Next step (separate, not paid - "
-    f"per Раздел 4's 'finish one thing before starting the next'): reconstruct "
+    f"per the rulebook's section 4, 'finish one thing before starting the next'): reconstruct "
     f"the K'=1..15 convergence curve by subsampling from the 15 draws per "
     f"question in results/{RUN_ID}/raw_draws.jsonl, and only then decide K for "
     f"future re-judging (plan section 8, point 3)."

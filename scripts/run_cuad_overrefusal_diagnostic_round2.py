@@ -1,108 +1,111 @@
-"""Диагностика CUAD over-refusal, раунд 2 - продолжение
-scripts/run_cuad_overrefusal_diagnostic.py (раунд 1, результат сохранён в
-claude/status_agent_rezultaty_4_nahodki_kod.md и на Drive под run_id
+"""CUAD over-refusal diagnostic, round 2 - continuation of
+scripts/run_cuad_overrefusal_diagnostic.py (round 1, results saved in
+claude/status_agent_rezultaty_4_nahodki_kod.md and on Drive under run_id
 "cuad_overrefusal_diagnostic").
 
-*** ВАЖНО: как и раунд 1, это диагностический/качественный скрипт, НЕ
-*** статистический эксперимент. n=5 вопросов x 2 варианта = 10 вызовов
-*** assessor'а не дают статистической мощности. Цель - проверить гипотезу
-*** 2 количественно и наконец получить текстовое рассуждение модели,
-*** которое раунд 1 не мог получить структурно (см. ниже).
+*** IMPORTANT: like round 1, this is a diagnostic/qualitative script,
+*** NOT a statistical experiment. n=5 questions x 2 variants = 10
+*** assessor calls do not give statistical power. The goal is to test
+*** hypothesis 2 quantitatively and finally obtain the model's textual
+*** reasoning, which round 1 could not obtain structurally (see below).
 
-## Что показал раунд 1 (25 вызовов, 5 вопросов x 5 вариантов, все
+## What round 1 showed (25 calls, 5 questions x 5 variants, all
 ## sufficient=no)
 
-1. Гипотеза 1 (доменная формулировка "financial report" вместо "legal
-   contract") - ОПРОВЕРГНУТА: варианты `neutral` и `explicit_legal` дали
-   тот же результат (0/5), что и `original`. Замена одной фразы домена
-   вердикт не меняет.
-2. Гипотеза 3 (assessor не уверен в ПОЛНОТЕ, а не в релевантности) -
-   ОПРОВЕРГНУТА: `original_with_gold_hint` (модели прямо названа ФОРМА
-   верного ответа) тоже дал 0/5 - assessor не признаёт уже присутствующий
-   факт нужной формы, даже когда прямо сказано, что искать.
-3. Гипотеза 2 (структурная несовместимость с multi-document) - НЕ
-   проверена количественно раундом 1: вариант `multi_document_instruction`
-   только добавлял инструкцию быть ОСТОРОЖНЕЕ (не мог повысить долю "yes"),
-   а не устранял сам источник путаницы - наличие 3 заведомо нерелевантных
-   документов из 4 в контексте КАЖДОГО вопроса (реальный размер CUAD
-   смок-корпуса - всего 4 документа, retrieval с pool_size=50 возвращает
-   все 4 при любом запросе - см. claude/verifikaciya_context_ids_cuad_smoke.md).
-4. Побочная находка, важнее самих счётчиков: raw_response во всех 25
-   записях раунда 1 не содержит НИКАКОГО рассуждения - только
-   "SUFFICIENT: no\\nREFORMULATED QUERY: ...". Это не баг логирования - сам
-   _ASSESSMENT_PROMPT_TEMPLATE (agent/loop.py) прямо требует "Respond in
-   exactly this format, nothing else". План раунда 1 ("прочитать
-   raw_response, чтобы понять рассуждение") был невыполним при этом
-   промпте. Зафиксировано в своде правил (svod_pravil_raboty.md,
-   "Перед запуском НОВОГО платного/диагностического скрипта - проверка
-   design-vs-обещание двумя независимыми внешними экспертами") как повод
-   для нового обязательного шага.
+1. Hypothesis 1 (domain wording "financial report" instead of "legal
+   contract") - REFUTED: the `neutral` and `explicit_legal` variants gave
+   the same result (0/5) as `original`. Replacing one domain phrase does
+   not change the verdict.
+2. Hypothesis 3 (the assessor is unsure about COMPLETENESS, not
+   relevance) - REFUTED: `original_with_gold_hint` (the model is told
+   directly the SHAPE of the correct answer) also gave 0/5 - the assessor
+   does not acknowledge an already-present fact of the needed shape, even
+   when explicitly told what to look for.
+3. Hypothesis 2 (structural incompatibility with multi-document) - NOT
+   tested quantitatively by round 1: the `multi_document_instruction`
+   variant only added an instruction to be MORE CAUTIOUS (it could not
+   increase the share of "yes"), rather than removing the actual source
+   of confusion - the presence of 3 known-irrelevant documents out of 4
+   in the context of EVERY question (the real size of the CUAD smoke
+   corpus is only 4 documents; retrieval with pool_size=50 returns all 4
+   for any query - see claude/verifikaciya_context_ids_cuad_smoke.md).
+4. A side finding, more important than the counts themselves:
+   raw_response in all 25 round-1 records contains NO reasoning at all -
+   only "SUFFICIENT: no\\nREFORMULATED QUERY: ...". This is not a logging
+   bug - _ASSESSMENT_PROMPT_TEMPLATE itself (agent/loop.py) explicitly
+   demands "Respond in exactly this format, nothing else". Round 1's plan
+   ("read raw_response to understand the reasoning") was unachievable
+   with this prompt. Recorded in the rulebook (svod_pravil_raboty.md,
+   "Before launching a NEW paid/diagnostic script - check design-vs-promise
+   with two independent external experts") as grounds for a new mandatory
+   step.
 
-## Два новых варианта этого раунда (каждый меняет РОВНО ОДНУ переменную
-## относительно `original`, независимо друг от друга - как и в раунде 1)
+## Two new variants in this round (each changes EXACTLY ONE variable
+## relative to `original`, independently of each other - as in round 1)
 
-- `single_relevant_document_only`: промпт `original` БЕЗ ИЗМЕНЕНИЙ (та же
-  константа _ASSESSMENT_PROMPT_TEMPLATE, ни одного слова другой), но в
-  {context} подаётся ТОЛЬКО тот один документ из 4, который реально
-  содержит ответ на этот вопрос (определяется из
-  pipeline.cuad_smoke.load_cuad_smoke_fixture() - каждому question_id там
-  соответствует ровно один document_id). Три посторонних документа не
-  включаются вовсе - не "помечаются как нерелевантные", а физически
-  отсутствуют в контексте. Проверяет гипотезу 2 напрямую: если
-  sufficient=yes появляется здесь, а в `original` (те же 4 документа) было
-  no - причина в шуме от посторонних документов, а не в формулировке
-  вопроса или домене.
-- `with_reasoning`: тот же `original` (тот же контекст - все 4 документа,
-  та же доменная формулировка "financial report" - домен здесь НЕ
-  переменная, её уже проверил раунд 1), но с одной добавленной инструкцией
-  дать одну строку рассуждения ПЕРЕД вердиктом. Единственная цель -
-  получить наконец текстовую улику вместо голого "no", раз раунд 1 не мог
-  её получить структурно. _parse_assessment() (agent/loop.py) уже
-  устойчив к тексту до финальных SUFFICIENT/REFORMULATED QUERY строк
-  (берёт ПОСЛЕДНЕЕ совпадение каждого маркера - см. его докстринг), так
-  что добавление одной строки рассуждения перед этими строками не требует
-  никаких изменений в парсинге.
+- `single_relevant_document_only`: the `original` prompt WITHOUT CHANGES
+  (the same _ASSESSMENT_PROMPT_TEMPLATE constant, not a single word
+  different), but {context} is fed ONLY the one document out of 4 that
+  actually contains the answer to this question (determined from
+  pipeline.cuad_smoke.load_cuad_smoke_fixture() - each question_id there
+  corresponds to exactly one document_id). The three unrelated documents
+  are not included at all - not "flagged as irrelevant", but physically
+  absent from the context. Tests hypothesis 2 directly: if sufficient=yes
+  appears here while `original` (the same 4 documents) gave no - the
+  cause is noise from unrelated documents, not the question's wording or
+  the domain.
+- `with_reasoning`: the same `original` (the same context - all 4
+  documents, the same domain wording "financial report" - the domain is
+  NOT a variable here, round 1 already tested it), but with one added
+  instruction to give one line of reasoning BEFORE the verdict. The sole
+  purpose is to finally obtain textual evidence instead of a bare "no",
+  since round 1 could not obtain it structurally. _parse_assessment()
+  (agent/loop.py) is already robust to text preceding the final
+  SUFFICIENT/REFORMULATED QUERY lines (it takes the LAST match of each
+  marker - see its docstring), so adding one line of reasoning before
+  those lines requires no changes to parsing.
 
-## Почему отдельный скрипт, а не новые записи в VARIANTS раунда 1
+## Why a separate script, rather than new entries in round 1's VARIANTS
 
-run_cuad_overrefusal_diagnostic.py делает ОДИН retrieval-вызов на вопрос и
-переиспользует один и тот же context_text для всех вариантов промпта
-(нужно для честного ablation - "меняется ТОЛЬКО формулировка"). Вариант
-`single_relevant_document_only` этого раунда, наоборот, специально меняет
-САМ КОНТЕКСТ (не только формулировку) - технически несовместимо с этим
-инвариантом раунда 1. Смешивать оба случая в одном VARIANTS-словаре с
-общим циклом означало бы либо сломать инвариант раунда 1 для всех его
-вариантов, либо городить ветвление, которое легко перепутать. Отдельный
-скрипт с собственным (более коротким) циклом - меньше риска сломать уже
-провалидированный раунд 1.
+run_cuad_overrefusal_diagnostic.py makes ONE retrieval call per question
+and reuses the same context_text for all prompt variants (needed for a
+fair ablation - "ONLY the wording changes"). This round's
+`single_relevant_document_only` variant, by contrast, deliberately
+changes the CONTEXT ITSELF (not just the wording) - technically
+incompatible with round 1's invariant. Mixing both cases into one
+VARIANTS dict with a shared loop would mean either breaking round 1's
+invariant for all its variants, or building branching logic that is easy
+to get wrong. A separate script with its own (shorter) loop carries less
+risk of breaking the already-validated round 1.
 
-## Переиспользование того же индекса, что и раунд 1 - без исключений
+## Reusing the same index as round 1 - no exceptions
 
-Как и раунд 1: никакого нового ingestion/embedding/enrichment - тот же
-принцип и тот же _check_already_indexed(), тот же search_fn через
-agent.tools.search_documents против уже существующей коллекции
-cuad_smoke_v1.
+As in round 1: no new ingestion/embedding/enrichment - the same
+principle and the same _check_already_indexed(), the same search_fn via
+agent.tools.search_documents against the already existing cuad_smoke_v1
+collection.
 
-## Стоимость
+## Cost
 
-5 вопросов x 2 варианта = 10 вызовов assessor'а (claude-sonnet-5, тот же
-generation.model). При cost_per_llm_call_usd=0.02 - ориентировочно ~$0.20
-+ 5 дополнительных retrieval/rerank вызовов (Voyage/Cohere, на порядок
-дешевле; переиспользуются те же 5, что и раунд 1, поскольку тот же
-question набор и тот же search_fn - НЕ 10 отдельных retrieval вызовов,
-один на вопрос, как и в раунде 1).
+5 questions x 2 variants = 10 assessor calls (claude-sonnet-5, the same
+generation.model). At cost_per_llm_call_usd=0.02 - roughly ~$0.20 + 5
+additional retrieval/rerank calls (Voyage/Cohere, an order of magnitude
+cheaper; the same 5 as round 1 are reused, since it's the same question
+set and the same search_fn - NOT 10 separate retrieval calls, one per
+question, as in round 1).
 
-## Перед запуском на реальные деньги
+## Before running with real money
 
-По новому правилу свода - этот скрипт должен быть показан ДВУМ
-независимым внешним экспертам с вопросом "способен ли он реально доставить
-заявленное, есть ли противоречие между целью и механизмом" ДО первого
-платного запуска. Не запускать, пока это не сделано.
+Under the rulebook's new rule - this script must be shown to TWO
+independent external experts with the question "is it actually capable
+of delivering what it claims, is there a contradiction between the goal
+and the mechanism" BEFORE the first paid run. Do not run until this has
+been done.
 
-Использование (Colab, после git pull, после того как
-scripts/run_cuad_smoke.py уже был прогнан хотя бы раз на этом MongoDB):
+Usage (Colab, after git pull, after scripts/run_cuad_smoke.py has
+already been run at least once on this MongoDB):
     !python scripts/run_cuad_overrefusal_diagnostic_round2.py
-Прогон идемпотентен (resume by question_id+variant), как раунд 1.
+The run is idempotent (resume by question_id+variant), like round 1.
 """
 from __future__ import annotations
 
@@ -133,11 +136,11 @@ from pipeline.indexing import is_indexed, validate_startup_indexes  # noqa: E402
 RUN_ID = "cuad_overrefusal_diagnostic_round2"
 CONFIG_PATH = REPO_ROOT / "config" / "config_cuad_smoke.yaml"
 
-# Анкор для вставки инструкции про рассуждение - взят дословно из
-# _ASSESSMENT_PROMPT_TEMPLATE (agent/loop.py), не перепечатан вручную, по
-# той же причине, что в раунде 1: гарантированный assert-провал, если
-# константа изменится без обновления этого скрипта, вместо тихого
-# несовпадения.
+# Anchor for inserting the reasoning instruction - taken verbatim from
+# _ASSESSMENT_PROMPT_TEMPLATE (agent/loop.py), not retyped by hand, for
+# the same reason as in round 1: a guaranteed assert failure if the
+# constant changes without this script being updated, instead of a
+# silent mismatch.
 _FORMAT_ANCHOR = (
     "Respond in exactly this format, nothing else:\n\n"
     "SUFFICIENT: <yes or no>\n"
@@ -160,48 +163,49 @@ if _WITH_REASONING_TEMPLATE == _ASSESSMENT_PROMPT_TEMPLATE:
         "scripts/run_cuad_overrefusal_diagnostic_round2.py to match before running."
     )
 
-# ОГОВОРКА ПРИ ИНТЕРПРЕТАЦИИ (подтверждена двумя независимыми экспертами
-# перед запуском - см. prompt_dlya_2_ekspertov_round2_script.md): просьба
-# дать одну строку рассуждения ПЕРЕД вердиктом - это chain-of-thought
-# elicitation, которая может изменить само решение модели, а не только
-# сделать уже принятое решение видимым (широко задокументированный эффект).
-# Если with_reasoning даст sufficient=yes там, где original/раунд 1 давал
-# no - это НЕЛЬЗЯ автоматически трактовать как "original просто не видел
-# факт". Возможная альтернатива: сама просьба рассуждать изменила процесс
-# принятия решения. Единственная заявленная цель этого варианта - получить
-# ТЕКСТ рассуждения (raw_response), а не чисто проверить гипотезу через
-# факт наличия/отсутствия рассуждения - при анализе результатов читать
-# именно raw_response/REASONING:, не только бинарный sufficient. Чистая
-# проверка "меняет ли само рассуждение вердикт" - отдельный, более дорогой
-# эксперимент (тот же контекст, original vs with_reasoning вперемешку,
-# большее n), не то, что делает этот скрипт.
+# INTERPRETATION CAVEAT (confirmed by two independent experts before
+# running - see prompt_dlya_2_ekspertov_round2_script.md): asking for one
+# line of reasoning BEFORE the verdict is chain-of-thought elicitation,
+# which can change the model's actual decision, not merely make an
+# already-made decision visible (a widely documented effect). If
+# with_reasoning gives sufficient=yes where original/round 1 gave no,
+# this CANNOT automatically be read as "original simply did not see the
+# fact". A possible alternative: the very request to reason changed the
+# decision-making process itself. The sole stated purpose of this variant
+# is to obtain the TEXT of the reasoning (raw_response), not to test the
+# hypothesis purely through the presence/absence of reasoning - when
+# analyzing results, read raw_response/REASONING: itself, not just the
+# binary sufficient. A clean test of "does the reasoning itself change
+# the verdict" is a separate, more expensive experiment (the same
+# context, original vs with_reasoning interleaved, a larger n), not what
+# this script does.
 
-# Единственный вариант, который переиспользует original template БЕЗ
-# ИЗМЕНЕНИЙ - только контекст, который он получает, отличается (собирается
-# отдельно в main(), не через этот словарь). Оставлен здесь просто для
-# единообразия итерации/отчёта, значение (template) не используется для
-# single_relevant_document_only - см. main().
+# The only variant that reuses the original template WITHOUT CHANGES -
+# only the context it receives differs (assembled separately in main(),
+# not through this dict). Kept here purely for uniformity of
+# iteration/reporting; the value (template) is not used for
+# single_relevant_document_only - see main().
 VARIANTS: dict[str, str] = {
     "single_relevant_document_only": _ASSESSMENT_PROMPT_TEMPLATE,
     "with_reasoning": _WITH_REASONING_TEMPLATE,
 }
 
 
-# Дополнительная, независимая от agent/loop.py._parse_assessment проверка
-# (найдена вторым независимым экспертом при проверке этого скрипта перед
-# запуском - см. prompt_dlya_2_ekspertov_round2_script.md): _parse_assessment
-# берёт ПОСЛЕДНЕЕ совпадение маркеров в ответе - что верно, ЕСЛИ модель в
-# конце концов действительно выдаёт настоящие финальные строки
-# "SUFFICIENT: .../REFORMULATED QUERY: ...". with_reasoning просит модель
-# сначала порассуждать - если модель случайно упомянёт "...is SUFFICIENT:
-# yes, but..." ВНУТРИ рассуждения и НИКОГДА не выдаст отдельную финальную
-# строку с настоящим вердиктом, _parse_assessment тихо примет это случайное
-# упоминание за реальный вердикт - без краша, без предупреждения. Не меняет
-# сам _parse_assessment (общий, используемый в проде код) - вместо этого
-# независимо проверяет, что маркеры присутствуют как ОТДЕЛЬНЫЕ строки (не
-# внутри предложения), и добавляет предупреждение в сохраняемую запись,
-# если это не так - чтобы такая запись не была тихо доверена наравне с
-# остальными при последующем чтении результатов.
+# An additional check, independent of agent/loop.py._parse_assessment
+# (found by the second independent expert reviewing this script before
+# running it - see prompt_dlya_2_ekspertov_round2_script.md):
+# _parse_assessment takes the LAST match of the markers in the response -
+# which is correct IF the model does eventually emit real final
+# "SUFFICIENT: .../REFORMULATED QUERY: ..." lines. with_reasoning asks the
+# model to reason first - if the model happens to mention "...is
+# SUFFICIENT: yes, but..." INSIDE the reasoning and NEVER emits a separate
+# final line with the real verdict, _parse_assessment will silently take
+# that stray mention as the real verdict - no crash, no warning. This
+# does not change _parse_assessment itself (shared, production-used
+# code) - instead it independently checks that the markers are present
+# as STANDALONE lines (not inside a sentence), and adds a warning to the
+# saved record if they are not - so that such a record is not silently
+# trusted on a par with the rest when reading the results later.
 _STRICT_SUFFICIENT_LINE_RE = re.compile(r"^\s*SUFFICIENT\s*:\s*(yes|no)\s*$", re.IGNORECASE | re.MULTILINE)
 _STRICT_REFORMULATED_LINE_RE = re.compile(r"^\s*REFORMULATED QUERY\s*:", re.IGNORECASE | re.MULTILINE)
 
@@ -262,8 +266,9 @@ def _verify_relevant_doc_mapping(records, eval_items) -> None:
 
 
 def _check_already_indexed(collection, records) -> None:
-    # Тот же баг, что был найден и исправлен в раунде 1 - DocumentRecord
-    # это dataclass (атрибут .context_id), не dict. Не повторять r["context_id"].
+    # The same bug that was found and fixed in round 1 - DocumentRecord
+    # is a dataclass (attribute .context_id), not a dict. Do not repeat
+    # r["context_id"].
     missing = sorted({r.context_id for r in records if not is_indexed(collection, r.context_id)})
     if missing:
         raise RuntimeError(
@@ -302,15 +307,15 @@ def main() -> None:
     _check_already_indexed(collection, records)
     validate_startup_indexes(collection, check_source_dataset_filter=False)
 
-    # records и eval_items построены в ОДНОМ цикле по одному и тому же
-    # списку вопросов (pipeline/cuad_smoke.py) - один DocumentRecord на
-    # вопрос, в том же порядке. relevant_doc_id_by_question сопоставляет
-    # question_id -> id единственного документа, который реально отвечает
-    # на этот вопрос (не через эвристику - это то же самое сопоставление,
-    # что зашито в исходном фикстурном JSON).
+    # records and eval_items are built in ONE loop over the same list of
+    # questions (pipeline/cuad_smoke.py) - one DocumentRecord per
+    # question, in the same order. relevant_doc_id_by_question maps
+    # question_id -> the id of the single document that actually answers
+    # that question (not via a heuristic - it's the same mapping baked
+    # into the original fixture JSON).
     assert len(records) == len(eval_items), (
-        "records и eval_items должны быть одной длины и в одном порядке - "
-        "load_cuad_smoke_fixture() строит их в одном цикле по вопросам"
+        "records and eval_items must be the same length and in the same order - "
+        "load_cuad_smoke_fixture() builds them in a single loop over questions"
     )
     _verify_relevant_doc_mapping(records, eval_items)
     relevant_doc_id_by_question = {
@@ -357,9 +362,9 @@ def main() -> None:
             gold_answer = item["gold_answer"]
             relevant_doc_id = relevant_doc_id_by_question[question_id]
 
-            # Один retrieval на вопрос, как в раунде 1 - переиспользуется
-            # для построения ОБОИХ вариантов контекста ниже (полный и
-            # отфильтрованный), не два отдельных вызова.
+            # One retrieval per question, as in round 1 - reused to build
+            # BOTH context variants below (full and filtered), not two
+            # separate calls.
             call = search_fn(question)
             all_candidates = list(call.candidates)
 
@@ -410,9 +415,9 @@ def main() -> None:
                 print(f"  [{n_calls}] {question_id} / {variant} -> sufficient={parsed.sufficient}")
 
     elapsed = time.perf_counter() - t_start
-    print(f"\nГотово за {elapsed:.0f}с, {n_calls} новых вызовов assessor'а в этой сессии.")
+    print(f"\nDone in {elapsed:.0f}s, {n_calls} new assessor call(s) this session.")
 
-    print("\nСводка sufficient=yes по вариантам (ориентир, НЕ статистический вывод при n=5):")
+    print("\nSummary of sufficient=yes by variant (a reference point, NOT a statistical conclusion at n=5):")
     for variant in VARIANTS:
         rows = [r for r in done.values() if r["variant"] == variant]
         n_yes = sum(1 for r in rows if r["sufficient"])
@@ -421,10 +426,10 @@ def main() -> None:
     verify_run_files(run_dir, {"diagnostic_results.jsonl": len(eval_items) * len(VARIANTS)})
     print(f"\n{'=' * 70}\nSAVED TO PERSISTENT STORAGE: {run_dir.resolve()}\n{'=' * 70}\n")
     print(
-        "single_relevant_document_only sufficient=yes здесь при sufficient=no в original раунда 1 "
-        "(тот же вопрос, те же 4 документа в контексте) - прямая количественная улика за гипотезу 2 "
-        "(шум от посторонних документов). with_reasoning's raw_response теперь содержит текст "
-        "рассуждения - читать его перед любым выводом, не только счётчик sufficient=yes."
+        "single_relevant_document_only getting sufficient=yes here while original got sufficient=no "
+        "in round 1 (same question, same 4 documents in context) is direct quantitative evidence for "
+        "hypothesis 2 (noise from unrelated documents). with_reasoning's raw_response now contains "
+        "the reasoning text - read it before drawing any conclusion, not just the sufficient=yes tally."
     )
 
 

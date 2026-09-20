@@ -1,7 +1,7 @@
 """One-off migration: backfill source_dataset onto every already-indexed
 document, and switch TAT-DQA documents' embedding_voyage field over to the
 already-computed voyage-finance-2 vectors (per-dataset embedding routing,
-docs/tehnicheskoe_zadanie.md, п.3a).
+docs/tehnicheskoe_zadanie.md, section 3a).
 
 Why this is safe and cheap (no new Voyage/Anthropic/Cohere API calls):
 - source_dataset is derivable purely from pipeline.ingestion (no API
@@ -24,7 +24,7 @@ this script checks that and refuses to run otherwise.
 REQUIRES a manual Atlas Search index update to be USEFUL (this script does
 not and cannot make it - only Atlas UI/Admin API can): source_dataset must
 be added as a "filter"-type field to both vector_index_full and
-text_index_full (see docs/tehnicheskoe_zadanie.md, п.3a, for the exact
+text_index_full (see docs/tehnicheskoe_zadanie.md, section 3a, for the exact
 index JSON). Without that, pipeline.indexing.validate_startup_indexes()
 will fail loudly and clearly at the next `python -m pipeline.cli eval`
 run, rather than silently returning wrong candidates - see that
@@ -107,7 +107,7 @@ def main() -> None:
         f"embedding_voyage switched to voyage-finance-2 on {updated_embedding} TAT-DQA documents."
     )
     print(
-        "Next: update the Atlas index definitions (docs/tehnicheskoe_zadanie.md, п.3a) to add "
+        "Next: update the Atlas index definitions (docs/tehnicheskoe_zadanie.md, section 3a) to add "
         "source_dataset as a filter field, then run `python -m pipeline.cli eval ...` - "
         "validate_startup_indexes() checks the filter works before any query runs."
     )

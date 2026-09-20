@@ -1,5 +1,5 @@
 """Day 3 demonstration-case report - plan_rabot_posle_ekspertizy_agent_profil.md,
-День 3: "1-2 demonstration cases с полным трейсом" + the required negative
+Day 3: "1-2 demonstration cases with the full trace" + the required negative
 case, selected by agent/demonstration.py's pre-registered formal rule (see
 that module's docstring for the rule itself, written before this script
 was ever run against real data).

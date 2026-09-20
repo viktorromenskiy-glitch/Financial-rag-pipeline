@@ -8,9 +8,10 @@ pipeline.common.paired_stats - see that module's docstring for why this
 specific CI method was chosen (no expert in the 4-round design review
 specified one).
 
-Per plan_rabot_posle_ekspertizy_agent_profil.md, День 2: "при малой
-мощности (n=20-30) вывод - на effect size (разность долей + exact 95% CI)
-и разборе discordant pairs, не на p-value." This script prints the
+Per plan_rabot_posle_ekspertizy_agent_profil.md, Day 2: "with low
+power (n=20-30) the conclusion should rest on effect size (difference of
+proportions + exact 95% CI) and the discordant-pairs breakdown, not on
+the p-value." This script prints the
 p-value (for completeness/transparency) but the discordant-pairs breakdown
 and the CI are the primary output, printed first and more prominently.
 

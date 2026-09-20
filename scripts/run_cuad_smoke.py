@@ -1,7 +1,7 @@
 """Day 3 CUAD smoke test - plan_rabot_posle_ekspertizy_agent_profil.md,
-День 3: "Смок-тест на CUAD (Contract Understanding Atticus Dataset, CC BY
-4.0): 3-5 вопросов, без изменения кода агента - только конфигурация
-retrieval-индекса и индексация новых документов."
+Day 3: "CUAD smoke test (Contract Understanding Atticus Dataset, CC BY
+4.0): 3-5 questions, without changing the agent's code - only retrieval
+index configuration and indexing of new documents."
 
 *** This is a robustness/regression-shaped smoke check on 4 real legal
 *** contracts and 5 real clause-extraction questions (see

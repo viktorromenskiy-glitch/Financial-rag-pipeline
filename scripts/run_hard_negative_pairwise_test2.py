@@ -33,7 +33,8 @@ reasoning found two problems, both fixed here:
 2. Reading pairwise order off a 50-candidate natural batch and reading it
    off an isolated 2-candidate forced call are two different measurement
    conditions - the project's own stated principle elsewhere (README/TZ:
-   "не выдавать расчётное/разнородное за измеренное в одном тесте") argues
+   "do not present a computed/heterogeneous figure as something measured
+   within a single test") argues
    against silently merging them into one "pairwise accuracy" number. Cohere
    Rerank is assumed to score each (query, document) pair independently of
    the rest of the batch (standard cross-encoder rerank behaviour, not
@@ -60,7 +61,7 @@ before spending anything).
 
 **Checkpoint location - writes directly to Google Drive, not to a local
 file copied at the end.** Per this project's internal working rules (not in
-this repository, "Технические заметки про Colab-сессии"): /content is wiped
+this repository, "Technical notes on Colab sessions"): /content is wiped
 on every Colab
 runtime restart, but a mounted Drive persists across restarts - and a real
 past incident on this project (reevaluate_phase6_adaptive.py, 2026-08-26)

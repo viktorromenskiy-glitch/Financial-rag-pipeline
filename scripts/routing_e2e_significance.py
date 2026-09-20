@@ -9,7 +9,7 @@ TAT-DQA's judge accuracy landed EXACTLY on the baseline's 3-decimal value
 and FinQA dropped 2.2pp - neither observation is safe to interpret without
 a paired significance test, the same discipline this project already
 applied to the retrieval-level voyage-4 vs voyage-finance-2 comparison
-(docs/tehnicheskoe_zadanie.md, п.3a). McNemar is the correct test here too:
+(docs/tehnicheskoe_zadanie.md, section 3a). McNemar is the correct test here too:
 both runs answer the SAME 250 questions (same eval_subset_250.parquet), so
 per-question judge_correct is paired, not independent.
 

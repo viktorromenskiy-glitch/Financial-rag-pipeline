@@ -1,6 +1,6 @@
 """Step 3 (the actual test) of the full-corpus reranker+enrichment
-validation (docs/tehnicheskoe_zadanie.md, section 5, "Открытый риск, не
-закрытый тестами"): does contextual enrichment help Recall@5, combined
+validation (docs/tehnicheskoe_zadanie.md, section 5, "Open risk, not
+closed by tests"): does contextual enrichment help Recall@5, combined
 with the reranker, at FULL 7,318-document corpus scale - not the reduced
 450-document subsample the existing 0.980 checkpoint was measured on.
 

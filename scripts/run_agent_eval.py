@@ -1,5 +1,5 @@
 """Day 2 agent evaluation harness - plan_rabot_posle_ekspertizy_agent_profil.md,
-День 2, "Evaluation harness": runs BOTH the baseline pipeline (modules 6-9,
+Day 2, "Evaluation harness": runs BOTH the baseline pipeline (modules 6-9,
 unchanged) and the bounded agent (agent/) over the SAME matched, stratified
 sample of T2-RAGBench questions, plus 4 fixed canary questions - 3
 prompt-injection and 1 cross-document-confusion (agent/canary.py) - so the

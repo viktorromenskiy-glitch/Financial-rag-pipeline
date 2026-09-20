@@ -1,97 +1,100 @@
-"""Диагностика первопричины over-refusal агента на CUAD (n=5, все 5 -
-unjustified_refusal) - продолжение Дня 3
-(plan_rabot_posle_ekspertizy_agent_profil.md), после закрытия каскада
-интерпретации реальных прогонов (claude/itog_ekspertizy_agent_rezultaty.md).
+"""Root-cause diagnostic for the agent's over-refusal on CUAD (n=5, all 5
+unjustified_refusal) - continuation of Day 3
+(plan_rabot_posle_ekspertizy_agent_profil.md), after closing out the
+interpretation cascade for the real runs (claude/itog_ekspertizy_agent_rezultaty.md).
 
-*** ВАЖНО: это диагностический/качественный скрипт, НЕ хосестатистический
-*** эксперимент. n=5 вопросов x 5 вариантов промпта = 25 вызовов assessor'а
-*** не дают статистической мощности ни при каком результате - как n=5 в
-*** scripts/run_cuad_smoke.py её не давал для accuracy. Цель - НЕ доказать
-*** причину числом, а получить прямую, сохранённую сырую текстовую
-*** улику (raw_response целиком, не только распарсенный вердикт) для
-*** следующего раунда внешнего экспертного каскада, который будет решать
-*** между гипотезами ниже. Один и тот же скрипт печатает агрегированные
-*** счётчики только как ориентир, не как вывод.
+*** IMPORTANT: this is a diagnostic/qualitative script, NOT a statistical
+*** experiment. n=5 questions x 5 prompt variants = 25 assessor calls do
+*** not give statistical power regardless of outcome - just as n=5 in
+*** scripts/run_cuad_smoke.py did not give it for accuracy. The goal is
+*** NOT to prove the cause by numbers, but to obtain direct, persisted raw
+*** textual evidence (the full raw_response, not just the parsed verdict)
+*** for the next round of the external expert cascade, which will decide
+*** between the hypotheses below. The same script prints aggregate counts
+*** only as a rough indicator, not as a conclusion.
 ***
-*** Каждый вариант меняет РОВНО ОДНУ переменную относительно `original` -
-*** по прямой просьбе пользователя после разбора минимальных доработок,
-*** независимо предложенных DeepSeek и Qwen: патчить и перепрогонять сразу
-*** несколько изменений одновременно не позволяет понять, какое из них (или
-*** их сочетание) на самом деле что-то меняет - см.
-*** claude/qwen_cuad_minimalnye_dorabotki.md, раздел "Методологическое
-*** расхождение". Если после этого прогона захочется проверить КОМБИНАЦИЮ
-*** вариантов (например neutral + multi_document_instruction) - это
-*** отдельный, следующий шаг, после того как эффект каждой переменной по
-*** отдельности уже виден.
+*** Each variant changes EXACTLY ONE variable relative to `original` - at
+*** the user's direct request, after reviewing the minimal improvements
+*** independently proposed by DeepSeek and Qwen: patching and re-running
+*** several changes at once makes it impossible to tell which one (or
+*** which combination) actually changes anything - see
+*** claude/qwen_cuad_minimalnye_dorabotki.md, section "Methodological
+*** disagreement". If after this run there is a wish to test a COMBINATION
+*** of variants (e.g. neutral + multi_document_instruction) - that is a
+*** separate, subsequent step, once the effect of each variable
+*** individually is already visible.
 
-## Гипотезы под проверкой (см. claude/status_agent_rezultaty_4_nahodki_kod.md)
+## Hypotheses under test (see claude/status_agent_rezultaty_4_nahodki_kod.md)
 
-1. Домен-мисматч формулировки: _ASSESSMENT_PROMPT_TEMPLATE буквально
-   начинается "...a question about a company's **financial report**", а
-   CUAD - юридические контракты. Проверяется вариантами `neutral` и
-   `explicit_legal` ниже - тот же контекст, тот же вопрос, меняется
-   ТОЛЬКО одна фраза (текстовая замена относительно оригинальной
-   константы, не отдельно набранный текст - чтобы не внести случайный
-   дрейф формулировки, тот же принцип, что новое правило Раздела 4
-   svod_pravil_raboty.md требует для анализа: работать с целым
-   оригиналом, не с пересказом).
-2. Структурная несовместимость bounded-loop assessor'а с multi-document
-   span-extraction (гипотеза Qwen, код-аудит и раунд 3 терминологического
-   каскада; та же идея независимо предложена DeepSeek как "чек-лист
-   необходимых фактов" и Qwen как "явная инструкция про синтез из
-   нескольких документов" в раунде минимальных доработок) - проверяется
-   вариантом `multi_document_instruction` ниже: та же ДОМЕННАЯ формулировка,
-   что в `original` (переменная домена НЕ меняется здесь - её тестируют
-   варианты выше), плюс одна добавленная инструкция про то, что evidence из
-   одного документа может быть недостаточно, если вопрос требует фактов из
-   нескольких. Отдельно от этого варианта сырой raw_response каждого вызова
-   (никогда раньше не сохранявшийся - agent/loop.py трассирует только
-   распарсенные sufficient/reformulated_query) даёт материал для
-   качественного чтения по всем 5 вариантам: если модель explicitly пишет
-   что-то в духе "there are multiple contracts/clauses and I cannot
-   determine which one is being asked about" - это прямая текстовая улика
-   за гипотезу 2 независимо от того, в каком именно варианте это увидено.
-3. Асимметрия задачи assessor (до ответа, без gold) vs insufficiency-judge
-   (постфактum, с gold) - вариант `original_with_gold_hint` проверяет,
-   меняется ли вердикт того же assessor'а на той же оригинальной
-   (финансовой) формулировке, если ему намекнуть, что именно должен
-   установить правильный ответ - изолирует "неуверенность в полноте
-   извлечения" (которую доступ к gold снял бы) от "формулировка домена
-   режет по живому" (которую доступ к gold не тронет).
+1. Domain mismatch in the wording: _ASSESSMENT_PROMPT_TEMPLATE literally
+   starts with "...a question about a company's **financial report**",
+   while CUAD is legal contracts. Tested by the `neutral` and
+   `explicit_legal` variants below - same context, same question, ONLY
+   one phrase changes (a text substitution against the original constant,
+   not separately retyped text - so as not to introduce accidental
+   wording drift, the same principle that the new rule in Section 4 of
+   svod_pravil_raboty.md requires for analysis: work from the whole
+   original, not from a paraphrase).
+2. Structural incompatibility of the bounded-loop assessor with
+   multi-document span extraction (Qwen's hypothesis, the code audit, and
+   round 3 of the terminology cascade; the same idea independently
+   proposed by DeepSeek as a "checklist of required facts" and by Qwen as
+   an "explicit instruction about synthesizing across multiple documents"
+   in the minimal-improvements round) - tested by the
+   `multi_document_instruction` variant below: the same DOMAIN wording as
+   in `original` (the domain variable is NOT changed here - the variants
+   above test it), plus one added instruction stating that evidence from a
+   single document may not be sufficient if the question requires facts
+   from several. Independently of this variant, the raw raw_response of
+   each call (never persisted before - agent/loop.py only traces the
+   parsed sufficient/reformulated_query) provides material for qualitative
+   reading across all 5 variants: if the model explicitly writes something
+   like "there are multiple contracts/clauses and I cannot determine which
+   one is being asked about" - that is direct textual evidence for
+   hypothesis 2, regardless of which variant it is observed in.
+3. Asymmetry between the assessor's task (before the answer, without
+   gold) and the insufficiency-judge's task (after the fact, with gold) -
+   the `original_with_gold_hint` variant tests whether the same
+   assessor's verdict on the same original (financial) wording changes if
+   it is hinted at what the correct answer must establish - this isolates
+   "uncertainty about the completeness of extraction" (which access to
+   gold would remove) from "the domain wording cuts to the core" (which
+   access to gold would not touch).
 
-## Почему переиспользуется уже проиндексированная коллекция, а не
-## пересобирается контекст заново
+## Why the already-indexed collection is reused instead of rebuilding
+## the context from scratch
 
-pipeline/indexing.py's build_full_indexed_content() примешивает
-contextual_summary - LLM-сгенерированное обогащение (enrichment.enabled:
-true в config_cuad_smoke.yaml, тот же claude-haiku-4-5-20251001, что и в
-продакшене). Точно воспроизвести исходный проиндексированный текст без
-either (a) реального обращения к тому же API за тем же summary, который
-не гарантированно детерминирован даже при temperature=0.0, or (b) чтения
-уже проиндексированного значения из той же коллекции - нельзя. Этот
-скрипт выбирает (b): просто вызывает тот же search_fn против УЖЕ
-существующей коллекции cuad_smoke_v1 (написанной в реальном прогоне
-scripts/run_cuad_smoke.py) - тем самым получает БУКВАЛЬНО тот же
-context_text, что видел агент в реальном прогоне, без единого нового
-enrichment-вызова. Требует, чтобы scripts/run_cuad_smoke.py уже был
-однажды успешно прогнан на этом MongoDB-инстансе - иначе скрипт
-останавливается с понятной ошибкой (см. _check_already_indexed ниже),
-а не тихо переиндексирует с новым (потенциально другим) enrichment.
+pipeline/indexing.py's build_full_indexed_content() mixes in
+contextual_summary - LLM-generated enrichment (enrichment.enabled: true
+in config_cuad_smoke.yaml, the same claude-haiku-4-5-20251001 as in
+production). Reproducing the original indexed text exactly requires
+either (a) a real call to the same API for the same summary, which is
+not guaranteed to be deterministic even at temperature=0.0, or (b)
+reading the already-indexed value from the same collection - there is no
+other way. This script picks (b): it simply calls the same search_fn
+against the ALREADY existing cuad_smoke_v1 collection (written by the
+real run of scripts/run_cuad_smoke.py) - thereby obtaining LITERALLY the
+same context_text the agent saw in the real run, without a single new
+enrichment call. This requires that scripts/run_cuad_smoke.py has already
+been run successfully once on this MongoDB instance - otherwise the
+script stops with a clear error (see _check_already_indexed below),
+rather than silently re-indexing with new (potentially different)
+enrichment.
 
-## Стоимость
+## Cost
 
-5 вариантов x 5 вопросов = 25 вызовов assessor'а (generation.model:
-claude-sonnet-5, тот же, что уже используется как generator в
-run_cuad_smoke.py - никакого нового вызова judge/generation, retrieval
-переиспользует уже существующий индекс). При cost_per_llm_call_usd=0.02
-(та же оценка, что config_cuad_smoke.yaml.agent_eval) - ориентировочно
-~$0.50 + 5 retrieval/rerank вызовов (Voyage/Cohere, на порядок дешевле).
+5 variants x 5 questions = 25 assessor calls (generation.model:
+claude-sonnet-5, the same one already used as the generator in
+run_cuad_smoke.py - no new judge/generation call, retrieval reuses the
+already existing index). At cost_per_llm_call_usd=0.02 (the same estimate
+as config_cuad_smoke.yaml.agent_eval) - roughly ~$0.50 + 5 retrieval/
+rerank calls (Voyage/Cohere, an order of magnitude cheaper).
 
-Использование (Colab, после git pull, после что scripts/run_cuad_smoke.py
-уже был прогнан хотя бы раз на этом MongoDB):
+Usage (Colab, after git pull, after scripts/run_cuad_smoke.py has
+already been run at least once on this MongoDB):
     !python scripts/run_cuad_overrefusal_diagnostic.py
-Прогон идемпотентен (resume by question_id+variant), как остальные
-скрипты этой категории.
+The run is idempotent (resume by question_id+variant), like the other
+scripts in this category.
 """
 
 from __future__ import annotations
@@ -122,19 +125,21 @@ from pipeline.indexing import is_indexed, validate_startup_indexes  # noqa: E402
 RUN_ID = "cuad_overrefusal_diagnostic"
 CONFIG_PATH = REPO_ROOT / "config" / "config_cuad_smoke.yaml"
 
-# Домен-фраза, которую меняем. Взята дословно из _ASSESSMENT_PROMPT_TEMPLATE
-# (agent/loop.py) - НЕ перепечатана вручную, чтобы substitution гарантированно
-# сработал (и упал бы с понятной ошибкой assert, а не молча совпал бы
-# с оригиналом, если константа когда-нибудь изменится без обновления
-# этого скрипта - см. проверку ниже сразу после определения VARIANTS).
+# The domain phrase we change. Taken verbatim from
+# _ASSESSMENT_PROMPT_TEMPLATE (agent/loop.py) - NOT retyped by hand, so
+# the substitution is guaranteed to work (and would fail with a clear
+# assert error, rather than silently matching the original, if the
+# constant ever changes without this script being updated - see the
+# check right after the VARIANTS definition below).
 _ORIGINAL_PHRASE = "a question about a company's financial report"
 
-# Гипотеза 2 (multi-document): анкор для вставки - взят дословно из
-# _ASSESSMENT_PROMPT_TEMPLATE (agent/loop.py), не перепечатан вручную, по
-# той же причине, что _ORIGINAL_PHRASE выше. Вставляется МЕЖДУ пунктом 1
-# ("Is the evidence sufficient...") и пунктом 2 ("If not sufficient...") -
-# домен-фраза (_ORIGINAL_PHRASE) при этом НЕ трогается, чтобы этот вариант
-# менял ровно одну переменную (инструкцию про multi-document), а не две.
+# Hypothesis 2 (multi-document): the anchor for insertion - taken
+# verbatim from _ASSESSMENT_PROMPT_TEMPLATE (agent/loop.py), not retyped
+# by hand, for the same reason as _ORIGINAL_PHRASE above. Inserted
+# BETWEEN item 1 ("Is the evidence sufficient...") and item 2 ("If not
+# sufficient...") - the domain phrase (_ORIGINAL_PHRASE) is NOT touched
+# here, so this variant changes exactly one variable (the
+# multi-document instruction), not two.
 _MULTI_DOC_ANCHOR = "do not use outside knowledge.\n2. If not sufficient"
 _MULTI_DOC_INSTRUCTION = (
     " Note: the passages above may be drawn from more than one source document. If the "
@@ -145,33 +150,34 @@ _MULTI_DOC_INSTRUCTION = (
 )
 
 VARIANTS: dict[str, str] = {
-    # Контроль - байт-в-байт тот же промпт, что реальный прогон.
+    # Control - byte-for-byte the same prompt as the real run.
     "original": _ASSESSMENT_PROMPT_TEMPLATE,
-    # Гипотеза 1а: убрать домен вообще (не называть ни финансы, ни право).
+    # Hypothesis 1a: remove the domain entirely (name neither finance nor law).
     "neutral": _ASSESSMENT_PROMPT_TEMPLATE.replace(
         _ORIGINAL_PHRASE,
         "a question, using only the retrieved passages below",
     ),
-    # Гипотеза 1б: назвать ПРАВИЛЬНЫЙ домен явно (не просто нейтрально).
+    # Hypothesis 1b: name the CORRECT domain explicitly (not just neutrally).
     "explicit_legal": _ASSESSMENT_PROMPT_TEMPLATE.replace(
         _ORIGINAL_PHRASE,
         "a question about a legal contract",
     ),
-    # Гипотеза 2: домен-формулировка НЕ меняется (остаётся "financial
-    # report", как в original) - меняется только наличие явной инструкции
-    # про multi-document synthesis. Независимо предложено DeepSeek
-    # ("чек-лист необходимых фактов") и Qwen ("явная инструкция про синтез
-    # из нескольких документов") - см. claude/deepseek_cuad_minimalnye_dorabotki.md,
+    # Hypothesis 2: the domain wording does NOT change (stays "financial
+    # report", as in original) - only the presence of an explicit
+    # multi-document synthesis instruction changes. Independently
+    # proposed by DeepSeek ("checklist of required facts") and Qwen
+    # ("explicit instruction about synthesizing across multiple
+    # documents") - see claude/deepseek_cuad_minimalnye_dorabotki.md,
     # claude/qwen_cuad_minimalnye_dorabotki.md.
     "multi_document_instruction": _ASSESSMENT_PROMPT_TEMPLATE.replace(
         _MULTI_DOC_ANCHOR,
         "do not use outside knowledge." + _MULTI_DOC_INSTRUCTION + "\n2. If not sufficient",
     ),
-    # Гипотеза 3: оригинальная (финансовая) формулировка + намёк на то,
-    # что должен установить правильный ответ, БЕЗ раскрытия самого
-    # значения gold_answer текстом - вставляется отдельно на вопрос,
-    # см. _build_gold_hint_prompt() ниже, не через .replace() здесь,
-    # т.к. вставка зависит от per-question gold_answer.
+    # Hypothesis 3: the original (financial) wording + a hint about what
+    # the correct answer must establish, WITHOUT revealing the actual
+    # gold_answer value as text - inserted separately per question, see
+    # _build_gold_hint_prompt() below, not via .replace() here, since the
+    # insertion depends on the per-question gold_answer.
     "original_with_gold_hint": _ASSESSMENT_PROMPT_TEMPLATE,
 }
 
@@ -190,13 +196,14 @@ for _name, _template in (
 
 
 def _build_gold_hint_prompt(question: str, context: str, calls_remaining: int, gold_answer: str) -> str:
-    """Вариант original_with_gold_hint: тот же оригинальный промпт, плюс
-    одна дополнительная строка ПОСЛЕ инструкции, называющая, какого рода
-    факт должен установить правильный ответ - без прямой цитаты gold,
-    только категория/форма (например "a specific date" или "a governing
-    law jurisdiction name"), чтобы не превращать это в тривиальный
-    "спиши ответ", а именно снять неопределённость о ПОЛНОТЕ извлечения,
-    которую в реальном assessor-вызове модель не может снять."""
+    """Variant original_with_gold_hint: the same original prompt, plus one
+    additional line AFTER the instruction, naming what kind of fact the
+    correct answer must establish - without quoting the gold value
+    directly, only its category/shape (e.g. "a specific date" or "a
+    governing law jurisdiction name"), so as not to turn this into a
+    trivial "copy the answer", but specifically to remove the
+    uncertainty about the COMPLETENESS of extraction, which the model
+    cannot remove in a real assessor call."""
     base = _ASSESSMENT_PROMPT_TEMPLATE.format(question=question, context=context, calls_remaining=calls_remaining)
     hint = (
         "\n[Diagnostic hint - not present in production: a correct, complete answer to this "
@@ -208,9 +215,10 @@ def _build_gold_hint_prompt(question: str, context: str, calls_remaining: int, g
 
 
 def _categorize_gold(gold_answer: str) -> str:
-    """Грубая, не идеальная категоризация формы ответа (не его значения) -
-    достаточно для гипотезы 3 (снять неопределённость о ПОЛНОТЕ, не дать
-    ответ). Раскрывает жанр факта, никогда не сам факт."""
+    """A rough, imperfect categorization of the answer's shape (not its
+    value) - sufficient for hypothesis 3 (to remove uncertainty about
+    COMPLETENESS, not to give away the answer). Reveals the genre of the
+    fact, never the fact itself."""
     g = gold_answer.strip()
     if any(ch.isdigit() for ch in g) and len(g) <= 12:
         return "a short date or numeric value"
@@ -296,10 +304,10 @@ def main() -> None:
             question = item["question"]
             gold_answer = item["gold_answer"]
 
-            # Один retrieval на вопрос, переиспользуется во всех 5
-            # вариантах - иначе разные варианты могли бы (в принципе)
-            # видеть разный context_text, что сломало бы ablation
-            # ("меняется ТОЛЬКО формулировка промпта").
+            # One retrieval per question, reused across all 5 variants -
+            # otherwise different variants could (in principle) see
+            # different context_text, which would break the ablation
+            # ("ONLY the prompt wording changes").
             call = search_fn(question)
             context_text = build_context_block(list(call.candidates))
             context_ids = sorted(call.context_ids)
@@ -334,9 +342,9 @@ def main() -> None:
                 print(f"  [{n_calls}] {question_id} / {variant} -> sufficient={parsed.sufficient}")
 
     elapsed = time.perf_counter() - t_start
-    print(f"\nГотово за {elapsed:.0f}с, {n_calls} новых вызовов assessor'а в этой сессии.")
+    print(f"\nDone in {elapsed:.0f}s, {n_calls} new assessor call(s) this session.")
 
-    print("\nСводка sufficient=yes по вариантам (ориентир, НЕ статистический вывод при n=5):")
+    print("\nSummary of sufficient=yes by variant (a reference point, NOT a statistical conclusion at n=5):")
     for variant in VARIANTS:
         rows = [r for r in done.values() if r["variant"] == variant]
         n_yes = sum(1 for r in rows if r["sufficient"])
@@ -345,9 +353,9 @@ def main() -> None:
     verify_run_files(run_dir, {"diagnostic_results.jsonl": len(eval_items) * len(VARIANTS)})
     print(f"\n{'=' * 70}\nSAVED TO PERSISTENT STORAGE: {run_dir.resolve()}\n{'=' * 70}\n")
     print(
-        "Следующий шаг - НЕ автоматический вывод причины из счётчиков выше: прочитать "
-        "raw_response каждой записи (полный текст рассуждения модели сохранён для каждого "
-        "из 20 вызовов) и вынести на внешний экспертный каскад вместе со сводкой sufficient=yes."
+        "Next step - NOT an automatic inference of the cause from the tallies above: read each "
+        "record's raw_response (the model's full reasoning text is saved for each of the 20 "
+        "calls) and bring it to the external expert cascade together with the sufficient=yes summary."
     )
 
 

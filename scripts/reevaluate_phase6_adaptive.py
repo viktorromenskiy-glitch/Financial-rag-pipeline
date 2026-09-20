@@ -1,55 +1,57 @@
-"""Раздел 8 плана исправления judge-калибровки (внутренние рабочие материалы,
-не в этом репозитории), пункты 4 и 7 вместе, по прямому указанию пользователя
-(2026-08-26): переоценка всех
-существующих 750 ответов Фазы 6 (250 вопросов x 3 варианта промпта -
-baseline_phase6 / cite_and_check_phase6 / formula_base_phase6) улучшенной
-процедурой судейства - БЕЗ повторной генерации, только пересуд уже
-сохранённых answer_text из predictions.jsonl (пункт 4).
+"""Section 8 of the judge-calibration fix plan (internal working materials,
+not in this repository), points 4 and 7 together, per the user's direct
+instruction (2026-08-26): re-evaluate all
+existing 750 Phase 6 answers (250 questions x 3 prompt variants -
+baseline_phase6 / cite_and_check_phase6 / formula_base_phase6) with an
+improved judging procedure - WITHOUT re-generating anything, only re-judging
+the answer_text already saved in predictions.jsonl (point 4).
 
-Процедура судейства - адаптивная схема, эмпирически обоснованная пилотом
-Track A (§12.3 документа), а не наивное "K вызовов на каждый ответ":
+Judging procedure - an adaptive scheme, empirically grounded in the Track A
+pilot (doc section 12.3), not a naive "K calls per answer":
 
-    1. 3 независимых вызова судьи на ответ.
-    2. Если все 3 совпали - использовать этот вердикт, остановиться
+    1. 3 independent judge calls per answer.
+    2. If all 3 agree - use that verdict, stop
        (K_used=3).
-    3. Если хотя бы один разошёлся - эскалировать до 15 вызовов именно на
-       этот ответ, взять большинство из всех 15 (K_used=15).
+    3. If at least one disagrees - escalate to 15 calls specifically for
+       that answer, take the majority of all 15 (K_used=15).
 
-И 3, и 15 - нечётные, ничьих в большинстве не бывает по построению.
+Both 3 and 15 are odd, so ties in the majority are impossible by construction.
 
-Пункт 7 (логирование) - применён в той мере, в какой это реально
-восстановимо задним числом для УЖЕ сгенерированных ответов:
+Point 7 (logging) - applied to the extent it is actually
+recoverable after the fact for answers that were ALREADY generated:
 
-- ПОЛНЫЙ сырой ответ судьи на КАЖДЫЙ отдельный вызов (не только
-  разобранный verdict/judge_correct, как было в Фазе 6) - записывается
-  в raw_draws.jsonl. Раньше это не логировалось вообще (пробел, отмеченный
-  при одной из внешних рецензий - без сырых ответов нельзя было проверить
-  гипотезу о влиянии длины рассуждения судьи на стабильность).
-- Длина answer_text (в символах) и флаг INSUFFICIENT_CONTEXT - доступны
-  уже сейчас, из committed predictions.jsonl, включены в
-  reeval_summary.jsonl для последующей post-hoc диагностики (пункт 5,
-  отдельный, ещё не выполненный шаг).
-- НЕ восстановимо задним числом для этих 750 ответов: полный сырой ответ
-  ГЕНЕРАТОРА (predictions.jsonl хранит только короткое извлечённое
-  значение через _extract_final_answer(), сам generation_checkpoint.jsonl
-  не закоммичен в репозиторий) и флаг наличия цитат/формул в рассуждении
-  генератора (то же самое - рассуждение нигде не сохранено). Это
-  применимо только к БУДУЩИМ прогонам генерации и требует отдельного,
-  не сделанного здесь изменения pipeline/generation.py - не часть этого
-  скрипта и не часть пункта 4.
+- The FULL raw judge response for EVERY individual call (not just
+  the parsed verdict/judge_correct, as in Phase 6) - is written
+  to raw_draws.jsonl. This was not logged at all before (a gap flagged
+  during one of the external reviews - without raw responses there was
+  no way to test the hypothesis that the length of the judge's reasoning
+  affects stability).
+- answer_text length (in characters) and the INSUFFICIENT_CONTEXT flag -
+  are already available now, from the committed predictions.jsonl, and
+  are included in reeval_summary.jsonl for later post-hoc diagnostics
+  (point 5, a separate, not-yet-done step).
+- NOT recoverable after the fact for these 750 answers: the full raw
+  GENERATOR response (predictions.jsonl only stores the short extracted
+  value via _extract_final_answer(); generation_checkpoint.jsonl itself
+  is not committed to the repository) and whether the generator's
+  reasoning contained citations/formulas (same issue - the reasoning was
+  never saved anywhere). This applies only to FUTURE generation runs and
+  requires a separate change to pipeline/generation.py that is not made
+  here - not part of this script and not part of point 4.
 
-JUDGE_PROMPT (pipeline/evaluation.py) не использует {context} в тексте,
-отправляемом модели - контекст ретрива восстанавливать не нужно и он не
-нужен для пересуда (тот же факт, что уже использован в
+JUDGE_PROMPT (pipeline/evaluation.py) does not use {context} in the text
+sent to the model - retrieval context does not need to be reconstructed
+and is not needed for re-judging (the same fact already used in
 run_reliability_pilot.py).
 
-Резюме по деньгам, чтобы не запускать вслепую: минимум 750x3=2250
-вызовов судьи (если бы вообще ничего не эскалировало), реально больше на
-число эскалаций x12 каждая - точное число заранее не известно, зависит от
-того, сколько из 750 ответов окажутся спорными. Прогресс печатается по
-ходу, скрипт resume-safe на случай обрыва рантайма.
+Cost summary, so as not to run this blind: at minimum 750x3=2250
+judge calls (if nothing escalated at all), realistically more by the
+number of escalations x12 each - the exact number is not known in
+advance, it depends on how many of the 750 answers turn out to be
+contested. Progress is printed as it goes, and the script is resume-safe
+in case the runtime is interrupted.
 
-Usage (Colab, после обычных ячеек mount Drive + .env):
+Usage (Colab, after the usual mount Drive + .env cells):
     !python scripts/reevaluate_phase6_adaptive.py
 """
 
@@ -67,11 +69,11 @@ VARIANTS = ["baseline_phase6", "cite_and_check_phase6", "formula_base_phase6"]
 K_INITIAL = 3
 K_FULL = 15
 
-# Тот же баг, что уже дважды случался в проекте (check_environment.py,
-# analyze_generation_failures.py, и в первой версии run_reliability_pilot.py -
-# см. внутренние рабочие правила проекта, раздел 4): load_config()/build_clients()
-# вызываются напрямую, минуя pipeline.cli.main(), поэтому .env нужно читать
-# явно здесь.
+# The same bug that has already happened twice in this project
+# (check_environment.py, analyze_generation_failures.py, and in the first
+# version of run_reliability_pilot.py - see the project's internal working
+# rules, section 4): load_config()/build_clients() are called directly,
+# bypassing pipeline.cli.main(), so .env needs to be read explicitly here.
 try:
     from dotenv import load_dotenv
 
@@ -89,10 +91,10 @@ config = load_config(CONFIG_PATH)
 clients = cli.build_clients(config)
 judge = cli.ClaudeJudge(clients["anthropic"], config.judge.model, config.judge.temperature)
 
-# Собрать все 750 элементов: predictions.jsonl (question/answer_text/gold)
-# + eval_results.jsonl (original_judge_correct, для прямого регрессионного
-# сравнения "было/стало" - внутренние рабочие правила проекта, раздел 4,
-# "регрессионный анализ после каждого значимого изменения").
+# Collect all 750 items: predictions.jsonl (question/answer_text/gold)
+# + eval_results.jsonl (original_judge_correct, for a direct "before/after"
+# regression comparison - the project's internal working rules, section 4,
+# "regression analysis after every significant change").
 items: list[dict] = []
 for variant in VARIANTS:
     preds_path = Path("results") / variant / "predictions.jsonl"
@@ -131,17 +133,17 @@ print(f"Loaded {len(items)} items across {len(VARIANTS)} variants (expected {250
 if len(items) != 250 * len(VARIANTS):
     raise RuntimeError(f"Expected exactly {250 * len(VARIANTS)} items (250 per variant), got {len(items)} - stopping before spending anything.")
 
-# Пишем чекпоинты (raw_draws.jsonl) СРАЗУ на Drive, не на локальный
-# эфемерный диск с последующим копированием в конце - в отличие от
-# run_reliability_pilot.py (600 вызовов, короткий прогон). Здесь прогон
-# на порядок больше (2250+ вызовов) и реально уже один раз оборвался
-# посреди выполнения (Colab-рантайм слетел на 1758-м вызове) - локальный
-# чекпоинт пропал целиком, потому что /content не переживает перезапуск
-# рантайма, а копирование на Drive (save_run_to_drive) происходило только
-# в самом конце. find_canonical_root() всё равно подтверждает, что мы
-# пишем именно в сконфигурированный корень, а не в похожую по имени
-# директорию (правило раздела 1, пп.4-5) - просто без отдельного шага
-# копирования после.
+# Write checkpoints (raw_draws.jsonl) DIRECTLY to Drive, not to a local
+# ephemeral disk with copying at the end afterward - unlike
+# run_reliability_pilot.py (600 calls, a short run). Here the run is an
+# order of magnitude larger (2250+ calls) and has in fact already been
+# interrupted once mid-run (the Colab runtime died on call #1758) - the
+# local checkpoint was lost entirely, because /content does not survive a
+# runtime restart, and copying to Drive (save_run_to_drive) only happened
+# at the very end. find_canonical_root() still confirms that we are
+# writing to the actually configured root, not a similarly-named
+# directory (section 1 rule, points 4-5) - just without a separate copy
+# step afterward.
 drive_root = find_canonical_root(config.persistence.google_drive_results_dir)
 run_dir = drive_root / RUN_ID
 run_dir.mkdir(parents=True, exist_ok=True)
@@ -289,17 +291,17 @@ verify_run_files(
 )
 print(f"Verified: raw_draws.jsonl has {total_raw_expected} records, reeval_summary.jsonl has {total_items} records.")
 
-# Уже на Drive (писали туда с первого вызова) - отдельного шага
-# копирования нет, поэтому здесь просто громко печатаем финальный
-# абсолютный путь (правило раздела 1, п.6), как обычно делает
-# save_run_to_drive() в других скриптах.
+# Already on Drive (we wrote there from the very first call) - there is
+# no separate copy step, so here we just loudly print the final
+# absolute path (section 1 rule, point 6), as save_run_to_drive() usually
+# does in other scripts.
 resolved_run_dir = run_dir.resolve()
 print(f"\n{'=' * 70}\nSAVED TO PERSISTENT STORAGE (written directly during the run): {resolved_run_dir}\n{'=' * 70}\n")
 
 print(
-    f"\nПереоценка (пункт 4) и логирование судейских черновиков (пункт 7, "
-    f"в восстановимой задним числом части) завершены. Следующие, ещё НЕ "
-    f"выполненные шаги плана: пункт 5 (post-hoc диагностика по "
-    f"answer_length_chars/insufficient_context из results/{RUN_ID}/reeval_summary.jsonl, "
-    f"бесплатно) и пункт 6 (формальный пересчёт McNemar на new_judge_correct)."
+    f"\nRe-evaluation (item 4) and judge-draft logging (item 7, the part that's "
+    f"recoverable after the fact) are complete. Remaining, NOT YET done plan "
+    f"steps: item 5 (post-hoc diagnostics on "
+    f"answer_length_chars/insufficient_context from results/{RUN_ID}/reeval_summary.jsonl, "
+    f"free) and item 6 (a formal McNemar recompute on new_judge_correct)."
 )

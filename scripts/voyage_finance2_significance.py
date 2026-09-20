@@ -197,7 +197,7 @@ def main() -> None:
         )
 
     print("\n" + "=" * 70)
-    print("ИТОГ v2: McNemar's exact test, full T2-RAGBench stratified sample")
+    print("SUMMARY v2: McNemar's exact test, full T2-RAGBench stratified sample")
     print("=" * 70)
     report(merged, "Overall")
     for source, g in merged.groupby("source"):

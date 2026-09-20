@@ -1,6 +1,6 @@
-"""Фаза 6: run one A/B variant of the generation prompt
+"""Phase 6: run one A/B variant of the generation prompt
 (docs/tehnicheskoe_zadanie.md, section 28), then verify and save the
-result per "Правила сохранения долгих платных прогонов" (project doc,
+result per "Rules for saving long paid runs" (project doc,
 2026-08-24) via pipeline.common.persist - not a hand-rolled Drive-copy
 cell written from memory (that's exactly how incident 2 in
 pipeline/common/persist.py's module docstring happened).

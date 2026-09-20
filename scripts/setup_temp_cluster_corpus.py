@@ -1,6 +1,6 @@
 """Step 1 of the full-corpus reranker+enrichment validation
-(docs/tehnicheskoe_zadanie.md, section 5, "Открытый риск, не закрытый
-тестами").
+(docs/tehnicheskoe_zadanie.md, section 5, "Open risk, not closed by
+tests").
 
 Copies the already-indexed corpus (context_id, raw_content,
 contextual_summary, metadata_prefix, source_dataset - NOT embedding_voyage,
@@ -17,7 +17,7 @@ embeddings there:
 
 Why NOT reuse production's existing embedding_voyage field for the
 "enriched" arm: since per-dataset embedding routing shipped
-(tehnicheskoe_zadanie.md, п.3a), embedding_voyage is no longer a single
+(tehnicheskoe_zadanie.md, section 3a), embedding_voyage is no longer a single
 model across the whole corpus - TAT-DQA documents hold voyage-finance-2
 vectors, everything else holds voyage-4. Reusing it as-is here would
 silently mix two incompatible vector spaces into one $vectorSearch index
