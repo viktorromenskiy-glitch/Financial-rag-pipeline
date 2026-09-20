@@ -3,7 +3,7 @@
 Validates the pipeline configuration once, at startup, before the first
 external API call - a typo or missing field should fail immediately with
 a clear error, not surface as a confusing partial failure hours into a
-full-corpus run. See docs/struktura_repozitoriya.md, "Конфиг-файл
+full-corpus run. See docs/struktura_repozitoriya.md, "Config file
 (config/config.yaml)".
 """
 
@@ -53,7 +53,7 @@ class MongoDBConfig(BaseModel):
 
 
 class EmbeddingRoutingConfig(BaseModel):
-    """Per-dataset embedding routing (docs/tehnicheskoe_zadanie.md, п.3a,
+    """Per-dataset embedding routing (docs/tehnicheskoe_zadanie.md, section 3a,
     2026-08-15) - added after a direct A/B test (McNemar's exact test,
     n=2500/source_dataset, full 7318-document corpus) found voyage-finance-2
     measurably helps TAT-DQA retrieval but hurts ConvFinQA and gives no
@@ -173,7 +173,7 @@ class GenerationConfig(BaseModel):
 
     model: str
     temperature: float = Field(ge=0.0, le=1.0)
-    # Фаза 5 (docs/tehnicheskoe_zadanie.md, section 28): selects a key of
+    # Phase 5 (docs/tehnicheskoe_zadanie.md, section 28): selects a key of
     # pipeline.generation.PROMPT_TEMPLATE_VARIANTS. Defaults to
     # "baseline" (the production PROMPT_TEMPLATE, unchanged) so existing
     # config.yaml files and every prior saved run keep working without
@@ -243,9 +243,9 @@ class AgentConfig(BaseModel):
     runs its one mandatory search and evidence assessment, but never
     reformulates).
 
-    max_wall_clock_seconds (День 2, plan_rabot_posle_ekspertizy_agent_profil.md,
-    "Глобальные предохранители: максимум токенов / wall-clock / стоимость
-    на прогон"): an optional per-QUESTION safety limit passed straight
+    max_wall_clock_seconds (Day 2, plan_rabot_posle_ekspertizy_agent_profil.md,
+    "Global safeguards: maximum tokens / wall-clock / cost per run"): an
+    optional per-QUESTION safety limit passed straight
     through to agent.loop.run_agent_query's max_wall_clock_seconds param -
     see that function's docstring for exactly when it is checked. None
     (the default) disables it entirely, so every config file written
@@ -255,7 +255,7 @@ class AgentConfig(BaseModel):
 
     enable_deictic_entity_guard: gates agent.loop.run_agent_query's
     deictic/entity guard (see claude/itog_ekspertizy_cuad_overrefusal_fix.md,
-    "Что осталось сделать", item 1, and agent/loop.py's
+    "What remains to be done", item 1, and agent/loop.py's
     _deictic_entity_guard_should_block docstring for the full rationale
     and the empirical false-positive check behind it). Default False -
     same backward-compatible pattern as max_wall_clock_seconds above:
@@ -273,9 +273,9 @@ class AgentConfig(BaseModel):
 class AgentEvalConfig(BaseModel):
     """Global safety limits for a whole Day 2 agent-evaluation harness run
     (scripts/run_agent_eval.py) - plan_rabot_posle_ekspertizy_agent_profil.md,
-    День 2: "Глобальные предохранители: максимум токенов / wall-clock /
-    стоимость на прогон" plus "Зафиксировать заранее бюджет
-    evaluation-прогона (число LLM-вызовов × стоимость)".
+    Day 2: "Global safeguards: maximum tokens / wall-clock / cost per run"
+    plus "Fix the evaluation run's budget in advance (number of LLM calls x
+    cost)".
 
     Distinct from AgentConfig.max_wall_clock_seconds above, which caps a
     single question's loop, not the whole run - see agent/safety.py's
@@ -335,7 +335,7 @@ class PersistenceConfig(BaseModel):
             matters and where it is consumed.
     """
 
-    # "Правила сохранения долгих платных прогонов" (project doc,
+    # "Rules for saving long, paid runs" (project doc,
     # 2026-08-24): THE canonical persistent-storage root, set once here,
     # not retyped in any Colab cell/script. pipeline/common/persist.py's
     # find_canonical_root()/save_run_to_drive() read it from here.
@@ -387,7 +387,7 @@ class PipelineConfig(BaseModel):
     # and config_formula_base.yaml - written before agent/ existed - keep
     # loading unchanged, same convention as persistence's default above.
     agent: AgentConfig = Field(default_factory=lambda: AgentConfig(max_additional_tool_calls=2))
-    # День 2 - see AgentEvalConfig's docstring for the default values'
+    # Day 2 - see AgentEvalConfig's docstring for the default values'
     # rationale. Same "defaults so old config files keep loading
     # unchanged" convention as `agent` above.
     agent_eval: AgentEvalConfig = Field(default_factory=AgentEvalConfig)

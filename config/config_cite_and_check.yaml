@@ -1,12 +1,12 @@
-# Фаза 5 A/B-вариант (docs/tehnicheskoe_zadanie.md, section 28): идентичен
-# config.yaml во всём, кроме generation.prompt_variant. Используется в
-# Фазе 6 для парного прогона против baseline тем же способом:
+# Phase 5 A/B variant (docs/tehnicheskoe_zadanie.md, section 28): identical
+# to config.yaml in everything except generation.prompt_variant. Used in
+# Phase 6 for a paired run against baseline the same way:
 #   python -m pipeline.cli eval --config config/config_cite_and_check.yaml \
 #     --questions data/t2-ragbench/eval_subset_250.parquet --run-id <...>
-# Таргет: категории A/D/B/H/J таксономии (docs/tehnicheskoe_zadanie.md, section 27) — 19/25 (76%).
+# Target: taxonomy categories A/D/B/H/J (docs/tehnicheskoe_zadanie.md, section 27) - 19/25 (76%).
 
 mongodb:
-  uri: ${MONGODB_URI}                 # из .env, не хардкод
+  uri: ${MONGODB_URI}                 # from .env, not hardcoded
   db_name: "rag_project"
   collection_name: "t2_ragbench_full"
   vector_index_name: "vector_index_full"
@@ -16,15 +16,15 @@ embedding:
   model: "voyage-4"
   batch_size: 32
   routing:
-    enabled: true                     # per-dataset embedding routing — см. tehnicheskoe_zadanie.md п.3a (добавлено 2026-08-15)
+    enabled: true                     # per-dataset embedding routing - see tehnicheskoe_zadanie.md, section 3a (added 2026-08-15)
     finance_model: "voyage-finance-2"
-    routed_sources: ["TAT-DQA"]       # только TAT-DQA (Recall@5 +1.9pp, McNemar p=0.0005, n=2500) — ConvFinQA (-1.9pp, p=0.0000) и FinQA (-0.9pp, не устойчиво) остаются на embedding.model
+    routed_sources: ["TAT-DQA"]       # TAT-DQA only (Recall@5 +1.9pp, McNemar p=0.0005, n=2500) - ConvFinQA (-1.9pp, p=0.0000) and FinQA (-0.9pp, not stable) stay on embedding.model
 
 enrichment:
-  enabled: true                       # решение подтверждено 2026-08-18 полнокорпусным тестом (n=900, tehnicheskoe_zadanie.md п.5): эффект enrichment+reranker вместе не обнаружен на уровне ≥2пп (Δ=+0.1пп, McNemar p=1.0), но и вреда не показано — единственный значимый измеренный эффект остаётся +0.78пп без reranker'а на уменьшенном корпусе (n=1535, p=0.0164); стоимость на весь корпус умеренная (~$10), оснований выключать по умолчанию нет
+  enabled: true                       # decision confirmed 2026-08-18 by the full-corpus test (n=900, tehnicheskoe_zadanie.md, section 5): no effect from enrichment+reranker together was detected at the >=2pp level (delta=+0.1pp, McNemar p=1.0), but no harm was shown either - the only significant measured effect remains +0.78pp without the reranker on the reduced corpus (n=1535, p=0.0164); the cost over the full corpus is moderate (~$10), so there's no reason to disable it by default
   model: "claude-haiku-4-5-20251001"
   temperature: 0.0
-  prompt_version: "v1"                # часть ключа кэша судьи и run_config.json — см. ТЗ п.8/п.11
+  prompt_version: "v1"                # part of the judge cache key and run_config.json - see tehnicheskoe_zadanie.md, section 8/section 11
 
 retrieval:
   pool_size: 50
@@ -41,7 +41,7 @@ reranker:
 generation:
   model: "claude-sonnet-5"
   temperature: 0.0
-  prompt_variant: "cite_and_check"     # Фаза 5 — см. pipeline/generation.py, PROMPT_TEMPLATE_CITE_AND_CHECK
+  prompt_variant: "cite_and_check"     # Phase 5 - see pipeline/generation.py, PROMPT_TEMPLATE_CITE_AND_CHECK
 
 judge:
   model: "claude-sonnet-5"
@@ -53,7 +53,7 @@ retry:
   stop_after_attempt: 5
   wait_min_seconds: 1
   wait_max_seconds: 60
-  # ретраить только transient-ошибки (429/5xx/timeout), не 4xx — см. ТЗ п.11
+  # retry only transient errors (429/5xx/timeout), not 4xx - see tehnicheskoe_zadanie.md, section 11
 
 persistence:
   google_drive_results_dir: "/content/drive/MyDrive/RAG-project/results"

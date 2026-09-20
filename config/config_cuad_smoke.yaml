@@ -1,28 +1,28 @@
-# День 3 (plan_rabot_posle_ekspertizy_agent_profil.md): CUAD smoke-test config.
+# Day 3 (plan_rabot_posle_ekspertizy_agent_profil.md): CUAD smoke-test config.
 #
-# "Смок-тест на CUAD... без изменения кода агента — только конфигурация
-# retrieval-индекса и индексация новых документов." Этот файл — тот самый
-# конфиг: он не меняет ни одной строки в agent/ или pipeline/, только
-# указывает на ОТДЕЛЬНУЮ MongoDB-коллекцию/индексы, чтобы 4 контракта CUAD
-# ни при каких условиях не попали в основной финансовый корпус
-# (t2_ragbench_full) и не смешались с ним при retrieval.
+# "A CUAD smoke test... without changing any agent code - only retrieval
+# index configuration and indexing new documents." This file is exactly
+# that config: it doesn't change a single line in agent/ or pipeline/, it
+# only points to a SEPARATE MongoDB collection/indexes so the 4 CUAD
+# contracts never end up in the main financial corpus (t2_ragbench_full)
+# under any circumstances, and never get mixed with it during retrieval.
 #
-# embedding.routing.enabled: false — per-dataset routing (voyage-finance-2
-# для TAT-DQA) не имеет смысла для source_dataset="CUAD" (см.
-# pipeline/cuad_smoke.py); при routing.enabled=false
-# pipeline.embedding.resolve_embedding_model всегда возвращает
-# embedding.model независимо от routed_sources, так что оставлять список
-# routed_sources пустым здесь безопасно.
+# embedding.routing.enabled: false - per-dataset routing (voyage-finance-2
+# for TAT-DQA) makes no sense for source_dataset="CUAD" (see
+# pipeline/cuad_smoke.py); with routing.enabled=false,
+# pipeline.embedding.resolve_embedding_model always returns
+# embedding.model regardless of routed_sources, so leaving
+# routed_sources empty here is safe.
 #
-# Все остальные секции (enrichment/retrieval/reranker/generation/judge)
-# СОЗНАТЕЛЬНО совпадают с config/config.yaml — цель смок-теста -
-# проверить робастность УЖЕ ВАЛИДИРОВАННОГО пайплайна на другом домене
-# документов, а не протестировать новую, урезанную конфигурацию.
+# All other sections (enrichment/retrieval/reranker/generation/judge)
+# DELIBERATELY match config/config.yaml - the point of the smoke test is
+# to check the robustness of the ALREADY VALIDATED pipeline on a
+# different document domain, not to test a new, stripped-down config.
 
 mongodb:
   uri: ${MONGODB_URI}
   db_name: "rag_project"
-  collection_name: "cuad_smoke_v1"       # отдельная коллекция — не t2_ragbench_full
+  collection_name: "cuad_smoke_v1"       # a separate collection - not t2_ragbench_full
   vector_index_name: "cuad_smoke_vector_index"
   text_index_name: "cuad_smoke_text_index"
 
@@ -30,12 +30,12 @@ embedding:
   model: "voyage-4"
   batch_size: 32
   routing:
-    enabled: false                       # CUAD не участвует в per-dataset routing (см. выше)
+    enabled: false                       # CUAD doesn't take part in per-dataset routing (see above)
     finance_model: "voyage-finance-2"
     routed_sources: []
 
 enrichment:
-  enabled: true                          # то же значение, что в продакшн-конфиге — см. заметку выше
+  enabled: true                          # same value as in the production config - see the note above
   model: "claude-haiku-4-5-20251001"
   temperature: 0.0
   prompt_version: "v1"
@@ -73,11 +73,11 @@ agent:
   enable_deictic_entity_guard: true      # validated specifically against this dataset's 5 real questions - see agent/loop.py's _deictic_entity_guard_should_block docstring and claude/itog_ekspertizy_cuad_overrefusal_fix.md, item 1. Left at the config default (false) in config/config.yaml for now - one variable at a time.
 
 agent_eval:
-  # Меньше вопросов (5, не 20-30), поэтому меньше и предохранители на
-  # весь прогон - см. AgentEvalConfig в config/config_schema.py для
-  # расчёта на 20-30 вопросов; здесь тот же принцип "1 обязательный + до
-  # agent.max_additional_tool_calls дополнительных assessment-вызовов +
-  # 1 генерация" на вопрос, но n=5, а не 20-30.
+  # Fewer questions (5, not 20-30), so the safety limits for the whole run
+  # are smaller too - see AgentEvalConfig in config/config_schema.py for
+  # the sizing at 20-30 questions; the same principle applies here - "1
+  # mandatory + up to agent.max_additional_tool_calls additional
+  # assessment calls + 1 generation" per question, just n=5 instead of 20-30.
   max_llm_calls: 60
   max_wall_clock_seconds: 1200
   max_estimated_cost_usd: 2.0
