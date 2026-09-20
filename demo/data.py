@@ -1,5 +1,5 @@
-"""Static data loader for the minimal demo (plan item 10, "Финальный план
-доработки проекта после экспертизы.docx", п.10).
+"""Static data loader for the minimal demo (plan item 10, "Final project
+remediation plan after the expert review.docx", section 10).
 
 Deliberately does NOT call any external API (MongoDB Atlas, Voyage, Cohere,
 Claude) - the demo replays already-computed, already-audited pipeline
@@ -47,7 +47,7 @@ CURATED_QUESTION_IDS = [
     "tatqa_train_3621",
     # Close miss, off by one — deterministic check passes (within tolerance),
     # judge correctly flags it wrong for a question expecting an exact count
-    # (TZ §14, "близкий промах"; also a judge-stricter-than-deterministic case).
+    # (TZ §14, "close miss"; also a judge-stricter-than-deterministic case).
     "finqa_dev_569",
     # Close miss, wrong period pair averaged — same disagreement pattern.
     "tatqa_train_8832",
