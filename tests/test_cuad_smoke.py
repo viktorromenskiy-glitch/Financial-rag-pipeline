@@ -18,7 +18,7 @@ from pipeline.ingestion import DocumentRecord
 def test_default_fixture_file_exists_and_loads():
     records, eval_items = load_cuad_smoke_fixture()
     assert len(records) == len(eval_items)
-    assert 3 <= len(eval_items) <= 5  # plan: "3-5 вопросов"
+    assert 3 <= len(eval_items) <= 5  # plan: "3-5 questions"
     assert all(isinstance(r, DocumentRecord) for r in records)
 
 

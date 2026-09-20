@@ -75,7 +75,7 @@ def test_wider_confidence_level_gives_a_wider_interval():
     [
         (10, 4, 2, 4),
         (0, 5, 1, 0),
-        (13, 1, 5, 6),  # Kimi's followup example - "минимальное совместимое discordant=6"
+        (13, 1, 5, 6),  # Kimi's followup example - "minimum compatible discordant=6"
         (14, 0, 4, 7),  # Kimi's followup - the true minimum-discordant configuration (discordant=4)
         (5, 8, 8, 5),
     ],

@@ -92,12 +92,12 @@ def test_build_prompt_accepts_a_variant_template():
     assert "FINAL ANSWER:" in prompt
 
 
-# --- Фаза 5 prompt variants (docs/tehnicheskoe_zadanie.md, section 28) ---
+# --- Phase 5 prompt variants (docs/tehnicheskoe_zadanie.md, section 28) ---
 
 
 def test_prompt_template_variants_baseline_is_unmodified_production_template():
     # PROMPT_TEMPLATE_VARIANTS["baseline"] must be the exact same object
-    # as PROMPT_TEMPLATE - a Фаза 5 variant must never silently become
+    # as PROMPT_TEMPLATE - a Phase 5 variant must never silently become
     # the default (see the module docstring's "kept separate on purpose"
     # rationale).
     assert PROMPT_TEMPLATE_VARIANTS["baseline"] is PROMPT_TEMPLATE

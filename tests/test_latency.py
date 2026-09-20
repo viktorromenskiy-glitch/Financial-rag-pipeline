@@ -1,4 +1,4 @@
-"""Tests for pipeline.common.latency (План доработки-2, пункт 2).
+"""Tests for pipeline.common.latency (Follow-up plan 2, item 2).
 
 Covers summarize_latencies' stats (n/mean/median/p95/min/max/total),
 its "no data -> None, not fake 0" convention for an unmeasured stage, and

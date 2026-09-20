@@ -1,5 +1,5 @@
 """Tests for pipeline.common.persist - the save/verify architecture from
-"Правила сохранения долгих платных прогонов" (project doc, 2026-08-24).
+"rules for persisting results of long paid runs" (project doc, 2026-08-24).
 
 Each test targets one specific failure mode from the rule's two real
 incidents: a lost run (no verification before "done"), and a

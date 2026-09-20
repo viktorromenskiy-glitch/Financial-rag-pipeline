@@ -61,7 +61,7 @@ def test_parse_assessment_empty_reformulated_query_value_is_none():
 
 
 def test_parse_assessment_uses_last_marker_not_first():
-    # находка 1 (claude/status_agent_rezultaty_4_nahodki_kod.md): a model
+    # finding 1 (claude/status_agent_rezultaty_4_nahodki_kod.md): a model
     # that reasons out loud before committing can restate or reconsider
     # the marker line more than once. The FIRST occurrence here is a
     # draft the model explicitly reconsiders ("actually...") - only the

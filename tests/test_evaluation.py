@@ -225,7 +225,7 @@ def test_evaluate_answers_without_cache_always_judges():
 
 
 def test_evaluate_answers_latency_sink_records_one_entry_per_real_call():
-    # pipeline/common/latency.py, "План доработки-2, пункт 2": latency_sink
+    # pipeline/common/latency.py, "Follow-up plan 2, item 2": latency_sink
     # must get exactly one entry per actual judge call, never a cache hit.
     judge = FakeJudge(["VERDICT: CORRECT", "VERDICT: INCORRECT"])
     sink: list[float] = []

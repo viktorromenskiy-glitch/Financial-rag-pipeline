@@ -3,7 +3,7 @@
 Every dependency (search_fn, the assessor, the generator) is a plain fake
 - no MongoDB/Voyage/Cohere/Anthropic client involved anywhere in this
 file, so this whole suite runs offline with no real API keys (Day 1
-checklist: "Unit-тесты agent loop с моками retrieval").
+checklist: "Unit tests for the agent loop with retrieval mocks").
 
 Covers the Day 1 checklist items directly: bounded-loop limit
 (test_stops_after_max_additional_tool_calls_reached), the "no new
@@ -106,7 +106,7 @@ def test_uses_reformulated_query_for_next_search():
     assert set(result.context_ids) == {"ctx_a", "ctx_b"}
     assert result.stopped_reason == STOP_SUFFICIENT_EVIDENCE
     assert result.forced_insufficient is False
-    # День 2: context_documents must carry BOTH accumulated documents,
+    # Day 2: context_documents must carry BOTH accumulated documents,
     # including the one that only the reformulated query ("q1") ever
     # returned - a caller re-running search_fn(original_question) alone
     # would silently miss ctx_b, which is exactly the bug this field
@@ -252,7 +252,7 @@ def test_trace_records_forced_insufficient_flag_on_answer_step():
     assert answer_record["forced_insufficient"] is True
 
 
-# --- День 2: global per-question wall-clock safety limit -----------------
+# --- Day 2: global per-question wall-clock safety limit -----------------
 
 
 class _FakeClock:
@@ -349,7 +349,7 @@ def test_stops_on_wall_clock_before_the_first_assessment_ever_runs():
 
 
 def test_stale_assessment_after_wall_clock_stop_is_not_reused_as_sufficient():
-    # находка 4 (claude/status_agent_rezultaty_4_nahodki_kod.md): the
+    # finding 4 (claude/status_agent_rezultaty_4_nahodki_kod.md): the
     # reformulated search after the 2nd assessment DOES find new evidence
     # (accumulated grows to include ctx_2), but the wall clock then trips
     # at the top of the next iteration before a 3rd assessor.assess() call

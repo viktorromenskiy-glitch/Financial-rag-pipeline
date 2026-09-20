@@ -65,7 +65,7 @@ def test_fails_when_both_indexes_are_empty():
 
 
 def test_probe_query_uses_configured_index_names():
-    # Regression guard for the exact bug described in ТЗ §2: the probe
+    # Regression guard for the exact bug described in tehnicheskoe_zadanie.md, section 2: the probe
     # must reference the actual configured index name constants, not a
     # hardcoded/stale string that could silently drift from config.yaml.
     collection = FakeCollection(has_vector_data=True, has_text_data=True)

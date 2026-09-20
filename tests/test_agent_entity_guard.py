@@ -2,7 +2,7 @@
 _deictic_entity_guard_should_block and _deictic_entity_guard_has_named_entity)
 and its wiring into run_agent_query via enable_deictic_entity_guard.
 
-See claude/itog_ekspertizy_cuad_overrefusal_fix.md, "Что осталось сделать",
+See claude/itog_ekspertizy_cuad_overrefusal_fix.md, "What remains to be done",
 item 1, for the design rationale this guard implements: a question that
 combines a deictic reference to "this/that/the contract/agreement/document/
 filing" with nothing else in the text that could identify WHICH document is

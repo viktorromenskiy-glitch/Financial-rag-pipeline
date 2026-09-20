@@ -1,9 +1,9 @@
 """Regression tests reproducing the concrete `is_close_v2` disagreement
-cases documented in docs/tehnicheskoe_zadanie.md, section 14 ("Отдельная
-находка: несогласия LLM-судьи и детерминированной проверки").
+cases documented in docs/tehnicheskoe_zadanie.md, section 14 ("Separate
+finding: disagreements between the LLM judge and the deterministic check").
 
-Why this file exists (plan item 1, "Финальный план доработки проекта после
-экспертизы.docx"): section 14 reports that on the n=250 error-analysis run,
+Why this file exists (plan item 1, "Final project remediation plan after
+the expert review.docx"): section 14 reports that on the n=250 error-analysis run,
 `deterministic_match` (`is_close_v2`) and `judge_correct` disagreed on 15 of
 250 questions (6%), and names two known, *intentionally unfixed* classes of
 inaccuracy in `is_close_v2`:
@@ -17,8 +17,8 @@ inaccuracy in `is_close_v2`:
    cases where `is_close_v2` accepted an answer the judge rejected.
 
 Both are explicitly framed in section 14 as *known limitations to document,
-not to fix now* ("не блокирует текущие headline-метрики ... должно быть
-учтено при следующей ревизии is_close_v2, если она случится"). These tests
+not to fix now* ("does not block the current headline metrics ... should be
+taken into account at the next revision of is_close_v2, should that happen"). These tests
 therefore assert the *current, documented* behavior - they exist so the
 0.760 headline accuracy and the section 14 error taxonomy are reproducible
 and falsifiable by someone else reading the repo, not just trusted on
@@ -49,7 +49,7 @@ import pytest
 from pipeline.common.is_close_v2 import is_close_v2
 
 
-# --- "Судья мягче" (judge softer than is_close_v2): 10 cases ---------------
+# --- "Judge softer" (judge softer than is_close_v2): 10 cases ---------------
 # is_close_v2 -> False (rejects), judge -> True (accepts). These are the
 # documented cases where is_close_v2 fails to recognize a semantically
 # equivalent answer given in a different unit/format.
@@ -101,15 +101,15 @@ def test_judge_softer_cases_not_recognized_by_is_close_v2(
 
 
 def test_judge_softer_case_count_matches_section_14():
-    """Section 14 states this bucket has exactly 10 members ("10 из 15 -
-    судья мягче"); guards against silently dropping/adding a case."""
+    """Section 14 states this bucket has exactly 10 members ("10 of 15 -
+    judge softer"); guards against silently dropping/adding a case."""
     assert len(JUDGE_SOFTER_CASES) == 10
 
 
-# --- "Судья строже" (judge stricter than is_close_v2): 5 cases -------------
+# --- "Judge stricter" (judge stricter than is_close_v2): 5 cases -------------
 # is_close_v2 -> True (accepts), judge -> False (rejects). Section 14 flags
 # 2 of these as the specific x100 (fraction-vs-percentage) over-match
-# pattern ("×100-путаница"), and the remaining 3 as near-tolerance matches
+# pattern ("x100 confusion"), and the remaining 3 as near-tolerance matches
 # (within the default 1% relative tolerance) that the judge nonetheless
 # considered wrong on substance (different period/component selected).
 
@@ -157,12 +157,12 @@ def test_judge_stricter_cases_accepted_by_is_close_v2(
 
 
 def test_judge_stricter_case_count_matches_section_14():
-    """Section 14 states this bucket has exactly 5 members ("5 из 15 -
-    судья строже")."""
+    """Section 14 states this bucket has exactly 5 members ("5 of 15 -
+    judge stricter")."""
     assert len(JUDGE_STRICTER_CASES) == 5
 
 
 def test_total_disagreement_count_matches_section_14():
-    """Section 14: "15 из 250 вопросов (6%)" had deterministic_match !=
+    """Section 14: "15 of 250 questions (6%)" had deterministic_match !=
     judge_correct on the committed error_analysis_250 run."""
     assert len(JUDGE_SOFTER_CASES) + len(JUDGE_STRICTER_CASES) == 15

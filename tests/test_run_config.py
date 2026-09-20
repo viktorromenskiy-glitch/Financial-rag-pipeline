@@ -1,5 +1,5 @@
 """Tests for pipeline.common.run_config.build_run_config's
-generation_prompt_variant field (Фаза 5, docs/tehnicheskoe_zadanie.md
+generation_prompt_variant field (Phase 5, docs/tehnicheskoe_zadanie.md
 section 28) - no test_run_config.py existed before this change, so this
 covers only the piece added here, not the whole module.
 """

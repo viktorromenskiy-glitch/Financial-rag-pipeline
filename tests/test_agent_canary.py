@@ -13,10 +13,10 @@ from agent.canary import CANARY_CASES, CanaryCase, contains_injection_marker
 
 
 def test_exactly_four_canary_cases_with_unique_ids():
-    # Plan wording: "2-3 canary-документа" - this project settled on 3
+    # Plan wording: "2-3 canary documents" - this project settled on 3
     # prompt-injection cases, each targeting a different point in the loop
     # (see module docstring). A 4th, cross-document-confusion case was
-    # added later as V1.1 backlog item "canary на multi-document confusion"
+    # added later as V1.1 backlog item "canary for multi-document confusion"
     # (Qwen's proposal) - the one of that backlog's 3 items the author's
     # review recommended acting on (2026-09-17).
     assert len(CANARY_CASES) == 4

@@ -1,14 +1,14 @@
 """Tests for config/config_schema.py's GenerationConfig.prompt_variant
-(Фаза 5, docs/tehnicheskoe_zadanie.md section 28), PersistenceConfig
-("Правила сохранения долгих платных прогонов", 2026-08-24), and
+(Phase 5, docs/tehnicheskoe_zadanie.md section 28), PersistenceConfig
+("rules for persisting results of long paid runs", 2026-08-24), and
 AgentConfig (agent/, itog_ekspertizy_agent_profil.md - 4-expert design
 review, consensus item 3: the bounded-loop limit must be a config value,
 not a constant in code) - and the config files under config/ that set
 them.
 
 Not a general PipelineConfig test suite - just the pieces added for
-Фаза 5, the persistence rule, and agent/, since no test_config_schema.py
-existed before Фаза 5.
+Phase 5, the persistence rule, and agent/, since no test_config_schema.py
+existed before Phase 5.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from config.config_schema import AgentConfig, AgentEvalConfig, GenerationConfig,
 
 
 def test_generation_config_prompt_variant_defaults_to_baseline():
-    # No prompt_variant given - every config.yaml written before Фаза 5
+    # No prompt_variant given - every config.yaml written before Phase 5
     # must keep working unchanged.
     config = GenerationConfig(model="claude-sonnet-5", temperature=0.0)
     assert config.prompt_variant == "baseline"
@@ -100,7 +100,7 @@ def test_real_config_files_set_max_additional_tool_calls_to_two(monkeypatch, pat
     assert config.agent.max_additional_tool_calls == 2
 
 
-# --- День 2: AgentConfig.max_wall_clock_seconds + AgentEvalConfig --------
+# --- Day 2: AgentConfig.max_wall_clock_seconds + AgentEvalConfig --------
 
 
 def test_agent_config_max_wall_clock_seconds_defaults_to_none():
@@ -120,7 +120,7 @@ def test_agent_config_accepts_zero_max_wall_clock_seconds():
 
 
 def test_agent_eval_config_has_sane_pre_committed_defaults():
-    # "Зафиксировать заранее бюджет evaluation-прогона" (План, День 2) -
+    # "Fix the evaluation-run budget in advance" (Plan, Day 2) -
     # every field must already have a concrete value out of the box, not
     # be left to the person running the harness to decide ad hoc.
     config = AgentEvalConfig()
@@ -168,7 +168,7 @@ def test_real_config_files_load_agent_eval_section(monkeypatch, path):
 
 def test_config_yaml_sets_an_explicit_per_question_wall_clock_limit(monkeypatch):
     # Only config.yaml (the production baseline config) declares this
-    # explicitly, per config.yaml's own comment - the two Фаза 5 variant
+    # explicitly, per config.yaml's own comment - the two Phase 5 variant
     # files intentionally still rely on the None default (they predate
     # agent/ entirely).
     monkeypatch.setenv("MONGODB_URI", "mongodb://fake-for-test")

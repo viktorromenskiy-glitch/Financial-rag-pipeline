@@ -241,7 +241,7 @@ def test_generation_checkpoint_resumes_across_multiple_appends(tmp_path):
 def test_generation_checkpoint_missing_retrieved_docs_defaults_to_empty_list(tmp_path):
     # Backward compatibility: a checkpoint written by a pipeline.cli version
     # before retrieved_docs existed (tehnicheskoe_zadanie.md, section 14,
-    # "Закрыто в коде 2026-08-20") must still be resumable, per
+    # "Closed in code on 2026-08-20") must still be resumable, per
     # _load_generation_checkpoint's docstring.
     path = tmp_path / "generation_checkpoint.jsonl"
     path.write_text(
@@ -300,11 +300,11 @@ def test_retrieval_trace_checkpoint_resumes_across_multiple_appends(tmp_path):
 
 # --- _retrieved_docs_for_prediction -----------------------------------------
 #
-# tehnicheskoe_zadanie.md, section 14, "Ограничение, обязательное к
-# указанию": predictions.jsonl previously didn't record which documents
+# tehnicheskoe_zadanie.md, section 14, "Limitation that must be
+# stated": predictions.jsonl previously didn't record which documents
 # were actually retrieved, so retrieval vs. generation errors couldn't be
 # told apart. This helper is what closes that gap for future runs (see the
-# "Закрыто в коде 2026-08-20" note added to that section).
+# "Closed in code on 2026-08-20" note added to that section).
 
 
 @dataclass

@@ -1,5 +1,5 @@
 """Tests for agent/success.py - the harness-level "successful completion
-rate" definition (День 2, Kimi's followup response on primary metric).
+rate" definition (Day 2, Kimi's followup response on primary metric).
 
 FakeJudge mirrors tests/test_evaluation.py's exactly (per this project's
 per-module test-file convention, no cross-file fake reuse) - no real
@@ -78,7 +78,7 @@ def test_judge_context_insufficiency_fails_safe_to_not_justified_on_malformed_re
 
 
 def test_judge_context_insufficiency_hedged_verdict_is_not_justified():
-    # находка 3 (claude/status_agent_rezultaty_4_nahodki_kod.md,
+    # finding 3 (claude/status_agent_rezultaty_4_nahodki_kod.md,
     # claude/verifikaciya_qwen_substring_bug.md): a hedged/malformed
     # verdict like "NOT JUSTIFIED_REFUSAL" contains "JUSTIFIED_REFUSAL" as
     # a literal substring and does not contain "SHOULD_HAVE_ANSWERED" - a
@@ -229,7 +229,7 @@ def test_answer_insufficient_without_guard_stopped_reason_still_calls_judge():
 
 
 def test_prompt_version_constant_is_a_non_empty_string():
-    # Reproducibility requirement (День 2): a bare version marker must
+    # Reproducibility requirement (Day 2): a bare version marker must
     # exist and be bumpable independently of pipeline.evaluation's own
     # PROMPT_VERSION - see agent/run_metadata.py.
     assert isinstance(INSUFFICIENCY_JUDGE_PROMPT_VERSION, str) and INSUFFICIENCY_JUDGE_PROMPT_VERSION

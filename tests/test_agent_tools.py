@@ -88,7 +88,7 @@ def test_search_documents_rejects_empty_query():
 
 
 def test_search_documents_rejects_reranker_enabled_with_no_cohere_client_when_candidates_exist():
-    # находка 2 (claude/status_agent_rezultaty_4_nahodki_kod.md): this
+    # finding 2 (claude/status_agent_rezultaty_4_nahodki_kod.md): this
     # combination used to fall through to the unreranked branch and
     # return a normal-looking, degraded=False result instead of surfacing
     # the misconfiguration. Raises now, once retrieve() has actually
@@ -104,7 +104,7 @@ def test_search_documents_reranker_enabled_with_no_cohere_client_is_harmless_whe
     # The counterpart to the test above: when retrieve() legitimately
     # returns nothing, cohere_client=None is never a bug regardless of
     # reranker_enabled - there is nothing to rerank either way, and this
-    # is exactly the shape of call several Day 1/День 2 tests below rely
+    # is exactly the shape of call several Day 1/Day 2 tests below rely
     # on (degraded defaults, empty retrieval, transient failures).
     voyage = FakeVoyageClient()
     collection = FakeCollection(results=[])
@@ -179,7 +179,7 @@ def test_search_documents_query_is_echoed_back_on_the_result():
 
 def test_search_documents_default_degraded_is_false():
     # Day 1 call sites/tests never pass degraded=/degradation_reason= -
-    # the День 2 fields must default to "not degraded" so nothing above
+    # the Day 2 fields must default to "not degraded" so nothing above
     # breaks.
     voyage = FakeVoyageClient()
     collection = FakeCollection(results=[])
@@ -188,7 +188,7 @@ def test_search_documents_default_degraded_is_false():
     assert result.degradation_reason is None
 
 
-# --- День 2: graceful degradation on a transient MongoDB/Cohere failure --
+# --- Day 2: graceful degradation on a transient MongoDB/Cohere failure --
 #
 # agent.tools.retrieve/agent.tools.rerank are monkeypatched directly here
 # (rather than making FakeCollection.aggregate/FakeCohereClient.rerank
