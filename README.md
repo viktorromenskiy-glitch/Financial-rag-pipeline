@@ -4,6 +4,8 @@ Measurement-Driven Financial RAG
 
 A financial-document RAG pipeline (text + tables) validated through paired statistical testing and power analysis, not intuition. Hybrid search, contextual enrichment, reranking, and LLM-judge evaluation — built and evaluated end-to-end on 7,300+ real financial filings requiring precise numeric answers.
 
+**Short case study (one page, with the live demo link):** [CASE_STUDY.md](CASE_STUDY.md)
+
 At a glance
 
 | Metric | Value |
