@@ -37,4 +37,4 @@ Retrieval beats the closest published comparison by 11–13 percentage points (d
 
 If you need question answering over financial or other numeric-heavy documents, I can adapt this pipeline to your data, measure it on your questions and report accuracy and cost per question.
 
-Viktor Romenskiy · viktorromenskiy@gmail.com · [GitHub](https://github.com/viktorromenskiy-glitch)
+Viktor Romenskiy · [GitHub](https://github.com/viktorromenskiy-glitch)
