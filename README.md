@@ -14,7 +14,7 @@ At a glance
 | End-to-end accuracy | 76.0% (n=250, LLM judge + deterministic numeric check) |
 | Retrieval Recall@5 | 94.4% (n=900, full corpus) |
 | Hard-negative pairwise accuracy | 95.1% – 100.0% (n=571 forced pairwise comparisons) |
-| Cost per question | ~$0.016 |
+| Cost per question | ~$0.016 (calculated estimate from published prices, not measured billing) |
 | Automated tests | 464, 35 files, zero paid API calls (315/23 flagship pipeline + 149/12 agent/ extension incl. CUAD smoke — see Workflow below) |
 
 Business summary
